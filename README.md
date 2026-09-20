@@ -6,14 +6,6 @@ Aside Liquid Glass provides chat, live browser viewing, local browser-history se
 
 Android can run as a native Capacitor app with an embedded GeckoView browser; iPhone and Android can also install the same interface as a home-screen web app.
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/screenshots/home.png" width="260" alt="Aside Mobile home screen"></td>
-    <td align="center"><img src="docs/screenshots/recents.png" width="260" alt="Aside Mobile recent sessions"></td>
-    <td align="center"><img src="docs/screenshots/chat.png" width="260" alt="Aside Mobile chat thread"></td>
-  </tr>
-</table>
-
 ## Security model
 
 - The app server binds to `127.0.0.1`; Tailscale Serve is the only remote entry point.
