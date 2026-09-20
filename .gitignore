@@ -1,0 +1,70 @@
+# --- credentials and per-machine state -----------------------------------
+# config.json holds the bot token and the owner's chat id. Never commit it.
+# The Mini App's HS256 signing secret. It is generated into the bridge's
+# state directory (chmod 600) rather than here, but a MINIAPP_SECRET_PATH
+# pointed inside the repo must not be able to leak it.
+miniapp-secret.json
+# Per-install Mini App state: the owner's chosen defaults and the list of
+# sessions running the soft-confirm protocol. Neither is shareable and
+# both used to be untracked-but-not-ignored, so a `git add -A` would have
+# committed them.
+miniapp-settings.json
+miniapp-soft-confirm.json
+.env
+.env.*
+
+# --- logs ----------------------------------------------------------------
+*.log
+*.log.1
+
+# --- runtime data --------------------------------------------------------
+# Photos and documents that arrived over Telegram, and files uploaded from
+# the phone through the Mini App. Both are the owner's own files.
+miniapp-uploads/
+# The downloaded cloudflared binary and the marker recording what it was
+# verified against.
+bin/
+backups/
+
+# --- build output --------------------------------------------------------
+node_modules/
+dist/
+__pycache__/
+*.pyc
+
+# --- local-only tooling, not part of the published project ---------------
+.DS_Store
+# A stray nested checkout of this same repo; never part of a release.
+# Scratch harness used to render the web app at phone size during review.
+miniapp/web/dist/__preview.html
+
+# --- Tailscale runtime state ---------------------------------------------
+# Holds the node's private key and the Let's Encrypt certificate plus its
+# PRIVATE KEY for this machine's tailnet hostname. Committing any of it
+# would hand over the ability to impersonate this host. It is per-machine
+# state that a clone regenerates on first run, so nothing is lost by
+# excluding it.
+tailscale/state/
+tailscale/*.log
+ts.sock
+
+# --- agent working notes --------------------------------------------------
+# Handoff/state scratch written while building. Machine-specific and
+# uninteresting to anyone cloning this.
+HANDOFF.md
+# Any certificate or private key, wherever it lands. These are per-machine
+# and a committed .key is a handover of this host's identity.
+*.key
+*.crt
+*.pem
+*.p12
+
+# --- large build artifacts and downloaded models --------------------------
+# The whisper model is 547MB and the APK is ~100MB, both over GitHub's
+# 100MB per-file limit. Neither belongs in source control: the model is
+# downloaded on demand and the APK is the output of build-android.sh.
+models/
+apk/
+*.apk
+*.aab
+*.bin

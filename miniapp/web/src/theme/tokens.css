@@ -1,0 +1,869 @@
+/*
+ * Aside's design tokens, recreated.
+ *
+ * These values are transcribed from the Aside sidepanel's own stylesheet so
+ * the Mini App reads as the same product rather than a lookalike. The
+ * system is deliberately near-neutral: almost every surface, border and
+ * muted text colour is black or white at a low alpha over the background.
+ * That is why the previous icy-blue palette read wrong -- Aside has no
+ * blue washes. the owner's warm orange is the only chromatic family and is
+ * distributed through marks, live state, links, selections and controls.
+ *
+ * Fonts: Aside ships proprietary "Aside Display" and "Berkeley Mono" faces.
+ * We do not bundle those -- the stacks below name them first so they are
+ * picked up where they already exist, and fall through to Geist / Geist
+ * Mono, which we do bundle from npm.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* --- type ---------------------------------------------------------- */
+  --font-sans: 'Geist Variable', 'Geist', 'Inter', -apple-system,
+    BlinkMacSystemFont, sans-serif;
+  /*
+   * Geist Mono leads now. It is the face we actually bundle, so it is the
+   * one that renders on every phone; Berkeley Mono stays in the ladder for
+   * the desktop-class machines that have it licensed, but it no longer
+   * decides what the app looks like by default.
+   */
+  --font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace,
+    SFMono-Regular, 'Berkeley Mono', Menlo, monospace;
+  --font-display: 'Aside Display', 'Geist Variable', 'Geist', sans-serif;
+  /*
+   * The one serif in the app, used for the home greeting and nothing else.
+   *
+   * Nothing is bundled for it on purpose. `ui-serif` resolves to New York
+   * on iOS and macOS, which is where this app actually runs, and New York
+   * is a genuinely good text serif -- a far better result than shipping
+   * another ~40KB of webfont for six words. The rest of the stack is the
+   * usual fallback ladder for everywhere else.
+   */
+  --font-serif: 'Aside Display', ui-serif, 'New York', 'Iowan Old Style',
+    Palatino, Georgia, serif;
+  /*
+   * The reading face, for answers rather than for headlines.
+   *
+   * This was a serif (`ui-serif`, New York) on the argument that a
+   * different KIND of face marks the agent's writing as something to read
+   * rather than something to operate. the owner read long answers in it on the
+   * phone and preferred ChatGPT's sans outright, which settles it: the
+   * reading face answers to the person reading, not to the theory.
+   *
+   * The stack is the one ChatGPT actually ships, measured in its own DOM
+   * rather than guessed: `-apple-system-body, ui-sans-serif, -apple-system,
+   * system-ui, 'Segoe UI', Helvetica, Arial, sans-serif`. Leading with the
+   * system face is the whole point -- it resolves to SF Text on iOS and
+   * Roboto on Android, both hinted for body copy at phone sizes, both
+   * already resident, nothing downloaded. `-apple-system-body` additionally
+   * opts into the iOS Dynamic Type body size, so a reader who has raised
+   * the system text size gets it here too.
+   *
+   * UI furniture stays on Geist (`--font-sans`). Two grotesques a hair
+   * apart is invisible; the split that mattered was serif against sans,
+   * and that one is deliberately gone.
+   */
+  --font-prose: -apple-system-body, ui-sans-serif, -apple-system, system-ui,
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* --- palette (only the ramps we use) -------------------------------- */
+  --color-white: #fff;
+  --color-black: #000;
+  --color-neutral-50: oklch(98.5% 0 0);
+  --color-neutral-100: oklch(97% 0 0);
+  --color-neutral-200: oklch(92.2% 0 0);
+  --color-neutral-400: oklch(70.8% 0 0);
+  --color-neutral-700: oklch(37.1% 0 0);
+  --color-neutral-800: oklch(26.9% 0 0);
+  --color-neutral-900: oklch(20.5% 0 0);
+  --color-neutral-950: oklch(14.5% 0 0);
+
+  /* --- geometry ------------------------------------------------------- */
+  /*
+   * The radius scale, on Apple's rules rather than a multiplier.
+   *
+   * Two rules, and the second is the one everyone skips:
+   *
+   * 1. **Anything pill-shaped is a true capsule** -- radius = half the
+   *    height, expressed as `--radius-full`. Not "a big number". A 30px
+   *    pill with a 20px radius is a rounded rectangle pretending, and the
+   *    straight section left in the middle of each end is exactly what
+   *    makes a control look slightly wrong without being obviously wrong.
+   *
+   * 2. **Nested corners are CONCENTRIC**: an inner radius plus the padding
+   *    between them equals the outer radius. Apple's own guidance, and the
+   *    reason a button inside a card looks seated rather than pasted on.
+   *    The composer is the case that matters here: 26px outer with 12px of
+   *    padding wants 14px inners, which is why `--radius-inset` exists and
+   *    is derived rather than typed.
+   *
+   * The old scale was `base * 1.4` for five steps, which produced values
+   * like 0.525rem and 1.05rem -- fractional pixels at every size, no two
+   * of them in a whole-number relationship, and nothing that could be
+   * nested concentrically because the gaps were never the difference
+   * between two steps.
+   */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 22px;
+  --radius-3xl: 26px;
+  --radius-full: 999px;
+
+  /* The composer card and the radius its 12px-inset children want. */
+  /*
+   * 22px, measured off the reference rather than picked.
+   *
+   * 26 was enough rounding to start reading as a lozenge on a 360px-wide
+   * card. The difference is small and it is the difference between a
+   * software widget and a sheet of paper.
+   */
+  --radius-composer: 22px;
+  --radius-inset: calc(var(--radius-composer) - 12px);
+
+  /* Kept: still referenced by a few legacy rules. */
+  --radius: var(--radius-md);
+
+  --hairline: 0.5px;
+
+  --blur-sm: 8px;
+  --blur-md: 12px;
+  --blur-lg: 16px;
+  --blur-xl: 24px;
+
+  /*
+   * The reference's own curves, read from its stylesheet rather than
+   * approximated.
+   *
+   * `--ease-out` was Material's `(0, 0, 0.2, 1)`, which decelerates hard
+   * from the very first frame; theirs holds speed longer and settles
+   * later, which is what makes a sheet feel thrown rather than dragged
+   * into place. `snap` is the one they use for anything that should feel
+   * mechanical -- reveals, toggles -- and `overshoot` is for the few
+   * things allowed to bounce.
+   */
+  --ease-out: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --ease-snap: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-overshoot: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration: 0.15s;
+
+  /* --- light theme ---------------------------------------------------- */
+  /*
+   * THE RULE: two hues in the whole product. 92 and 43.1. Nothing else.
+   *
+   * 43.1 is the chosen orange, and it is the only chromatic colour in the app. 92 is
+   * the neutral axis -- every paper, surface, border, grey and ink is that
+   * one hue at a different lightness and alpha. A neutral is not "a grey";
+   * it is this hue, desaturated.
+   *
+   * This is written as a rule because the system had already lost it. The
+   * light neutrals had drifted onto FOUR hues: paper at 95.1, ink and the
+   * composer at 106, borders and greys at 100, and sheets at 0, which is
+   * literally pure white. None of those are far apart on their own, and
+   * that is exactly why it survived -- no single token looks wrong when
+   * you open it. What you see is the assembled screen: a cream page, a
+   * faintly green-white input sitting on it, and a pure-white sheet over
+   * the top, three temperatures in one frame. Reported as the colours
+   * feeling odd and not lining up with the theme, which is precisely what
+   * it was.
+   *
+   * A neutral ramp on one hue is the ordinary discipline here. Radix
+   * builds each scale as one hue across twelve steps with fixed semantic
+   * roles, and Material 3's light surface roles walk a single neutral down
+   * in even tone steps rather than wandering in hue:
+   *   radix-ui.com/colors/docs/palette-composition/understanding-the-scale
+   *   m3.material.io/styles/color/roles
+   *
+   * The surface ladder, lightest first. The gaps are small on purpose: a
+   * heavier tint turns the page into a coloured background that cards sit
+   * ON TOP of, and this has to read as one sheet of paper with things
+   * raised out of it.
+   *
+   *   99.6%  sheets and popovers   (--surface-secondary / -tertiary)
+   *   99.5%  cards, the composer   (--surface-primary)
+   *   97.6%  the page itself       (--background / --page)
+   *
+   * 1.9 points between page and card, where it was 1.42 and cooler than
+   * the page it sat on -- a raised surface that is less warm than its
+   * ground reads as grey, not as lifted. Material's own light ladder steps
+   * about two tone units at a time, which is the cadence this follows.
+   *
+   * Accent stays deliberate and never carries a control boundary on its
+   * own: #E87D4F measures 2.67:1 on this paper, under the 3:1 that WCAG
+   * 1.4.11 wants when colour alone identifies an edge. Marks and labelled
+   * fills are fine; controls receive a contrast-safe foreground or border,
+   * and small text uses `--brand-text`.
+   *   w3.org/TR/WCAG22/#non-text-contrast
+   */
+  /*
+   * #faf9f5, the reference's paper, rather than the Codex theme's
+   * #f9f9f7.
+   *
+   * Three points of blue. That is the entire difference, and it is the
+   * difference between an off-white and a cream. The block above already
+   * says the warmth in this design has to come from the paper rather than
+   * from softened ink -- but #f9f9f7 carries barely half the chroma
+   * needed to deliver on that, so the page read as plain white and every
+   * neutral over it read as plain grey. That is the "bland, not premium"
+   * complaint at its root: not a shortage of accents, a paper with no
+   * temperature for the accents to sit on.
+   *
+   * Still far below the threshold where anyone would call the screen
+   * beige. It is only visible as a page next to a card, which is exactly
+   * where it should be visible.
+   */
+  --background: oklch(98.3% 0.0062 92);
+  /*
+   * #2d2d2b. Softer than the near-black this used to be, which is the
+   * theme's own contrast setting made literal: body text lands around
+   * 12:1 on paper rather than 17:1. Still far past WCAG AA, and it is
+   * what keeps a warm off-white page from reading as harsh.
+   */
+  /*
+   * Near-black, not soft grey.
+   *
+   * This sat at 29.6% lightness -- about `#3D3C39` -- which is a
+   * deliberate-looking choice and the single biggest reason the app read
+   * as washed out beside the reference. The warmth in that design comes
+   * from the PAPER being off-white, not from the ink being grey, and
+   * softening both leaves nothing for the eye to lock onto.
+   *
+   * 14%, from their published `--cds-text-primary: #0b0b0b`. A trace of
+   * warmth stays so it never goes blue-black against a cream page.
+   */
+  --foreground: oklch(14% 0.005 92);
+  /* Menus stay pure white so they read as floating above the page. */
+  --popover: var(--color-white);
+  --popover-foreground: var(--foreground);
+
+  /*
+   * The neutral overlays carry a trace of the page's own warmth.
+   *
+   * They stay ALPHA rather than becoming solid colours, because that is
+   * what lets one set of tokens work on both themes -- but a dead-neutral
+   * grey over a warm page reads as a cold grey patch, which is the single
+   * most common way a warm palette gets undone. 0.012 chroma is below the
+   * threshold where a surface reads as tinted and above the one where it
+   * reads as a different family from the page.
+   *
+   * Their lightness stays at 18% rather than following `--foreground` up
+   * to 29.6%. These are washes, not text: raising the base lightness of a
+   * 5%-alpha overlay makes it disappear rather than making it softer.
+   */
+  /* Sampled at `#131313`: a true black control, not a dark grey one. */
+  --primary: oklch(19% 0.004 92);
+  --primary-foreground: oklch(99% 0.004 92 / 0.96);
+  --secondary: oklch(18% 0.01 92 / 0.08);
+  /*
+   * A real second level, not a third name for the same grey.
+   *
+   * This resolved to ~49% lightness and `--muted-foreground` to ~47%: two
+   * tokens two percent apart, doing what should have been two visibly
+   * different jobs. That is why the app's secondary text read as one
+   * undifferentiated wash -- there was no ladder, only a landing.
+   *
+   * 0.70 alpha lands near 40%, matching their `--cds-text-secondary:
+   * #52514e`, and leaves muted a full step below it.
+   */
+  --secondary-foreground: oklch(14% 0.006 92 / 0.70);
+  /*
+   * Pills, discs and the user bubble all resolve to `#F0EFEB` in the
+   * reference -- one warm grey doing every job, a touch darker than the
+   * 5.2% wash used here, which is what separates a filled control from the
+   * page instead of leaving it to float.
+   */
+  --muted: oklch(18% 0.01 92 / 0.06);
+  --muted-foreground: oklch(18% 0.008 92 / 0.64);
+  --accent: oklch(18% 0.01 92 / 0.1);
+  --accent-foreground: oklch(24% 0.005 92 / 0.88);
+
+  /* One chromatic family. Meaning comes from labels, icons and shape;
+     color only changes emphasis within the same orange. */
+  --destructive: var(--brand-text);
+  --destructive-foreground: var(--color-neutral-950);
+  /*
+   * the owner's chosen app orange, exactly #E87D4F.
+   *
+   * This literal is the source for every graphic accent: the home and
+   * activity marks, unread dots, checks, bullets, live motion, switches,
+   * browser progress, active cards and focus treatments. Keeping one
+   * source token is what makes the colour reach every screen without a
+   * collection of almost-matching hard-coded oranges drifting apart.
+   *
+   * On the light paper it measures 2.67:1. That is appropriate for
+   * decorative or redundantly-labelled graphics, but not small text and
+   * not white text placed on the orange, so those cases use the two
+   * contrast-safe mappings directly below rather than silently changing
+   * the chosen colour itself.
+   */
+  --brand: #e87d4f;
+  /* Ink placed on the exact orange. Black measures 7.48:1 on the fill,
+     while white reaches only 2.81:1. */
+  --brand-foreground: var(--color-neutral-950);
+  /*
+   * The same orange for small text, preserving the chosen colour's 43.1°
+   * hue and 0.1455 chroma while lowering only lightness.
+   *
+   * `oklch(56.9% 0.1455 43.1)` resolves to about #BB5424 and measures
+   * 4.53:1 against the actual light paper (#FBF9F5), clearing WCAG AA.
+   * Fills and marks stay on exact `--brand`; links, compact labels and
+   * status words use this readable ink variant.
+   */
+  --brand-text: oklch(56.9% 0.1455 43.1);
+  /*
+   * Skills read in the accent, per the theme's semantic mapping. It is its
+   * own token rather than a second use of `--brand` so a future theme can
+   * separate the two without hunting through components.
+   */
+  --skill: var(--brand-text);
+  --success: var(--brand-text);
+  --permission: var(--brand-text);
+  --switch-on: var(--brand);
+
+  /* Add and remove stay in one clay family. Their signs, borders and
+     backgrounds carry the distinction; lightness reinforces it. */
+  --diff-added: var(--brand);
+  --diff-removed: color-mix(in oklab, var(--brand-text) 78%, var(--foreground));
+  /* Text variants preserve contrast at the diffstat's 12px size. */
+  --diff-added-text: var(--brand-text);
+  --diff-removed-text: color-mix(in oklab, var(--brand-text) 78%, var(--foreground));
+
+  /* --- the work rail -------------------------------------------------
+   *
+   * Agent work is a different KIND of content from the answer, and it was
+   * being drawn with the same vocabulary as the answer: flat grey text on
+   * open page, one indistinguishable row per step. The rail is what marks
+   * the difference -- a single hairline running down the left of an
+   * expanded run, anchored to the summary's glyph.
+   *
+   * It is deliberately lighter than `--border`. A rule that groups is not
+   * a rule that divides, and at `--border`'s weight it read as the edge of
+   * a box rather than as a thread through one.
+   */
+  /*
+   * The transcript's one left column, second attempt.
+   *
+   * The first attempt kept the summary rows' tool glyph and paid for it
+   * by indenting all prose 20px to match. That did give one edge, and it
+   * cost the reading column 20px of its width on a 393px screen -- which
+   * is how a fix for a ragged left edge produced a report that the middle
+   * of the page felt congested. It also left the margins lopsided: 38px
+   * of left inset against 18px of right.
+   *
+   * The arithmetic does not have a third answer. To hang a 14px glyph
+   * clear of the bezel the page needs about 26px of padding, which gives
+   * the 20px back and then takes it again as margin. The reference does
+   * not have this problem because it does not have the glyph: its summary
+   * rows are text, on the same edge as everything else, and the lead verb
+   * carries what kind of work it was.
+   *
+   * Settled summaries therefore stay text-only. The one live heading may
+   * spend a compact slot on the brand mark, and its measurement line uses
+   * the same amount as indentation so their text edges align.
+   */
+  --meta-slot: 16px;
+  --meta-gap: 8px;
+
+  --rail: oklch(18% 0.008 92 / 0.17);
+  --rail-active: color-mix(in oklab, var(--brand) 45%, transparent);
+  /* The ink for process text: one clear step below body, one clear step
+     above the chevrons and glyphs beside it. */
+  --work-ink: oklch(18% 0.007 92 / 0.68);
+  --work-ink-strong: oklch(16% 0.006 92 / 0.88);
+  /* Instrumentation ink for elapsed time and token count. One step below
+     process text because these are measurements, not another status. */
+  --meter-ink: oklch(18% 0.007 92 / 0.52);
+  --meter-ink-dim: oklch(18% 0.007 92 / 0.34);
+  /* The live heading stays readable clay throughout its single sweep;
+     only a modest crest moves toward the full orange. */
+  --status-trough: color-mix(in oklab, var(--brand-text) 78%, var(--meter-ink));
+  /* A failed step, in the burnt rust the summary line already uses, so
+     failure has exactly one colour in this app. */
+  --work-fail: var(--brand-text);
+
+  /* --- elevation ------------------------------------------------------
+   *
+   * Two shadows, both warm-tinted rather than black. Neutral black at low
+   * alpha over a cream page reads as grey dirt under the card; carrying
+   * the page's own hue into the shadow is what keeps a raised surface
+   * looking lit instead of smudged.
+   */
+  --elev-1: 0 1px 2px oklch(20% 0.02 92 / 0.05), 0 0 0 var(--hairline) oklch(18% 0.008 92 / 0.06);
+  --elev-2: 0 1px 2px oklch(20% 0.02 92 / 0.04), 0 8px 24px -8px oklch(20% 0.02 92 / 0.12),
+    0 0 0 var(--hairline) oklch(18% 0.008 92 / 0.07);
+
+  /* --- rim light ------------------------------------------------------
+   *
+   * The one thing this theme was missing, and the reason a carefully
+   * chosen palette still read flat.
+   *
+   * Every shadow in the file above models a surface CASTING light
+   * downward. None of them modelled the surface CATCHING it. A real
+   * raised object under a room light has a bright top edge where the
+   * bevel turns toward the source and a darker bottom edge where it turns
+   * away, and that pair of one-pixel lines is what the eye reads as
+   * thickness. Without them a card is a coloured rectangle with a blur
+   * underneath it, which is exactly the "tasteful but flat" look.
+   *
+   * This is the single most convergent technique across the premium
+   * libraries surveyed: coss ships `inset 0 1px 0 rgba(255,255,255,.16)`
+   * on its default button, Rare UI stacks
+   * `inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(80,80,80,.3),
+   * inset 0 -1px 0 rgba(0,0,0,.3)` on its dark cards, and 21st.dev's
+   * shimmer button insets its surface by 1.5px over a
+   * `0 0 0 1px rgba(255,255,255,.06)` ring. Three independent libraries,
+   * one idea.
+   *
+   * The values below are ours rather than theirs, because all three are
+   * drawn for cold near-black UI and this page is cream. Neutral white
+   * over a warm surface reads as a cold glare line, so the highlight
+   * carries the page's own hue the same way the drop shadows do.
+   *
+   * Light mode gets a quiet version on purpose: the cards here are
+   * already near-white, so a bright top edge has nothing to be brighter
+   * THAN. What carries thickness on paper is the floor line, so that is
+   * the one with weight. Dark mode is the inverse and is where the
+   * technique actually pays.
+   */
+  --rim-top: inset 0 1px 0 oklch(100% 0 0 / 0.75);
+  --rim-edge: inset 0 0 0 var(--hairline) oklch(100% 0 0 / 0.4);
+  --rim-floor: inset 0 -1px 0 oklch(18% 0.009 92 / 0.055);
+
+  /*
+   * Fills are the opposite problem from surfaces.
+   *
+   * `--primary` is a near-black disc here and `--brand` is saturated
+   * clay; both are dark enough that a white top edge is plainly visible,
+   * which is why filled controls are where this technique reads
+   * strongest. Rare UI uses exactly this on its orange CTA
+   * (`inset 0 1px 0 rgba(255,255,255,.25)` over `#FC4C01`) and that colour
+   * is within a few degrees of our clay, so the value transfers directly
+   * rather than needing to be reinvented.
+   *
+   * `--rim-on-clay` is theme-independent because clay is clay in both
+   * themes. `--rim-on-primary` is not: `--primary` inverts to near-white
+   * on the dark theme, where a white highlight would vanish and the
+   * modelling has to come from the floor instead.
+   */
+  --rim-on-clay:
+    inset 0 1px 0 oklch(100% 0 0 / 0.25),
+    inset 0 -1px 0 oklch(0% 0 0 / 0.11);
+  --rim-on-primary:
+    inset 0 1px 0 oklch(100% 0 0 / 0.16),
+    inset 0 -1px 0 oklch(0% 0 0 / 0.18);
+
+  --border: oklch(18% 0.009 92 / 0.11);
+  --border-surface: oklch(18% 0.009 92 / 0.1);
+  --border-surface-strong: oklch(18% 0.009 92 / 0.15);
+  --input: oklch(18% 0.009 92 / 0.11);
+  --ring: color-mix(in oklab, var(--brand) 38%, transparent);
+
+  /* `#FEFEFC`. Not pure white: a warm page wants a warm card, and a
+     literally white surface on a cream ground reads as a hole. */
+  --surface-primary: oklch(99.5% 0.005 92);
+  --surface-secondary: oklch(99.6% 0.005 92 / 0.88);
+  --surface-tertiary: oklch(99.6% 0.005 92 / 0.6);
+  --surface-primary-foreground: oklch(24% 0.006 92 / 0.88);
+  --surface-secondary-foreground: oklch(18% 0.008 92 / 0.6);
+  --surface-tertiary-foreground: oklch(18% 0.008 92 / 0.4);
+
+  /* Warm glass is a functional layer above the paper, not a replacement
+     for it. Regular glass is for navigation and controls; strong glass is
+     reserved for text-heavy sheets where legibility matters more than
+     seeing the exact content underneath. */
+  --glass-fill: oklch(99.6% 0.006 92 / 0.74);
+  --glass-fill-strong: oklch(99.6% 0.006 92 / 0.88);
+  --glass-stroke: oklch(100% 0 0 / 0.72);
+  --glass-filter: blur(18px) saturate(1.12);
+  --glass-filter-compact: blur(12px) saturate(1.08);
+  --glass-surface:
+    linear-gradient(
+      145deg,
+      oklch(100% 0 0 / 0.7) 0%,
+      oklch(100% 0 0 / 0.2) 48%,
+      color-mix(in oklab, var(--brand) 2.5%, transparent) 100%
+    ),
+    var(--glass-fill);
+  --glass-surface-strong:
+    linear-gradient(
+      145deg,
+      oklch(100% 0 0 / 0.78) 0%,
+      oklch(100% 0 0 / 0.24) 52%,
+      color-mix(in oklab, var(--brand) 2%, transparent) 100%
+    ),
+    var(--glass-fill-strong);
+  --glass-rim:
+    inset 0 1px 0 oklch(100% 0 0 / 0.88),
+    inset 0 0 0 var(--hairline) oklch(100% 0 0 / 0.52),
+    inset 0 -1px 0 oklch(18% 0.009 92 / 0.07);
+  --glass-elev:
+    0 2px 5px oklch(20% 0.02 92 / 0.06),
+    0 18px 44px -18px oklch(20% 0.02 92 / 0.24);
+  --glass-elev-quiet:
+    0 1px 2px oklch(20% 0.02 92 / 0.05),
+    0 10px 28px -16px oklch(20% 0.02 92 / 0.18);
+
+  /*
+   * The page behind the cards: the theme's `surface`, `#f9f9f7`. Kept
+   * identical to `--background` rather than re-derived, so there is no
+   * way for the two to drift apart and meet as a seam under a header.
+   */
+  /*
+   * Paper grain.
+   *
+   * The page is a sheet of paper in every other respect -- warm, matte,
+   * with cards raised off it -- and then it was a perfectly flat fill,
+   * which is the one thing paper never is. This is a single tile of
+   * desaturated fractal noise, fixed to the viewport like the gradient
+   * above it, at an opacity low enough that you cannot point to it.
+   *
+   * Only the PAGE carries it. Cards, sheets and the composer stay
+   * perfectly smooth, so the texture is doing real work: it separates the
+   * ground from the things sitting on the ground, and it does that at
+   * every surface boundary at once instead of relying on 1.9 points of
+   * lightness to carry the whole hierarchy.
+   *
+   * Desaturated on purpose. `feTurbulence` emits colour noise, and colour
+   * noise on a two-hue palette is a third hue smeared over every pixel of
+   * the app, so the saturate matrix takes it to grey before it is used.
+   *
+   * One tile, rasterised once and repeated; it costs no layout and no
+   * repaint on scroll, because it is pinned to the viewport rather than
+   * the content.
+   *
+   * COUPLED TO `--background`. The veil is a grey wash, so it darkens
+   * whatever it lies on -- measured at 0.09 opacity it costs 3.3/255 of
+   * luminance. `--background` is therefore the PRE-grain paper, set 0.7
+   * points lighter than the tone actually wanted, and the page renders
+   * at the intended value only once the grain is over it. Change either
+   * number and the other has to move with it.
+   */
+  --grain: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27140%27%20height%3D%27140%27%3E%3Cfilter%20id%3D%27g%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.85%27%20numOctaves%3D%272%27%20stitchTiles%3D%27stitch%27%20result%3D%27t%27%2F%3E%3CfeColorMatrix%20in%3D%27t%27%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27140%27%20height%3D%27140%27%20filter%3D%27url%28%23g%29%27%20opacity%3D%270.09%27%2F%3E%3C%2Fsvg%3E");
+  --page: var(--background);
+
+  /* The home mark is the exact chosen orange, never a muted text variant
+     or a second near-match. */
+  --mark-warm: var(--brand);
+
+  /* Waiting graphics use the exact orange; their small label keeps AA. */
+  --state-waiting: var(--brand);
+  --state-waiting-text: var(--brand-text);
+}
+
+.dark {
+  color-scheme: dark;
+
+  /*
+   * The theme ships a light variant only, so dark is an inversion rather
+   * than a transcription: same hue family, same accent, lightness flipped.
+   * The hue is 100 to match the paper above -- carrying a trace of chroma
+   * through the dark ramp is what stops it reading as "the cold default
+   * dark theme" beside the warm light one.
+   */
+  /* Pre-grain, like its light counterpart: the veil LIFTS a dark ground
+     by about 3.5/255, so this sits that much below the tone wanted. */
+  --background: oklch(19.9% 0.005 92);
+  --foreground: oklch(94% 0.003 92);
+  --popover: oklch(26% 0.005 92);
+  --popover-foreground: var(--foreground);
+
+  --primary: oklch(94% 0.003 92 / 0.9);
+  --primary-foreground: oklch(21% 0.005 92 / 0.92);
+  --secondary: oklch(97% 0.004 92 / 0.08);
+  --secondary-foreground: oklch(97% 0.004 92 / 0.58);
+  --muted: oklch(97% 0.004 92 / 0.1);
+  --muted-foreground: oklch(97% 0.004 92 / 0.58);
+  --accent: oklch(97% 0.004 92 / 0.14);
+  --accent-foreground: oklch(97% 0.004 92 / 0.86);
+
+  --destructive: var(--brand);
+  --destructive-foreground: var(--color-neutral-950);
+  /* The chosen orange clears AA on the dark ground at 6.44:1, so the
+     exact value can serve both text and graphics without a darker variant. */
+  --brand: #e87d4f;
+  /* Text and fills share the exact accent in dark mode. */
+  --brand-text: var(--brand);
+  --skill: var(--brand-text);
+  --success: var(--brand);
+  --permission: var(--brand);
+  --switch-on: var(--brand);
+
+  /* Same two theme colours, lifted for a dark ground. */
+  --diff-added: var(--brand);
+  --diff-removed: color-mix(in oklab, var(--brand) 72%, var(--foreground));
+  --diff-added-text: var(--brand);
+  --diff-removed-text: color-mix(in oklab, var(--brand) 72%, var(--foreground));
+
+  --rail: oklch(97% 0.004 92 / 0.15);
+  --rail-active: color-mix(in oklab, var(--brand) 50%, transparent);
+  --work-ink: oklch(97% 0.004 92 / 0.62);
+  --work-ink-strong: oklch(97% 0.004 92 / 0.9);
+  /* Held a touch higher than the light pair: the same alpha over a dark
+     ground reads dimmer, and 0.34 white on near-black is a smudge. */
+  --meter-ink: oklch(97% 0.004 92 / 0.5);
+  --meter-ink-dim: oklch(97% 0.004 92 / 0.36);
+  /* On the dark page transparency deepens the same clay without washing
+     it toward white, so the heading remains warm at both ends. */
+  --status-trough: color-mix(in oklab, var(--brand-text) 72%, transparent);
+  --work-fail: var(--brand);
+
+  --elev-1: 0 1px 2px oklch(0% 0 0 / 0.3), 0 0 0 var(--hairline) oklch(97% 0.004 92 / 0.08);
+  --elev-2: 0 1px 2px oklch(0% 0 0 / 0.25), 0 8px 24px -8px oklch(0% 0 0 / 0.45),
+    0 0 0 var(--hairline) oklch(97% 0.004 92 / 0.1);
+
+  /*
+   * Dark mode is where rim light earns its place.
+   *
+   * On a 21%-lightness page a 26% card differs by five points of
+   * lightness, which is not enough of an edge to separate them; that is
+   * the same "large soft shape with no edge" failure the user bubble note
+   * describes, and on a dark ground it is worse because there is no paper
+   * warmth doing any of the work. A 10%-alpha white top line is what
+   * gives the card an actual lip.
+   *
+   * The highlight keeps hue 100, matching the dark ramp above. A neutral
+   * white line over a warm-dark surface is the tell that a dark theme was
+   * generated rather than drawn.
+   */
+  --rim-top: inset 0 1px 0 oklch(97% 0.004 92 / 0.1);
+  --rim-edge: inset 0 0 0 var(--hairline) oklch(97% 0.004 92 / 0.055);
+  --rim-floor: inset 0 -1px 0 oklch(0% 0 0 / 0.26);
+
+  /* Clay is unchanged across themes, so its modelling is too. */
+  --rim-on-clay:
+    inset 0 1px 0 oklch(100% 0 0 / 0.25),
+    inset 0 -1px 0 oklch(0% 0 0 / 0.11);
+  /*
+   * `--primary` is near-white here, so the light source has to be read
+   * from the underside. Same physics, mirrored: the bright edge is the
+   * one facing away from the dark page.
+   */
+  --rim-on-primary:
+    inset 0 -1px 0 oklch(0% 0 0 / 0.14),
+    inset 0 1px 0 oklch(100% 0 0 / 0.3);
+
+  --border: oklch(97% 0.004 92 / 0.1);
+  --border-surface: oklch(97% 0.004 92 / 0.14);
+  --border-surface-strong: oklch(97% 0.004 92 / 0.2);
+  --input: oklch(97% 0.004 92 / 0.1);
+  --ring: color-mix(in oklab, var(--brand) 48%, transparent);
+
+  /* The composer must still lift off the page in dark mode, so this is a
+     lighter surface rather than the same value as `--page`. */
+  --surface-primary: oklch(26.5% 0.006 92);
+  --surface-secondary: oklch(97% 0.004 92 / 0.06);
+  --surface-tertiary: oklch(97% 0.004 92 / 0.04);
+  --surface-primary-foreground: oklch(97% 0.004 92 / 0.86);
+  --surface-secondary-foreground: oklch(97% 0.004 92 / 0.58);
+  --surface-tertiary-foreground: oklch(97% 0.004 92 / 0.36);
+
+  /* The same warm-glass hierarchy on a dark ground. */
+  --glass-fill: oklch(29% 0.008 92 / 0.7);
+  --glass-fill-strong: oklch(29% 0.008 92 / 0.86);
+  --glass-stroke: oklch(97% 0.004 92 / 0.16);
+  --glass-surface:
+    linear-gradient(
+      145deg,
+      oklch(97% 0.004 92 / 0.13) 0%,
+      oklch(97% 0.004 92 / 0.035) 48%,
+      color-mix(in oklab, var(--brand) 4%, transparent) 100%
+    ),
+    var(--glass-fill);
+  --glass-surface-strong:
+    linear-gradient(
+      145deg,
+      oklch(97% 0.004 92 / 0.16) 0%,
+      oklch(97% 0.004 92 / 0.045) 52%,
+      color-mix(in oklab, var(--brand) 3.5%, transparent) 100%
+    ),
+    var(--glass-fill-strong);
+  --glass-rim:
+    inset 0 1px 0 oklch(97% 0.004 92 / 0.16),
+    inset 0 0 0 var(--hairline) oklch(97% 0.004 92 / 0.08),
+    inset 0 -1px 0 oklch(0% 0 0 / 0.34);
+  --glass-elev:
+    0 2px 5px oklch(0% 0 0 / 0.3),
+    0 18px 44px -18px oklch(0% 0 0 / 0.7);
+  --glass-elev-quiet:
+    0 1px 2px oklch(0% 0 0 / 0.24),
+    0 10px 28px -16px oklch(0% 0 0 / 0.58);
+
+  /* Slightly stronger: the same noise reads weaker on a dark ground. */
+  --grain: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27140%27%20height%3D%27140%27%3E%3Cfilter%20id%3D%27g%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.85%27%20numOctaves%3D%272%27%20stitchTiles%3D%27stitch%27%20result%3D%27t%27%2F%3E%3CfeColorMatrix%20in%3D%27t%27%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27140%27%20height%3D%27140%27%20filter%3D%27url%28%23g%29%27%20opacity%3D%270.05%27%2F%3E%3C%2Fsvg%3E");
+  --page: var(--background);
+  --mark-warm: var(--brand);
+
+  /* Waiting uses the same accent; structure still carries its meaning. */
+  --state-waiting: var(--brand);
+  --state-waiting-text: var(--brand);
+}
+
+/* ======================================================================
+ * Zeron standalone material tokens
+ *
+ * One scoped token layer for the standalone phone shell. The art stays
+ * full-strength; the pearl veil belongs to the backdrop, and functional
+ * surfaces get their own glass values.
+ * ====================================================================== */
+:root[data-client='standalone'] {
+  color-scheme: light;
+
+  --zeron-page: #f6f9f9;
+  --zeron-shell: #eef3f3;
+  --zeron-ink: #202627;
+  --zeron-ink-soft: rgb(32 38 39 / 0.68);
+  --zeron-card: rgb(247 250 250 / 0.62);
+  --zeron-card-strong: rgb(247 250 250 / 0.82);
+  --zeron-control: rgb(247 250 250 / 0.30);
+  --zeron-line: rgb(55 70 73 / 0.10);
+  --zeron-line-strong: rgb(55 70 73 / 0.15);
+  --zeron-selected: #202627;
+  --zeron-selected-foreground: #f7fbfb;
+  --zeron-segment-selected: rgb(255 255 255 / 0.56);
+  --zeron-segment-selected-foreground: #202627;
+  --zeron-signature: #e87d4f;
+  --zeron-atmosphere: url('/art/zeron-liquid-dots-v2.webp');
+
+  --background: var(--zeron-page);
+  --page: var(--zeron-page);
+  --foreground: var(--zeron-ink);
+  --popover: var(--zeron-card-strong);
+  --popover-foreground: var(--zeron-ink);
+  --primary: var(--zeron-selected);
+  --primary-foreground: var(--zeron-selected-foreground);
+  --secondary: rgb(255 253 247 / 0.52);
+  --secondary-foreground: var(--zeron-ink-soft);
+  --muted: rgb(38 38 34 / 0.08);
+  --muted-foreground: rgb(38 38 34 / 0.62);
+  --accent: rgb(38 38 34 / 0.07);
+  --accent-foreground: var(--zeron-ink);
+  --brand: var(--zeron-ink);
+  --brand-text: var(--zeron-ink-soft);
+  --brand-foreground: var(--zeron-selected-foreground);
+  --mark-warm: var(--zeron-signature);
+  --state-waiting: var(--zeron-signature);
+  --state-waiting-text: var(--zeron-ink);
+  --success: var(--zeron-ink);
+  --skill: var(--zeron-ink);
+  --permission: var(--zeron-ink);
+  --switch-on: var(--zeron-ink);
+  --destructive: var(--zeron-signature);
+  --destructive-foreground: var(--zeron-ink);
+  --border: var(--zeron-line);
+  --border-surface: var(--zeron-line);
+  --border-surface-strong: var(--zeron-line-strong);
+  --input: var(--zeron-line);
+  --ring: var(--zeron-line-strong);
+
+  --surface-primary: var(--zeron-card-strong);
+  --surface-secondary: var(--zeron-card);
+  --surface-tertiary: rgb(247 250 250 / 0.44);
+  --surface-primary-foreground: var(--zeron-ink);
+  --surface-secondary-foreground: var(--zeron-ink-soft);
+  --surface-tertiary-foreground: rgb(38 38 34 / 0.62);
+
+  --glass-fill: var(--zeron-card);
+  --glass-fill-strong: var(--zeron-card-strong);
+  --glass-filter: blur(20px) saturate(1.03) brightness(1.02);
+  --glass-filter-compact: blur(18px) saturate(1.02) brightness(1.02);
+  --glass-filter-history: blur(20px) saturate(0.90) brightness(1.03);
+  --glass-filter-composer: blur(20px) saturate(1.03) brightness(1.03);
+  --glass-fill-history: rgb(247 250 250 / 0.68);
+  --glass-fill-composer: rgb(242 248 249 / 0.38);
+  --glass-surface:
+    linear-gradient(145deg, rgb(255 255 255 / 0.22), rgb(246 251 251 / 0.08) 62%, rgb(255 255 255 / 0.02)),
+    var(--glass-fill);
+  --glass-surface-strong:
+    linear-gradient(145deg, rgb(255 255 255 / 0.30), rgb(246 251 251 / 0.11) 62%, rgb(255 255 255 / 0.03)),
+    var(--glass-fill-strong);
+  --glass-surface-history:
+    linear-gradient(180deg, rgb(255 255 255 / 0.20), rgb(244 249 249 / 0.06) 72%, transparent),
+    var(--glass-fill-history);
+  --glass-surface-composer:
+    linear-gradient(145deg, rgb(255 255 255 / 0.24), rgb(244 251 252 / 0.08) 60%, rgb(255 255 255 / 0.02)),
+    var(--glass-fill-composer);
+  --glass-stroke: var(--zeron-line);
+  --glass-rim:
+    inset 0 1px 0 rgb(255 255 255 / 0.54),
+    inset 0 -1px 0 rgb(55 70 73 / 0.04);
+  --glass-elev: 0 2px 6px rgb(38 62 66 / 0.05), 0 22px 56px -30px rgb(38 82 92 / 0.20);
+  --glass-elev-quiet: 0 1px 3px rgb(38 62 66 / 0.04), 0 14px 36px -24px rgb(38 82 92 / 0.14);
+  --glass-control: var(--zeron-control);
+  --glass-control-active: var(--zeron-segment-selected);
+  --separator-inset: rgb(38 44 45 / 0.10);
+  --zeron-composer-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.58),
+    inset 0 -1px 0 rgb(55 70 73 / 0.04),
+    0 2px 5px rgb(38 62 66 / 0.05),
+    0 24px 64px -36px rgb(38 82 92 / 0.24);
+
+  --radius-2xl: 22px;
+  --radius-3xl: 26px;
+  --zeron-radius-composer: 26px;
+  --radius-inset: 14px;
+  --duration-fast: 140ms;
+  --duration-base: 190ms;
+  --duration-slow: 500ms;
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root[data-client='standalone'].dark {
+  color-scheme: dark;
+  --zeron-page: #060606;
+  --zeron-shell: #0d0d0d;
+  --zeron-ink: #e8e8ea;
+  --zeron-ink-soft: rgb(232 232 234 / 0.72);
+  --zeron-card: rgb(14 14 14 / 0.70);
+  --zeron-card-strong: rgb(13 13 13 / 0.90);
+  --zeron-control: rgb(13 13 13 / 0.82);
+  --zeron-line: rgb(255 255 255 / 0.08);
+  --zeron-line-strong: rgb(255 255 255 / 0.14);
+  --zeron-selected: #e8e8ea;
+  --zeron-selected-foreground: #0d0d0d;
+  --zeron-segment-selected: rgb(255 255 255 / 0.16);
+  --zeron-segment-selected-foreground: #f1f1ee;
+  --glass-fill: var(--zeron-card);
+  --glass-fill-strong: var(--zeron-card-strong);
+  --glass-fill-history: rgb(14 14 14 / 0.78);
+  --glass-fill-composer: rgb(18 19 19 / 0.88);
+  --glass-surface:
+    linear-gradient(145deg, rgb(255 255 255 / 0.10), rgb(255 255 255 / 0.035) 58%, transparent),
+    var(--glass-fill);
+  --glass-surface-strong:
+    linear-gradient(145deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.05) 58%, transparent),
+    var(--glass-fill-strong);
+  --glass-surface-history:
+    linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.025) 72%, transparent),
+    var(--glass-fill-history);
+  --glass-surface-composer:
+    linear-gradient(145deg, rgb(255 255 255 / 0.13), rgb(255 255 255 / 0.045) 60%, transparent),
+    var(--glass-fill-composer);
+  --glass-rim:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 -1px 0 rgb(0 0 0 / 0.24);
+  --glass-elev: 0 2px 5px rgb(0 0 0 / 0.34), 0 20px 48px -20px rgb(0 0 0 / 0.72);
+  --glass-elev-quiet: 0 1px 3px rgb(0 0 0 / 0.28), 0 12px 30px -18px rgb(0 0 0 / 0.54);
+  --zeron-composer-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 -1px 0 rgb(0 0 0 / 0.24),
+    0 12px 30px -18px rgb(0 0 0 / 0.64);
+}

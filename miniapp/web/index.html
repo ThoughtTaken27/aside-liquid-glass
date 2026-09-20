@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Aside Mobile</title>
+    <link
+      rel="preload"
+      href="/art/zeron-liquid-dots-v2.webp"
+      as="image"
+      type="image/webp"
+      fetchpriority="high"
+    />
+    <!--
+      The installed /app shell never needs Telegram's remote bridge, so it
+      must not compete with the app bundle or artwork on every launch.
+      Telegram pages still start that request immediately and expose one
+      promise so main.tsx can preserve the original execution ordering.
+    -->
+    <script>
+      const isStandaloneShell = location.pathname.startsWith('/app');
+      if (isStandaloneShell) {
+        document.documentElement.dataset.client = 'standalone';
+        document.documentElement.dataset.surface = 'boot';
+      }
+
+      window.__asideTelegramReady = isStandaloneShell
+        ? Promise.resolve()
+        : new Promise((resolve) => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              resolve();
+            };
+            const bridge = document.createElement('script');
+            bridge.src = 'https://telegram.org/js/telegram-web-app.js';
+            bridge.onload = finish;
+            bridge.onerror = finish;
+            document.head.appendChild(bridge);
+            setTimeout(finish, 1500);
+          });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

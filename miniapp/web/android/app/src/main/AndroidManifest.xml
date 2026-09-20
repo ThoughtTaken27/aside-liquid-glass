@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        allowBackup is off deliberately. The only state this app holds is a
+        session token and the paired credential behind it, in the WebView
+        data dir. Auto Backup would upload those to Google and `adb backup`
+        would pull them off the device, and a restore onto a NEW phone would
+        arrive already paired, around the loopback-only pairing page
+        rather than through it. Nothing here is worth restoring.
+    -->
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <!--
+          The in-app browser.
+
+          singleTop so a second search reuses the open screen instead of
+          stacking another copy on the back stack. Not exported: nothing
+          outside this app has any business launching it with a URL.
+        -->
+        <activity
+            android:name=".BrowserActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density" />
+
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Voice input. The composer records with MediaRecorder and posts the clip
+      to the Mac, where whisper.cpp transcribes it locally.
+
+      In a WebView getUserMedia is gated twice: the page asks, and then the
+      app itself must hold the OS permission. Without RECORD_AUDIO declared
+      here the WebView refuses before the user is ever prompted, which is
+      what "Microphone access is off for this site" was reporting.
+
+      MODIFY_AUDIO_SETTINGS lets the audio stack pick a sane input route
+      rather than whatever was last used by another app.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+</manifest>

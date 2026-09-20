@@ -1,0 +1,297 @@
+/* Reset and page-level defaults. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/*
+ * The app is a column; it has no dimension to offer on EITHER axis.
+ *
+ * Horizontal was already clipped: any one element that out-grows the
+ * viewport -- a long model id in a pill was the one that shipped -- let
+ * the whole app pan sideways in Telegram's webview. Clipping at the root
+ * makes that a local, per-element problem instead of a whole-app one.
+ *
+ * Vertical is clipped now for the same reason, and it fixed a real
+ * complaint: the app appeared to scroll a few pixels up and down at rest,
+ * on a screen with nothing to scroll. It was not the transcript -- that
+ * scroller correctly reported zero overflow. It was `body`. A gauge that
+ * hung below the composer card overran a dock that had not reserved
+ * enough for it, so the document itself became scrollable and the entire
+ * app slid under your thumb and sprang back. That component is gone and
+ * the dock no longer reserves for it.
+ *
+ * This belongs here regardless of which component last caused it:
+ * `html`, `body` and `#root` are all pinned
+ * to `height: 100%` because this is a fixed shell with its own scrollers.
+ * Nothing should ever be able to scroll the document, so nothing should
+ * ever be able to overflow it. `position: fixed` popovers and sheets are
+ * unaffected.
+ */
+html,
+body {
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+  /*
+   * Two defences for a variable font on a phone.
+   *
+   * `text-size-adjust` stops mobile Safari inflating body text when the
+   * device rotates or when a column is judged too narrow. It is silent
+   * until it fires, and when it fires it rescales type the layout was
+   * measured against -- the app looks like it changed size by itself.
+   *
+   * `font-synthesis: none` refuses fake bold and fake italic. Geist
+   * Variable carries every weight the app asks for, so a synthesised face
+   * only ever appears when the variable file has not loaded, and a
+   * smeared algorithmic bold is a worse first paint than the real weight
+   * arriving a moment later.
+   */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-synthesis: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/*
+ * Controls behave like controls, not like text.
+ *
+ * Three separate phone tells, all of them the kind of thing that reads as
+ * "this is a web page" without anyone being able to name why:
+ *
+ *  - `user-select`: a firm press on a button selects its label and pops
+ *    the system selection handles over the UI.
+ *  - `touch-callout`: the same press raises iOS's share/copy callout.
+ *  - `touch-action: manipulation`: double-tap-to-zoom stays armed on
+ *    every control, which is what the ~300ms delay between tapping a
+ *    button and it responding actually is.
+ *
+ * Scoped to `button` on purpose. Answer text, user messages and code
+ * blocks stay fully selectable -- copying an answer is a real thing
+ * people do here, and the press-to-copy gesture depends on it.
+ */
+button {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+input,
+textarea {
+  border: none;
+  background: none;
+  outline: none;
+}
+
+textarea {
+  resize: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/*
+ * Selection in the app's own accent rather than a neutral grey.
+ *
+ * `--accent` is a 10%-alpha black wash: over a warm page it reads as a
+ * dirty smudge behind the words, which is the one place a near-neutral
+ * palette should make an exception. The clay at 22% is unmistakably a
+ * selection, still light enough to read through, and it is the only
+ * moment the app's colour appears behind body text.
+ */
+::selection {
+  background: color-mix(in oklab, var(--brand) 22%, transparent);
+}
+
+/* Aside's scrollbars are hairline and unobtrusive. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  color: var(--muted-foreground);
+  flex: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+/* ======================================================================
+ * Zeron standalone base layer
+ * ====================================================================== */
+:root[data-client='standalone'],
+:root[data-client='standalone'] body,
+:root[data-client='standalone'] #root {
+  background: var(--page);
+  color: var(--foreground);
+}
+
+:root[data-client='standalone'] :focus-visible {
+  outline: 2px solid var(--zeron-line-strong);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--zeron-line) 60%, transparent);
+}
+
+/* Real standalone controls retain a 44px hit target without changing
+   Telegram/shared geometry. Glyph SVGs keep their drawn size, so the
+   larger box is reach, not visual bloat. */
+:root[data-client='standalone'] :is(
+  .icon-button,
+  .round-button,
+  .pill,
+  .voice-button,
+  .lightbox-close,
+  .sheet-back,
+  .sheet-row,
+  .install-hint-close,
+  .chip-remove,
+  .question-option,
+  .question-recover,
+  .question-reply button,
+  .jump-latest,
+  .pair-prompt-go,
+  .tab-deck-go button,
+  .segmented button,
+  .settings-row,
+  .settings-choice,
+  .popover-switch-row,
+  .panel-row,
+  .memory-tree-dir,
+  .memory-tree-file,
+  .omni-row,
+  .cite-source,
+  .watch-mode-head
+) {
+  min-height: 44px;
+}
+
+:root[data-client='standalone'] :is(
+  .icon-button,
+  .install-hint-close,
+  .jump-latest,
+  .lightbox-close,
+  .sheet-back,
+  .chip-remove
+) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+:root[data-client='standalone'] :where(
+  button,
+  [role='button'],
+  input,
+  textarea,
+  .surface-row,
+  .surface-card
+) {
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-out);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-client='standalone'] :is(
+    .composer,
+    .mode-switch,
+    .segmented,
+    .popover,
+    .sheet,
+    .jump-latest,
+    .session-rows,
+    .session-card,
+    .home-history
+  ) {
+    background: var(--zeron-card-strong);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root[data-client='standalone'] {
+    --glass-fill: var(--surface-primary);
+    --glass-fill-strong: var(--surface-primary);
+    --glass-surface: var(--surface-primary);
+    --glass-surface-strong: var(--surface-primary);
+  }
+
+  :root[data-client='standalone'] :is(
+    .composer,
+    .mode-switch,
+    .segmented,
+    .popover,
+    .sheet,
+    .jump-latest,
+    .session-rows,
+    .session-card,
+    .home-history
+  ) {
+    background: var(--zeron-card-strong);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] *,
+  :root[data-client='standalone'] *::before,
+  :root[data-client='standalone'] *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+
+  :root[data-client='standalone'] .app-home .home-dock {
+    transform: none !important;
+  }
+}

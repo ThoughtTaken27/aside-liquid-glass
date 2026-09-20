@@ -1,0 +1,93 @@
+# Runs the suite that until now only ran when somebody remembered to.
+#
+# Ubuntu rather than macOS: nothing under test is platform-specific, and the
+# macOS runners are ten times the minutes for the same result. The Android
+# assemble is not here on purpose -- it needs a JDK, the SDK and about 4GB,
+# and it does not exercise any code this repo owns beyond a Gradle config.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.5 is the floor: `node:sqlite` landed there and both the browser
+        # history reader and the session state cache need it. 24 is what a
+        # fresh `brew install node` gives someone today.
+        node: ['22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: miniapp/package-lock.json
+
+      - name: Install
+        working-directory: miniapp
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: miniapp
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: miniapp
+        run: npm test
+
+      - name: Build
+        working-directory: miniapp
+        run: npm run build
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The build script cannot run here, but a syntax error in it is a
+      # broken Android build for whoever clones next, and that is cheap to
+      # catch.
+      - name: Syntax-check build-android.sh
+        run: bash -n build-android.sh
+
+      # Machine-specific home paths make a clone work only for its author.
+      # Generic test fixtures are excluded; production and setup files are not.
+      - name: No machine-specific paths
+        run: |
+          HITS=$(git grep -nE '/Users/[A-Za-z0-9._-]+/' -- \
+            ':!.github/workflows/**' ':!**/test/**' || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "::error::hardcoded home-directory path"
+            exit 1
+          fi
+
+      # Reading the bridge's tailscaled socket and its secret file is fine:
+      # a machine running both should find them. Creating directories or
+      # copying files in there is what put a `.aside-telegram-bridge/` on
+      # machines that had never run the bridge.
+      - name: build-android.sh does not write to the Telegram bridge
+        run: |
+          if grep -nE '^[[:space:]]*(mkdir|cp|mv|touch|rm)[^#]*aside-telegram-bridge' \
+               build-android.sh ; then
+            echo "::error::build-android.sh writes into ~/.aside-telegram-bridge"
+            exit 1
+          fi
+
+      - name: Android identity stays consistent
+        run: |
+          ID='app.aside.mobile'
+          grep -q "namespace = \"$ID\"" miniapp/web/android/app/build.gradle
+          grep -q "applicationId \"$ID\"" miniapp/web/android/app/build.gradle
+          grep -q "appId: '$ID'" miniapp/web/capacitor.config.ts
+          grep -q "package $ID;" miniapp/web/android/app/src/main/java/app/aside/mobile/MainActivity.java
+          grep -q "assertEquals(\"$ID\", appContext.getPackageName())" miniapp/web/android/app/src/androidTest/java/com/getcapacitor/myapp/ExampleInstrumentedTest.java
