@@ -23,7 +23,10 @@
  * Deliberately NOT a swipe-all-the-way-to-commit gesture. Delete has no
  * in-app undo here (the server archives, which is recoverable on the
  * desktop, but nothing in this app surfaces that), so committing it needs
- * a second deliberate tap.
+ * a second deliberate tap -- and that second tap happens HERE, inline
+ * (bencho's inline confirm), rather than in an OS dialog. Same two
+ * gestures, but it stays in context, and it works identically in the
+ * standalone shell, where the alternative was a raw window.confirm.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { haptic } from '../telegram';
@@ -49,20 +52,28 @@ export interface SwipeToDeleteProps {
   children: ReactNode;
   onDelete: () => void | Promise<void>;
   label: string;
+  /** Second-tap label once armed. Defaults to "Confirm". */
+  confirmLabel?: string;
   icon?: ReactNode;
   /** When false this is a plain passthrough with no gesture attached. */
   enabled?: boolean;
 }
 
+/** How long the armed state waits for its second tap. */
+const ARM_MS = 4000;
+
 export function SwipeToDelete({
   children,
   onDelete,
   label,
+  confirmLabel = 'Confirm',
   icon,
   enabled = true,
 }: SwipeToDeleteProps) {
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const armTimer = useRef<number | undefined>(undefined);
 
   // Gesture bookkeeping. Refs rather than state: these change on every
   // touchmove and none of them should cause a render.
@@ -72,7 +83,16 @@ export function SwipeToDelete({
   const axis = useRef<'undecided' | 'x' | 'y'>('undecided');
   const detentPassed = useRef(false);
 
+  const disarm = () => {
+    if (armTimer.current) {
+      window.clearTimeout(armTimer.current);
+      armTimer.current = undefined;
+    }
+    setArmed(false);
+  };
+
   const close = () => {
+    disarm();
     setOffset(0);
     if (closeOpenRow === close) closeOpenRow = null;
   };
@@ -82,6 +102,7 @@ export function SwipeToDelete({
   useEffect(() => {
     return () => {
       if (closeOpenRow === close) closeOpenRow = null;
+      if (armTimer.current) window.clearTimeout(armTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -113,7 +134,12 @@ export function SwipeToDelete({
       // Vertical wins ties. A list is scrolled far more often than its rows
       // are deleted, so an ambiguous gesture should scroll.
       axis.current = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-      if (axis.current === 'x') setDragging(true);
+      if (axis.current === 'x') {
+        setDragging(true);
+        // A drag between the two taps breaks the confirm chain: the second
+        // tap must directly follow the first, not a reconsideration.
+        disarm();
+      }
     }
     if (axis.current !== 'x') return;
 
@@ -153,17 +179,31 @@ export function SwipeToDelete({
     <div className={`swipe-row ${open ? 'is-open' : ''}`}>
       <button
         type="button"
-        className="swipe-action"
+        className={`swipe-action${armed ? ' is-armed' : ''}`}
         tabIndex={open ? 0 : -1}
         aria-hidden={!open}
-        aria-label={label}
+        aria-label={armed ? `${confirmLabel}: ${label}` : label}
         onClick={() => {
+          if (!armed) {
+            // First tap arms; the second commits. The row stays open
+            // between them so the target never moves.
+            setArmed(true);
+            haptic('warning');
+            if (armTimer.current) window.clearTimeout(armTimer.current);
+            armTimer.current = window.setTimeout(() => {
+              // Left hanging: stand down AND close, back to a plain row.
+              close();
+            }, ARM_MS);
+            return;
+          }
           close();
           void onDelete();
         }}
       >
         {icon}
-        <span className="swipe-action-label">{label}</span>
+        <span className="swipe-action-label">
+          {armed ? confirmLabel : label}
+        </span>
       </button>
 
       <div

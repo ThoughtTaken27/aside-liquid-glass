@@ -245,6 +245,33 @@ export function QuestionCard({
         "neither of those, here is what I actually want" -- which is what
         the desktop card's own reply field is for.
       */}
+      {/*
+        Skip, for the question that does not need you. beautifului's
+        approval card carries one ("Skip / Continue") and it earns its
+        place: a soft question arrives with the turn already ended, so
+        declining to weigh in is a complete answer, not an evasion. Sent
+        as words rather than a dismissal because the agent reads the
+        reply -- "use your best judgment" tells it what to do next, where
+        a local dismiss would leave the question pending forever. Live
+        soft questions only: a native question blocks its session, and
+        skipping there would be a lie about unblocking it.
+      */}
+      {live ? (
+        <button
+          type="button"
+          className="question-skip"
+          disabled={disabled}
+          onClick={() =>
+            void send(
+              item.questions[0]?.header || '',
+              'Skip — use your best judgment',
+            )
+          }
+        >
+          Skip
+        </button>
+      ) : null}
+
       {live || recoverable ? (
         <form
           className="question-reply"

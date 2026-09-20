@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TranscriptSocket, api } from '../api';
 import { threadErrorText } from '../utils/format';
 import { haptic } from '../telegram';
+import { playSound } from '../utils/sounds';
 import {
   applySessionState,
   type SessionStateEvent,
@@ -99,6 +100,8 @@ export interface ThreadState {
   loading: boolean;
   error: string | null;
   connected: boolean;
+  /** Last reconnect timestamp, or 0. See the state note above. */
+  reconnectedAt: number;
   /**
    * Turn-level failures, as cards.
    *
@@ -202,11 +205,58 @@ export function useThread(sessionId: string): ThreadState {
     {},
   );
   const [streamText, setStreamText] = useState('');
+  /**
+   * Streamed text commits at most once per frame.
+   *
+   * `stream_delta` events arrive per socket message -- several per frame on
+   * a fast turn -- and each one used to commit state synchronously. Every
+   * commit re-renders the thread and re-parses the whole growing answer
+   * through react-markdown, so a burst of messages in one frame paid the
+   * parse once per message and only painted the last one. The buffer below
+   * collects the frame's worth and commits it once, on rAF. Clearing (a new
+   * turn, a delta covering the stream) still commits synchronously: there
+   * is nothing to coalesce with, and the stale text must be gone now.
+   */
+  const streamBuf = useRef('');
+  const streamRaf = useRef(0);
+  const clearStream = useCallback(() => {
+    streamBuf.current = '';
+    if (streamRaf.current) {
+      cancelAnimationFrame(streamRaf.current);
+      streamRaf.current = 0;
+    }
+    setStreamText('');
+  }, []);
+  const appendStream = useCallback((text: string) => {
+    streamBuf.current += text;
+    if (streamRaf.current || typeof requestAnimationFrame === 'undefined') {
+      // A flush is already scheduled for this frame -- or there is no frame
+      // scheduler at all (tests), in which case commit synchronously.
+      if (typeof requestAnimationFrame === 'undefined') {
+        setStreamText(streamBuf.current);
+      }
+      return;
+    }
+    streamRaf.current = requestAnimationFrame(() => {
+      streamRaf.current = 0;
+      setStreamText(streamBuf.current);
+    });
+  }, []);
   const [activity, setActivity] = useState<ThreadState['activity']>(null);
   const [pending, setPending] = useState<PendingMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  /**
+   * When the socket last came back after a drop, or 0 if it never has.
+   *
+   * The footer already says "Reconnecting…" while down (via
+   * `activityPhase`); what was missing is the recovery beat -- the
+   * uimaxx-terminal "[shell reconnected]" line. ThreadScreen watches this
+   * and toasts once per reconnect. A timestamp rather than a boolean so
+   * the effect can key on it and repeated drops each announce.
+   */
+  const [reconnectedAt, setReconnectedAt] = useState(0);
   const [alerts, setAlerts] = useState<ErrorAlert[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [stopping, setStopping] = useState(false);
@@ -290,7 +340,7 @@ export function useThread(sessionId: string): ThreadState {
     setSources({});
     setSubagentSteps({});
     setTodos([]);
-    setStreamText('');
+    clearStream();
     setActivity(null);
     setPending(null);
     setLiveBusy(null);
@@ -316,7 +366,7 @@ export function useThread(sessionId: string): ThreadState {
           putItems(applyDelta(itemsRef.current, event));
           // The transcript now carries whatever was being streamed, so the
           // provisional buffer has served its purpose.
-          setStreamText('');
+          clearStream();
           return;
         }
         if (event.type === 'thread_meta') {
@@ -339,7 +389,7 @@ export function useThread(sessionId: string): ThreadState {
           return;
         }
         if (event.type === 'stream_delta') {
-          setStreamText((prev) => prev + event.text);
+          appendStream(event.text);
           return;
         }
         if (event.type === 'subscribed') {
@@ -357,7 +407,7 @@ export function useThread(sessionId: string): ThreadState {
         if (event.type === 'turn_started') {
           setActivity(null);
           setLiveBusy(true);
-          setStreamText('');
+          clearStream();
           setStopping(false);
           // A new turn's failures are its own; last turn's card would
           // otherwise sit above a run that is going fine.
@@ -375,9 +425,10 @@ export function useThread(sessionId: string): ThreadState {
             haptic('error');
           } else if (!event.stopped) {
             haptic('success');
+            playSound('receive');
           }
           setLiveBusy(false);
-          setStreamText('');
+          clearStream();
           setStopping(false);
           // Metadata the socket does not carry (title, permission, model,
           // and the suspended flag the composer keys off).
@@ -393,7 +444,10 @@ export function useThread(sessionId: string): ThreadState {
         // has -- title, permission, model, the suspended flag the composer
         // keys off -- so that is refetched here instead. Skipped on the
         // first connect, where the REST load has just run anyway.
-        if (isConnected && connectedOnce.current) void load();
+        if (isConnected && connectedOnce.current) {
+          void load();
+          setReconnectedAt(Date.now());
+        }
         if (isConnected) connectedOnce.current = true;
       },
     );
@@ -404,8 +458,13 @@ export function useThread(sessionId: string): ThreadState {
       alive.current = false;
       ws.close();
       socket.current = null;
+      if (streamRaf.current) {
+        cancelAnimationFrame(streamRaf.current);
+        streamRaf.current = 0;
+      }
+      streamBuf.current = '';
     };
-  }, [sessionId, load]);
+  }, [sessionId, load, clearStream, appendStream]);
 
   // Retire the optimistic bubble once the real one arrives -- or after a
   // couple of minutes, so a failed send does not leave a ghost forever.
@@ -467,6 +526,7 @@ export function useThread(sessionId: string): ThreadState {
     loading,
     error,
     connected,
+    reconnectedAt,
     alerts,
     stopping,
     stop: async () => {

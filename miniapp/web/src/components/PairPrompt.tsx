@@ -2,6 +2,19 @@ import { useState } from 'react';
 import { api } from '../api';
 import { storeName, storeToken } from '../standalone';
 import { haptic } from '../telegram';
+import { playSound } from '../utils/sounds';
+import { useActivityElapsed } from './ActivityMeta';
+import { workedFor } from '../utils/time';
+
+/*
+ * The pairing button's busy label, with its own clock. A sub-component
+ * rather than a hook in PairPrompt so the clock starts when the pairing
+ * does (mount) rather than when the screen first rendered.
+ */
+function PairingBusy() {
+  const elapsed = useActivityElapsed(null, true);
+  return <>Pairing… {workedFor(elapsed)}</>;
+}
 
 /**
  * Pairing an installed app that has no code in its URL.
@@ -44,9 +57,11 @@ export function PairPrompt({
       storeToken(res.token);
       if (res.name) storeName(res.name);
       haptic('success');
+      playSound('success');
       onPaired(res.token, res.name);
     } catch (err) {
       haptic('error');
+      playSound('error');
       const status = (err as { status?: number }).status;
       setError(
         status === 401
@@ -97,7 +112,7 @@ export function PairPrompt({
         data-surface-row="submit"
         disabled={!key || busy}
       >
-        {busy ? 'Pairing…' : 'Pair'}
+        {busy ? <PairingBusy /> : 'Pair'}
       </button>
       {error ? (
         <p

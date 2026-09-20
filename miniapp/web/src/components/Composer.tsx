@@ -28,7 +28,9 @@ import {
   X,
 } from './Icons';
 import { VoiceButton } from './VoiceButton';
+import { VoiceGlow } from './VoiceGlow';
 import { haptic } from '../telegram';
+import { playSound } from '../utils/sounds';
 import type { ComposerAttachment } from '../types';
 import { pillModelLabel } from '../utils/pills';
 
@@ -284,6 +286,11 @@ export function Composer({
    * are about a control in this row, so they belong next to that control.
    */
   const [notice, setNotice] = useState<string | null>(null);
+  // The voice glow is driven from here, not from VoiceButton: the beam
+  // wraps the whole composer box, so the button reports its stream up
+  // and this component owns the wrapper.
+  const [voiceStream, setVoiceStream] = useState<MediaStream | null>(null);
+  const [voiceBusy, setVoiceBusy] = useState(false);
 
   // Grow with the content instead of scrolling inside a fixed box, which
   // is what the sidepanel composer does.
@@ -314,7 +321,30 @@ export function Composer({
   const submit = () => {
     if (!canSend) return;
     haptic('light');
+    playSound('send');
     onSubmit();
+  };
+
+  /*
+   * The stop half of the one slot. Unchanged logic, lifted out of the JSX
+   * so both identities share the single button element below: no
+   * confirmation sheet, deliberately -- the desktop stops on one tap, a
+   * modal between the tap and the kill is exactly the lag this control is
+   * here to not have, and `stopping` shows immediately so the tap is
+   * never silent.
+   */
+  const handleStop = () => {
+    if (stopping) return;
+    if (!onStop) {
+      haptic('warning');
+      setNotice(
+        stopBlocked ??
+          'This turn is running in Aside on your Mac, so only the Mac can stop it.',
+      );
+      return;
+    }
+    haptic('medium');
+    onStop();
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -360,6 +390,7 @@ export function Composer({
   }, [mode]);
 
   return (
+    <VoiceGlow stream={voiceStream} processing={streaming || voiceBusy}>
     <div
       className={`composer composer-${variant}${mode === 'search' ? ' composer-search' : ''}`}
       data-composer-surface="frosted"
@@ -545,6 +576,10 @@ export function Composer({
         <VoiceButton
           disabled={blocked}
           onError={setNotice}
+          onVoiceActivity={(stream, busy) => {
+            setVoiceStream(stream);
+            setVoiceBusy(busy);
+          }}
           onTranscript={(text) => {
             setNotice(null);
             // Append rather than replace: dictation is one more way to add to
@@ -565,62 +600,48 @@ export function Composer({
           the control, and the composer never shows a live send arrow for a
           turn that is still answering.
         */}
-        {streaming ? (
-          <button
-            type="button"
-            className="round-button send stop composer-primary-control"
-            data-composer-control="stop"
-            data-composer-group="primary"
-            data-composer-primary="true"
-            onClick={() => {
-              if (stopping) return;
-              if (!onStop) {
-                haptic('warning');
-                setNotice(
-                  stopBlocked ??
-                    'This turn is running in Aside on your Mac, so only the Mac can stop it.',
-                );
-                return;
-              }
-              // No confirmation sheet, deliberately. The desktop stops on
-              // one tap, this is meant to match it, and a modal between the
-              // tap and the kill is exactly the lag this control is here to
-              // not have. `stopping` shows immediately so the tap is never
-              // silent.
-              haptic('medium');
-              onStop();
-            }}
-            aria-label="Stop"
-            // Genuinely disabled only while a kill is already in flight. The
-            // Mac-owned case stays clickable on purpose: a dead button that
-            // does nothing is the "just for decoration" failure, and the tap
-            // is what surfaces the explanation.
-            disabled={stopping}
-            aria-disabled={!onStop}
-            data-inert={onStop ? undefined : 'true'}
+        <button
+          type="button"
+          className={`round-button send${streaming ? ' stop' : ''} composer-primary-control`}
+          data-composer-control={streaming ? 'stop' : 'send'}
+          data-composer-group="primary"
+          data-composer-primary="true"
+          onClick={streaming ? handleStop : submit}
+          disabled={streaming ? stopping : !canSend}
+          aria-label={streaming ? 'Stop' : 'Send'}
+          // Genuinely disabled only while a kill is already in flight. The
+          // Mac-owned case stays clickable on purpose: a dead button that
+          // does nothing is the "just for decoration" failure, and the tap
+          // is what surfaces the explanation.
+          aria-disabled={streaming && !onStop ? true : undefined}
+          data-inert={streaming && !onStop ? 'true' : undefined}
+        >
+          {/*
+            Keyed so the icon pops in with a quarter-turn on every swap, in
+            either direction, instead of cutting (beUI action-swap). The
+            `busy` state gets its own key: sending a queued message
+            mid-turn swaps arrow for spinner without touching the slot.
+          */}
+          <span
+            key={streaming ? (stopping ? 'stopping' : 'stop') : busy ? 'busy' : 'send'}
+            className="send-swap"
           >
-            {stopping ? <Spinner size={16} /> : <StopSquare size={15} />}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="round-button send composer-primary-control"
-            data-composer-control="send"
-            data-composer-group="primary"
-            data-composer-primary="true"
-            onClick={submit}
-            disabled={!canSend}
-            aria-label="Send"
-          >
-            {busy ? (
+            {streaming ? (
+              stopping ? (
+                <Spinner size={16} />
+              ) : (
+                <StopSquare size={15} />
+              )
+            ) : busy ? (
               <Spinner size={16} />
             ) : (
               <ArrowUp size={17} strokeWidth={2} />
             )}
-          </button>
-        )}
+          </span>
+        </button>
       </div>
     </div>
+    </VoiceGlow>
   );
 }
 

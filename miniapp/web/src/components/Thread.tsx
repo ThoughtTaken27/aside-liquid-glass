@@ -399,6 +399,11 @@ export function Thread(props: ThreadProps) {
    * that resizes the mounted element, which triggers react-virtual's own
    * ResizeObserver).
    *
+   * The guess is per kind rather than a flat 80px. A flat guess starts the
+   * scrollbar and the landing position from fiction on any thread with
+   * real answers in it, and every correction is a visible jump; medians
+   * per kind start close enough that measuring settles instead of lurches.
+   *
    * `overscan: 6` and `scrollMargin` matching this component's own offset
    * within `.thread-scroll` are both from the Day 1 plan's 5.7. The offset
    * matters because `.thread-scroll` can render a loading/error paragraph
@@ -408,7 +413,24 @@ export function Thread(props: ThreadProps) {
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => props.scrollElementRef.current,
-    estimateSize: () => 80,
+    estimateSize: (index) => {
+      switch (items[index]?.kind) {
+        case 'user':
+          return 76;
+        case 'work':
+          return 44;
+        case 'answer':
+          return 240;
+        case 'streaming':
+          return 120;
+        case 'question':
+          return 260;
+        case 'error':
+          return 90;
+        default:
+          return 80;
+      }
+    },
     overscan: 6,
     getItemKey: (index) => items[index].id,
     scrollMargin: containerRef.current?.offsetTop ?? 0,

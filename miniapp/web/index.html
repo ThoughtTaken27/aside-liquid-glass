@@ -7,25 +7,34 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
     />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f9f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#060606" media="(prefers-color-scheme: dark)" />
     <title>Aside Mobile</title>
-    <link
-      rel="preload"
-      href="/art/zeron-liquid-dots-v2.webp"
-      as="image"
-      type="image/webp"
-      fetchpriority="high"
-    />
     <!--
       The installed /app shell never needs Telegram's remote bridge, so it
       must not compete with the app bundle or artwork on every launch.
       Telegram pages still start that request immediately and expose one
       promise so main.tsx can preserve the original execution ordering.
+
+      The artwork preload is injected below for the standalone shell only.
+      A static preload element here fetched the 201KB webp on every entry,
+      including Telegram launches that never render it, where it contended
+      with the bundle on the tailnet. Injected from this head script it
+      still starts before first paint, just not for clients that cannot
+      use it.
     -->
     <script>
       const isStandaloneShell = location.pathname.startsWith('/app');
       if (isStandaloneShell) {
         document.documentElement.dataset.client = 'standalone';
         document.documentElement.dataset.surface = 'boot';
+        const art = document.createElement('link');
+        art.rel = 'preload';
+        art.as = 'image';
+        art.type = 'image/webp';
+        art.href = '/art/zeron-liquid-dots-v2.webp';
+        art.fetchPriority = 'high';
+        document.head.appendChild(art);
       }
 
       window.__asideTelegramReady = isStandaloneShell

@@ -12,7 +12,13 @@
  * output card. There are no per-step timestamps anywhere: the sidepanel
  * shows none.
  */
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import type {
   ChildSteps,
   CitationSource,
@@ -180,9 +186,21 @@ function ToolDetail({ step }: { step: WorkStep }) {
  * desktop app shows one landing, and folds to its row once the result
  * arrives -- unless the reader has opened it themselves since.
  */
-function FileStep({ step, file }: { step: WorkStep; file: FileEdit }) {
+function FileStep({
+  step,
+  file,
+  expandSignal,
+}: {
+  step: WorkStep;
+  file: FileEdit;
+  expandSignal: { value: boolean; n: number };
+}) {
   const writing = step.status === 'pending';
   const [pinned, setPinned] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (expandSignal.n > 0) setPinned(expandSignal.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandSignal.n]);
   const shown = pinned ?? writing;
   // In flight the row names what is happening; afterwards the built label
   // ("Wrote …", "Edited …") already reads correctly.
@@ -212,9 +230,19 @@ function FileStep({ step, file }: { step: WorkStep; file: FileEdit }) {
   );
 }
 
-function StepRow({ step }: { step: WorkStep }) {
+function StepRow({
+  step,
+  expandSignal,
+}: {
+  step: WorkStep;
+  expandSignal: { value: boolean; n: number };
+}) {
   const [open, setOpen] = useState(false);
   const expandable = Boolean(step.detail?.command || step.detail?.output);
+  useEffect(() => {
+    if (expandSignal.n > 0 && expandable) setOpen(expandSignal.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandSignal.n]);
 
   return (
     <div className={`step ${open ? 'is-open' : ''}`}>
@@ -256,7 +284,7 @@ function StepRow({ step }: { step: WorkStep }) {
               aria-label="View image"
               onClick={() => openImage({ src })}
             >
-              <img src={src} alt="" loading="lazy" draggable={false} />
+              <img src={src} alt="" loading="lazy" decoding="async" draggable={false} />
             </button>
           ))}
           {/* The server caps inline images; saying so beats quietly showing
@@ -292,8 +320,42 @@ function Timeline({
   subagentSteps: Record<string, ChildSteps>;
   onInspectSubagent: (childId: string, title: string) => void;
 }) {
+  /*
+   * Expand / collapse all, for runs long enough that opening rows one
+   * by one is a chore (the uimaxx "history expansion" instinct,
+   * restrained to a single toggle). The count in the label doubles as
+   * the tool-count summary: "Expand all - 8" says how much work this
+   * run was before a single row opens. Rows that cannot open (no
+   * detail, no file) are not counted -- offering to expand something
+   * that cannot expand would be a lie in a button.
+   */
+  const expandable = steps.filter((item) =>
+    item.subagent
+      ? false
+      : item.file
+        ? true
+        : Boolean(item.detail?.command || item.detail?.output),
+  ).length;
+  const [expandSignal, setExpandSignal] = useState({ value: false, n: 0 });
+  const allOut = expandSignal.n > 0 && expandSignal.value;
+
   return (
     <div className="timeline" data-content-surface="activity-details">
+      {expandable > 1 ? (
+        <button
+          type="button"
+          className="timeline-toggle"
+          onClick={() => {
+            haptic('light');
+            setExpandSignal((prev) => ({
+              value: !(prev.n > 0 && prev.value),
+              n: prev.n + 1,
+            }));
+          }}
+        >
+          {allOut ? 'Collapse all' : 'Expand all \u00b7 ' + expandable}
+        </button>
+      ) : null}
       {steps.map((item) => {
         if (item.subagent) {
           return (
@@ -310,9 +372,18 @@ function Timeline({
           );
         }
         if (item.file) {
-          return <FileStep key={item.id} step={item} file={item.file} />;
+          return (
+            <FileStep
+              key={item.id}
+              step={item}
+              file={item.file}
+              expandSignal={expandSignal}
+            />
+          );
         }
-        return <StepRow key={item.id} step={item} />;
+        return (
+          <StepRow key={item.id} step={item} expandSignal={expandSignal} />
+        );
       })}
     </div>
   );

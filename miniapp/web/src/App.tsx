@@ -67,7 +67,7 @@ import { StreamFooter } from './components/StreamFooter';
 import { activityPhase } from './utils/activityPhase';
 import { TodoSection } from './components/TodoSection';
 import { ErrorCard } from './components/ErrorCard';
-import { ChevronDown, ChevronLeft, Globe, MoreVertical, Spinner } from './components/Icons';
+import { AsideSymbol, ChevronDown, ChevronLeft, Globe, MoreVertical, Spinner } from './components/Icons';
 import { WatchModeCard } from './components/WatchMode';
 import type { CitationMark } from './utils/citations';
 import { api, setAuthToken, setUnauthorizedHandler } from './api';
@@ -78,6 +78,12 @@ import {
   resolveStandaloneAuth,
 } from './standalone';
 import { PairPrompt } from './components/PairPrompt';
+import { useActivityElapsed } from './components/ActivityMeta';
+import { workedFor } from './utils/time';
+import { ToastHost, toast } from './components/Toasts';
+import { ActivityIsland } from './components/ActivityIsland';
+import { PullToRefresh } from './components/PullToRefresh';
+import { playSound } from './utils/sounds';
 import { InstallHint } from './components/InstallHint';
 import { useThread } from './hooks/useThread';
 import { useAttachments } from './hooks/useAttachments';
@@ -120,6 +126,31 @@ type AuthState =
   | { phase: 'failed'; reason: string }
   /** The bearer token is minted; a biometric check the owner turned on failed or was cancelled. Recoverable -- see `retryUnlock`, never a dead end. */
   | { phase: 'locked'; name?: string };
+
+/**
+ * How long the boot has been working, under the skeleton rows.
+ *
+ * beautifului's loading state ("Churning 0.3s") is the reference: a wait
+ * with a clock reads as attended, a wait without one reads as stuck. The
+ * two-second delay keeps fast boots from flashing a number that nobody
+ * had time to worry about.
+ */
+function BootElapsed() {
+  const elapsed = useActivityElapsed(null, true);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setShow(true), 2000);
+    return () => window.clearTimeout(t);
+  }, []);
+  if (!show) return null;
+  return (
+    // role="timer", not status: a ticking clock must not turn a screen
+    // reader into a metronome, and a timer carries live="off" by default.
+    <p className="boot-elapsed" role="timer">
+      Connecting… {workedFor(elapsed)}
+    </p>
+  );
+}
 
 /** A trimmed session, cached for the skeleton boot render. Never anything sensitive -- title and status only. */
 interface SkeletonSession {
@@ -355,6 +386,17 @@ export default function App() {
     });
   }, []);
 
+  // The blank history's way home: back to the hero, where the composer
+  // (always docked) is the obvious next move.
+  const scrollToTop = useCallback(() => {
+    const reduceMotion = typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    homeScroll.current?.scrollTo({
+      top: 0,
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
+  }, []);
+
   // A chosen model/effort sticks across launches; until one is chosen the
   // pills mirror whatever the daemon's own default is.
   const [provider, setProvider] = useState(
@@ -514,6 +556,7 @@ export default function App() {
       setSessions((prev) => prev.filter((session) => session.id !== id));
       try {
         await api.deleteSession(id);
+        toast('Chat deleted');
       } catch {
         // Nothing to say here; the reload below is the authority on what
         // actually still exists.
@@ -707,18 +750,23 @@ export default function App() {
               <span className="boot-skeleton-title">{row.title}</span>
             </div>
           ))}
+          <BootElapsed />
         </div>
       );
     }
     return (
       <div className="boot">
         <Spinner size={18} />
+        <BootElapsed />
       </div>
     );
   }
   if (auth.phase === 'failed') {
     return (
       <div className="boot">
+        <span className="boot-failure-mark" aria-hidden="true">
+          <AsideSymbol size={24} />
+        </span>
         <p className="boot-title">Can’t sign in</p>
         <p className="boot-reason">{auth.reason}</p>
         {/*
@@ -875,8 +923,14 @@ export default function App() {
                 <Globe size={19} strokeWidth={1.75} />
               </button>
             </div>
-            <RestHero name={auth.phase === 'ready' ? auth.name : undefined} />
-            <RestCue count={sessions.length} onOpen={scrollToHistory} />
+            <PullToRefresh
+              scroller={homeScroll}
+              onRefresh={loadSessions}
+              disabled={loadingSessions}
+            >
+              <RestHero name={auth.phase === 'ready' ? auth.name : undefined} />
+              <RestCue count={sessions.length} onOpen={scrollToHistory} />
+            </PullToRefresh>
           </section>
           <section className="home-history" ref={historyRef}>
             <h2 className="home-history-head">Recent work</h2>
@@ -885,6 +939,12 @@ export default function App() {
               onOpen={(id) => openThread({ id })}
               loading={loadingSessions}
               onDelete={deleteSession}
+              onNewChat={() => {
+                setDraft('');
+                scrollToTop();
+              }}
+              onOpenTabs={() => setHomeTabsOpen(true)}
+              onOpenSettings={() => setSettingsOpen(true)}
             />
           </section>
         </main>
@@ -929,6 +989,7 @@ export default function App() {
           onToggleConfirm: (next) => {
             setNewFinalConfirm(next);
             haptic('light');
+            playSound('toggle');
           },
           onPickModel: pickModel,
           onPickEffort: pickEffort,
@@ -938,6 +999,7 @@ export default function App() {
             <TabDeck onClose={() => setHomeTabsOpen(false)} />
           </Suspense>
         ) : null}
+        <ToastHost />
       </div>
     );
   }
@@ -1056,6 +1118,20 @@ function ThreadScreen({
     else disableClosingConfirmation();
     return () => disableClosingConfirmation();
   }, [activeTurn]);
+
+  /*
+   * The recovery beat for a dropped socket. The footer says
+   * "Reconnecting…" while down (via activityPhase); this says it came
+   * back. Keyed on the timestamp so repeated drops each announce once,
+   * and the ref keeps StrictMode's double-effect from toasting twice.
+   */
+  const lastToastedReconnect = useRef(0);
+  useEffect(() => {
+    if (thread.reconnectedAt > lastToastedReconnect.current) {
+      lastToastedReconnect.current = thread.reconnectedAt;
+      toast('Reconnected — catching up');
+    }
+  }, [thread.reconnectedAt]);
 
   const effective = resolveThreadModel(optimisticModel, pills);
 
@@ -1294,9 +1370,30 @@ function ThreadScreen({
     updateScrim();
   }, [updateScrim, armLanding]);
 
+  /*
+   * The header condenses while scrolling deep and expands the moment
+   * the scroll turns upward (TypeUI hide-on-scroll bars, restrained:
+   * this bar is in-flow, so hiding it would yank the transcript --
+   * instead the subtitle collapses and the padding tightens). The
+   * refs keep per-frame scroll events from becoming per-frame renders;
+   * state flips only on a direction change past the threshold.
+   */
+  const [condensed, setCondensed] = useState(false);
+  const lastScrollTop = useRef(0);
+  const condensedRef = useRef(false);
+
   const onScroll = () => {
     const el = scroller.current;
     if (!el) return;
+    const top = el.scrollTop;
+    const down = top > lastScrollTop.current + 4;
+    const up = top < lastScrollTop.current - 4;
+    lastScrollTop.current = top;
+    const next = top > 90 && (down || (!up && condensedRef.current));
+    if (next !== condensedRef.current) {
+      condensedRef.current = next;
+      setCondensed(next);
+    }
     /*
      * While landing, scroll events are our own doing. Letting them set
      * `pinned` is how a slow-rendering transcript un-pins itself: the
@@ -1449,6 +1546,17 @@ function ThreadScreen({
         permissionMode: res.permissionMode,
         finalConfirm: res.finalConfirm,
       });
+      // Modes announce; the confirm toggle just clicks (see its sound).
+      // The label mapping mirrors the header subtitle below exactly.
+      if (patch.mode) {
+        const label =
+          res.permissionMode === 'full-access'
+            ? 'Full access'
+            : res.permissionMode === 'read-only'
+              ? 'Read only'
+              : 'Default';
+        toast(`Permission: ${label}`);
+      }
     } catch {
       // Put the truth back: re-read rather than leaving a claim we cannot
       // stand behind on screen.
@@ -1458,7 +1566,7 @@ function ThreadScreen({
 
   return (
     <div className="app" ref={threadShell}>
-      <header className="thread-header">
+      <header className="thread-header" data-condensed={condensed ? 'true' : 'false'}>
         <div className="thread-header-left">
           <button type="button" className="icon-button" onClick={onBack} aria-label="Back">
             <ChevronLeft size={20} strokeWidth={1.75} />
@@ -1513,10 +1621,31 @@ function ThreadScreen({
       >
         <WatchModeCard sessionId={sessionId} busy={activeTurn} items={thread.items} />
         {thread.loading && thread.items.length === 0 ? (
-          <p className="list-empty">Loading…</p>
+          <div className="thread-skeleton" role="status" aria-label="Loading conversation">
+            <span className="thread-skeleton-user" aria-hidden="true" />
+            <span className="thread-skeleton-line" aria-hidden="true" />
+            <span className="thread-skeleton-line short" aria-hidden="true" />
+            <span className="thread-skeleton-line" aria-hidden="true" />
+          </div>
         ) : null}
         {thread.error && thread.items.length === 0 ? (
-          <p className="list-empty">{thread.error}</p>
+          <div className="thread-error" role="alert">
+            <span className="thread-error-mark" aria-hidden="true">
+              <AsideSymbol size={24} />
+            </span>
+            <p className="thread-error-title">Couldn&apos;t load this chat</p>
+            <p className="thread-error-reason">{thread.error}</p>
+            <button
+              type="button"
+              className="thread-error-retry"
+              onClick={() => {
+                haptic('light');
+                thread.refresh();
+              }}
+            >
+              Try again
+            </button>
+          </div>
         ) : null}
 
         <Thread
@@ -1573,6 +1702,14 @@ function ThreadScreen({
         >
           <ChevronDown size={17} strokeWidth={2.25} />
         </button>
+        {activeTurn && liveActivity ? (
+          <ActivityIsland
+            activity={liveActivity}
+            stoppable={thread.stoppable}
+            stopping={thread.stopping}
+            onStop={() => void thread.stop()}
+          />
+        ) : null}
         <Composer
           variant="reply"
           value={draft}
@@ -1657,7 +1794,10 @@ function ThreadScreen({
         finalConfirm: thread.finalConfirm,
         softConfirm: thread.softConfirm,
         onPickMode: (id) => void setPermission({ mode: id }),
-        onToggleConfirm: (next) => void setPermission({ finalConfirm: next }),
+        onToggleConfirm: (next) => {
+          playSound('toggle');
+          void setPermission({ finalConfirm: next });
+        },
         onPickModel: (provider, modelId) =>
           void updateSessionModel({
             provider,
@@ -1672,6 +1812,7 @@ function ThreadScreen({
             label: effective.modelLabel,
           }),
       })}
+      <ToastHost />
     </div>
   );
 }

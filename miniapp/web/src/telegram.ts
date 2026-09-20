@@ -324,7 +324,32 @@ function bindSafeAreaVars(): void {
   app?.onEvent('fullscreenChanged', applySafeAreaVars);
 }
 
+/** The theme choice in Settings. `auto` is the old behaviour bit-for-bit. */
+export type ThemeOverride = 'auto' | 'light' | 'dark';
+
+const THEME_KEY = 'aside.theme';
+
+export function readThemeOverride(): ThemeOverride {
+  try {
+    const raw = localStorage.getItem(THEME_KEY);
+    if (raw === 'light' || raw === 'dark' || raw === 'auto') return raw;
+  } catch {
+    // Private mode or a locked-down webview: fall through to auto.
+  }
+  return 'auto';
+}
+
+export function setThemeOverride(next: ThemeOverride): void {
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch {
+    // The choice still applies for this session via applyTheme.
+  }
+}
+
 export function colorScheme(): 'light' | 'dark' {
+  const override = readThemeOverride();
+  if (override === 'light' || override === 'dark') return override;
   const app = webApp();
   if (app?.colorScheme) return app.colorScheme;
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches
@@ -388,6 +413,26 @@ export function applyTheme(): 'light' | 'dark' {
     app?.setBackgroundColor?.(page);
     app?.setHeaderColor?.(page);
     app?.setBottomBarColor?.(page);
+    /*
+     * The standalone shell has no Telegram chrome to push to, so the
+     * browser chrome gets the colour instead -- but ONLY for a manual
+     * override. The static media-pair in index.html already covers auto
+     * (and the pre-JS paint), so this tag carries an id, never touches
+     * the pair, and is removed again when the choice returns to auto.
+     * Without it the address bar would disagree with the page exactly
+     * when the OS was never told anything changed.
+     */
+    const manual =
+      readThemeOverride() === 'light' || readThemeOverride() === 'dark';
+    const owned = document.querySelector('meta[name="theme-color"]:not([media])');
+    if (manual) {
+      const meta = owned ?? document.createElement('meta');
+      meta.setAttribute('name', 'theme-color');
+      if (!owned) document.head.appendChild(meta);
+      meta.setAttribute('content', page);
+    } else if (owned) {
+      owned.remove();
+    }
   } else if (surface) {
     app?.setHeaderColor?.(surface);
   }

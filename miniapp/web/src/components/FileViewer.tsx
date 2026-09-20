@@ -116,6 +116,7 @@ export function FileViewer({
           data-surface-content="image"
           src={loaded.url}
           alt={file.name}
+          decoding="async"
         />
       ) : null}
       {loaded.state === 'text' ? (

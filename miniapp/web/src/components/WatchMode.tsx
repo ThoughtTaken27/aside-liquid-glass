@@ -170,7 +170,7 @@ export function WatchModeCard({
       </button>
       {!collapsed ? (
         <>
-          {src ? <img className="watch-mode-image" src={src} alt="Live browser capture" /> : null}
+          {src ? <img className="watch-mode-image" src={src} alt="Live browser capture" decoding="async" /> : null}
           {url ? <span className="watch-mode-url">{url}</span> : null}
         </>
       ) : null}

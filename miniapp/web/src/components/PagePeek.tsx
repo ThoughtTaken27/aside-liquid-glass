@@ -110,6 +110,7 @@ export function PagePeek({
             className={`page-peek-image ${zoomed ? 'is-zoomed' : ''}`}
             src={src}
             alt={tab.title || tab.url}
+            decoding="async"
             style={{ touchAction: 'pinch-zoom' }}
             onLoad={() => setLoading(false)}
             onError={() => {

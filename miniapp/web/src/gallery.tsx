@@ -26,6 +26,11 @@ import { UserBubble } from './components/Thread';
 import { StreamFooter } from './components/StreamFooter';
 import { Markdown } from './components/Markdown';
 import { ChevronLeft, Globe, MoreVertical, StopSquare } from './components/Icons';
+import { ToastHost, toast } from './components/Toasts';
+import { SlideToConfirm } from './components/SlideToConfirm';
+import { ActivityIsland } from './components/ActivityIsland';
+import { CountUp } from './components/CountUp';
+import { VoiceGlow } from './components/VoiceGlow';
 import { activityPhase } from './utils/activityPhase';
 
 // The gallery previews the standalone phone/PWA, not the Telegram mini app.
@@ -364,9 +369,129 @@ function HomePreview() {
   );
 }
 
+function PolishPreview() {
+  const [tokens, setTokens] = useState(1284);
+  return (
+    <div className="app" data-at-start="false">
+      <header className="thread-header" data-condensed="false">
+        <div className="thread-header-left">
+          <button type="button" className="icon-button" aria-label="Back">
+            <ChevronLeft size={20} strokeWidth={1.75} />
+          </button>
+        </div>
+        <span className="thread-titles">
+          <span className="thread-title">Polish shelf</span>
+          <span className="thread-subtitle">Tap through the new pieces</span>
+        </span>
+        <div className="thread-header-right" />
+      </header>
+
+      <div className="thread-scroll">
+        <div className="thread">
+          <div className="thread-error">
+            <p className="thread-error-title">Toasts</p>
+            <p className="thread-error-reason">
+              Fire one of each tone. They stack above the footer and
+              dismiss on their own.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="thread-error-retry"
+                onClick={() => toast('Reconnected — catching up')}
+              >
+                Info
+              </button>
+              <button
+                type="button"
+                className="thread-error-retry"
+                onClick={() => toast('Permission: Full access', { tone: 'success' })}
+              >
+                Success
+              </button>
+              <button
+                type="button"
+                className="thread-error-retry"
+                onClick={() =>
+                  toast('Chat could not load', {
+                    tone: 'error',
+                    action: { label: 'Retry', onClick: () => toast('Retrying…') },
+                  })
+                }
+              >
+                Error + action
+              </button>
+            </div>
+          </div>
+
+          <div className="thread-error">
+            <p className="thread-error-title">Count-up</p>
+            <p className="thread-error-reason">
+              <span className="activity-meta-count">
+                <CountUp value={tokens} format={(n) => n.toLocaleString('en-US')} /> tokens
+              </span>
+            </p>
+            <button
+              type="button"
+              className="thread-error-retry"
+              onClick={() => setTokens((n) => n + 400 + Math.floor(Math.random() * 900))}
+            >
+              Add tokens
+            </button>
+          </div>
+
+          <div className="thread-error">
+            <p className="thread-error-title">Slide to confirm</p>
+            <div style={{ width: '100%' }}>
+              <SlideToConfirm
+                label="Slide to allow full access"
+                onConfirm={() => toast('Full access allowed', { tone: 'success' })}
+              />
+            </div>
+          </div>
+
+          <div className="thread-error">
+            <p className="thread-error-title">Voice glow, processing</p>
+            <p className="thread-error-reason">
+              The beam that travels the composer while a turn runs.
+            </p>
+            <div style={{ width: '100%' }}>
+              <VoiceGlow stream={null} processing>
+                <div className="composer composer-reply">
+                  <div className="composer-input" role="textbox">
+                    <span style={{ opacity: 0.45 }}>Working…</span>
+                  </div>
+                </div>
+              </VoiceGlow>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer className="thread-footer" data-at-end="false">
+        <ActivityIsland
+          activity={{
+            label: 'Reading 00-Self',
+            work: 'tools',
+            detail: 'Read /home/user/aside/00-Self',
+            seed: 'gallery',
+            startedAt: Date.now() - 42000,
+            tokens,
+          }}
+          stoppable
+          stopping={false}
+          onStop={() => toast('Stop tapped (gallery does nothing)')}
+        />
+      </footer>
+      <ToastHost />
+    </div>
+  );
+}
+
 function Gallery() {
   if (location.search.includes('home')) return <HomePreview />;
   if (location.search.includes('fresh')) return <FreshTurn />;
+  if (location.search.includes('polish')) return <PolishPreview />;
   return (
     <div className="app" data-at-start="false">
       <header className="thread-header">

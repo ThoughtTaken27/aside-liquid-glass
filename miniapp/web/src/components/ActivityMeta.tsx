@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatTokens } from '../utils/format';
 import { workedFor } from '../utils/time';
+import { CountUp } from './CountUp';
 
 /** A turn cannot have started a day ago; a clock that says so is skewed. */
 const MAX_PLAUSIBLE_TURN_MS = 24 * 60 * 60 * 1000;
@@ -70,7 +71,7 @@ export function ActivityMeta({
         <>
           <span className="activity-meta-sep" aria-hidden="true">·</span>
           <span className="activity-meta-count" data-meta-value="tokens">
-            {formatTokens(tokens)} tokens
+            <CountUp value={tokens} format={formatTokens} /> tokens
           </span>
         </>
       ) : null}

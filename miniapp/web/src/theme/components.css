@@ -118,6 +118,68 @@
   color: var(--secondary-foreground);
 }
 
+/*
+ * Loading placeholders that hold the shape of what is coming.
+ *
+ * A thread opening over a slow tailnet showed one grey "Loading…" line,
+ * and history showed "Loading chats…" -- both read as an empty screen
+ * rather than a screen on its way. These hold the layout instead: a
+ * right-aligned block where the user's bubble will land, full-width bars
+ * where the answer goes, and row-height bars where the history lands.
+ * They breathe on the same 1.8s cycle as the boot skeleton, staggered so
+ * the list reads as settling rather than flashing, and they sit in normal
+ * flow so the content that replaces them lands where they already were.
+ */
+.thread-skeleton,
+.history-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0 0;
+}
+
+.thread-skeleton > span,
+.history-skeleton > span {
+  display: block;
+  background: var(--muted);
+  animation: boot-skeleton-breathe 1.8s var(--ease-in-out) infinite;
+}
+
+.thread-skeleton > span:nth-child(2) { animation-delay: 0.09s; }
+.thread-skeleton > span:nth-child(3) { animation-delay: 0.18s; }
+.thread-skeleton > span:nth-child(4) { animation-delay: 0.27s; }
+.history-skeleton > span:nth-child(2) { animation-delay: 0.09s; }
+.history-skeleton > span:nth-child(3) { animation-delay: 0.18s; }
+
+.thread-skeleton-user {
+  align-self: flex-end;
+  width: 42%;
+  height: 42px;
+  border-radius: 19px;
+}
+
+.thread-skeleton-line {
+  width: 100%;
+  height: 14px;
+  border-radius: 7px;
+}
+
+.thread-skeleton-line.short {
+  width: 68%;
+}
+
+.history-skeleton-row {
+  height: 58px;
+  border-radius: var(--radius-lg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-skeleton > span,
+  .history-skeleton > span {
+    animation: none;
+  }
+}
+
 /* --- home ---------------------------------------------------------------- */
 
 .home {
@@ -347,6 +409,7 @@
   padding-bottom: 6px;
   border-bottom: var(--hairline) solid var(--border-surface);
   max-height: min(42vh, 360px);
+  max-height: min(42dvh, 360px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -441,9 +504,6 @@
    you are looking at your own thumb, and gone a moment later. */
 .icon-button:active {
   color: var(--brand-text);
-}
-
-.icon-button:active {
   background: var(--muted);
 }
 
@@ -1379,11 +1439,6 @@
   color: var(--brand-text);
 }
 
-/* Sent but not yet confirmed by the transcript. */
-.user-bubble.is-pending {
-  opacity: 0.55;
-}
-
 /*
  * The answer is plain page content -- no bubble, no card, and no indent.
  *
@@ -1395,14 +1450,6 @@
 .answer {
   font-size: var(--text-base);
   animation: turn-in 0.34s var(--ease-emphasized) both;
-}
-
-.answer-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 2px 0;
 }
 
 .answer-action {
@@ -1427,17 +1474,6 @@
 
 .answer-action.is-copied {
   color: var(--success);
-}
-
-.system-error {
-  padding: 10px 12px;
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklab, var(--destructive) 8%, transparent);
-  border: var(--hairline) solid
-    color-mix(in oklab, var(--destructive) 30%, transparent);
-  color: var(--destructive);
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
 }
 
 /* --- the work fold ------------------------------------------------------- */
@@ -1926,12 +1962,6 @@
   color: var(--muted-foreground);
 }
 
-/* Mid-turn commentary sits at body weight between the steps. */
-.timeline-text {
-  padding: 8px 4px 10px;
-  font-size: var(--text-sm);
-}
-
 /* --- tool detail card ---------------------------------------------------- */
 
 /*
@@ -2320,41 +2350,6 @@
   }
 }
 
-.bottom-bar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 2px;
-}
-
-.permission {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 6px;
-  height: 30px;
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--secondary-foreground);
-  white-space: nowrap;
-  /* Same defence as the pills: a label can clip, but never widen the bar. */
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Full access is the one orange thing in the UI, as in the sidepanel. */
-.permission.is-full {
-  color: var(--permission);
-}
-
-.permission-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: var(--radius-full);
-  background: currentColor;
-  flex: none;
-}
-
 /* --- popovers ------------------------------------------------------------ */
 
 .popover {
@@ -2447,13 +2442,6 @@
   white-space: nowrap;
 }
 
-.popover-muted {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--secondary-foreground);
-}
-
 /* Ultrabrowse keeps a distinctive sheen without introducing a second
    palette. Every stop is the same orange text ink mixed darker, so the
    sheen never trades small-text contrast for brightness. */
@@ -2476,32 +2464,6 @@
   height: var(--hairline);
   margin: 5px 4px;
   background: var(--border);
-}
-
-.popover-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  color: var(--muted-foreground);
-}
-
-.popover-search input {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--text-base);
-  color: var(--popover-foreground);
-}
-
-.popover-search input::placeholder {
-  color: var(--muted-foreground);
-}
-
-.popover-empty {
-  padding: 12px 10px;
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-  text-align: center;
 }
 
 /* --- markdown ------------------------------------------------------------ */
@@ -3261,17 +3223,6 @@
 /* (The composer carries no permission mark. It is named in the model
    sheet instead -- see the note in Composer.tsx.) */
 
-/* The bottom-bar label is a button now; it must not look like one. */
-.permission {
-  background: none;
-  border-radius: var(--radius-md);
-  transition: background var(--duration) var(--ease-out);
-}
-
-.permission:active {
-  background: var(--muted);
-}
-
 .popover-switch-row {
   display: flex;
   align-items: center;
@@ -3501,7 +3452,11 @@
   left: 8px;
   right: 8px;
   bottom: 8px;
+  /* `vh` first for webviews without dynamic units; `dvh` tracks the
+     visible viewport as the browser chrome shows and hides, so the sheet
+     never sizes itself against a viewport that includes the toolbar. */
   max-height: 80vh;
+  max-height: 80dvh;
   /* Measured off the reference at ~34px, appreciably rounder than the 26
      used before. On a full-bleed panel the corner is the only shape the
      sheet has, so it is doing all the work of looking like an object. */
@@ -4207,11 +4162,6 @@
   color: inherit;
 }
 
-@keyframes fold-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .stream-footer { transition: none; }
   .activity-orb,
@@ -4729,13 +4679,6 @@
   margin-top: 4px;
   font-size: var(--text-xs);
   color: var(--secondary-foreground);
-}
-
-.routine-row {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  cursor: default;
 }
 
 /* Memory browser (8.1). */
@@ -5426,9 +5369,6 @@
 
 .sheet-back:active {
   background: var(--muted);
-}
-
-.sheet-back:active {
   color: var(--foreground);
 }
 
@@ -6185,9 +6125,9 @@
  * faint sense of light coming from above, which is what makes the white
  * cards look like they are ON something rather than cut out of it.
  *
- * Fixed attachment so it belongs to the screen, not the scroll. A gradient
- * that slides with the content is a visible moving band; one pinned to the
- * viewport is just ambient light.
+ * No fixed attachment: it renders identically here (.app is exactly
+ * viewport height and never scrolls itself) and costs a full repaint on
+ * every scroll frame in mobile webviews.
  *
  * No blue, no purple, no two-stop colour ramp. The stops are the page
  * colour and the page colour very slightly lifted.
@@ -6201,7 +6141,6 @@
       oklch(100% 0 0 / 0) 42%
     ),
     var(--page);
-  background-attachment: fixed;
 }
 
 .dark .app {
@@ -6213,7 +6152,6 @@
       oklch(100% 0 0 / 0) 42%
     ),
     var(--page);
-  background-attachment: fixed;
 }
 
 /*
@@ -6580,94 +6518,6 @@
   padding: 40px 20px;
   font: 14px/1.5 var(--font-sans, -apple-system, system-ui, sans-serif);
   color: var(--muted-foreground);
-}
-
-/* The framed page. */
-.browser-view {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-  background: #fff;
-  overflow: hidden;
-}
-
-.browser-view.is-cropped {
-  /* The frame sits shifted up by HEADER_CROP_PX, and is that much taller,
-     so cropping the header does not lose any of the scrollable page. */
-  overflow: hidden;
-}
-
-.browser-frame {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  display: block;
-  background: #fff;
-}
-
-.browser-frame.is-cropped {
-  position: absolute;
-  top: 0;
-  left: 0;
-  /* Pulled up by the sticky header's height and sized taller by the same
-     amount, both set inline via style. */
-}
-
-/* Progress bar, shown until the frame's onLoad fires. */
-.browser-progress {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--mark-warm);
-  z-index: 10;
-  animation: browser-bar-grow 1.2s ease-in-out infinite;
-}
-
-@keyframes browser-bar-grow {
-  0%   { transform: scaleX(0);   transform-origin: left;  opacity: 1; }
-  50%  { transform: scaleX(0.7); transform-origin: left; opacity: 1; }
-  100% { transform: scaleX(1);   transform-origin: right; opacity: 0.3; }
-}
-
-.browser-blank {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 40px;
-  text-align: center;
-  background: var(--page);
-}
-
-.browser-blank-title {
-  font: 600 22px/1 var(--font-serif, ui-serif, 'New York', Georgia, serif);
-  color: var(--foreground);
-  margin: 0;
-}
-
-.browser-blank-note {
-  font: 14px/1.5 var(--font-sans, -apple-system, system-ui, sans-serif);
-  color: var(--muted-foreground);
-  margin: 0;
-  max-width: 280px;
-}
-
-/* The escape hatch for pages that refuse to be framed. */
-.browser-escape {
-  flex: none;
-  width: 100%;
-  border: 0;
-  border-top: 1px solid var(--border);
-  background: var(--surface-primary);
-  padding: 10px;
-  font: 13px/1 var(--font-sans, -apple-system, system-ui, sans-serif);
-  color: var(--brand-text);
-  cursor: pointer;
 }
 
 /*
@@ -7557,8 +7407,7 @@
 
 .boot-title,
 .thread-title,
-.sheet-title,
-.browser-blank-title {
+.sheet-title {
   letter-spacing: var(--tracking-title);
 }
 
@@ -7567,7 +7416,6 @@
 .settings-row-title,
 .panel-row-name,
 .alert-title,
-.question-block-label,
 .fold-row,
 .step-row,
 .activity-line {
@@ -7578,8 +7426,7 @@
 .home-history-head,
 .settings-heading,
 .panel-heading,
-.question-header,
-.sheet-section-title {
+.question-header {
   letter-spacing: var(--tracking-micro);
 }
 
@@ -7610,9 +7457,7 @@
   .tab-deck-go button,
   .question-reply button,
   .chip-remove,
-  .watch-mode-head,
-  .swipe-delete-action,
-  .browser-escape
+  .watch-mode-head
 ):focus-visible {
   outline: 3px solid color-mix(in oklab, var(--brand) 42%, transparent);
   outline-offset: 2px;
@@ -7627,7 +7472,6 @@
 
 :where(
   .memory-search,
-  .popover-search,
   .sheet-search,
   .tab-deck-go,
   .question-reply
@@ -7689,7 +7533,6 @@
   }
 
   .watch-mode-live,
-  .browser-progress,
   .todo-spin {
     animation: none;
   }
@@ -7698,15 +7541,9 @@
     opacity: 0.72;
   }
 
-  .browser-progress {
-    transform: scaleX(0.45);
-  }
-
   .page-peek-image,
   .voice-button,
-  .voice-meter-fill,
-  .mode-switch-indicator,
-  .swipe-delete-track {
+  .mode-switch-indicator {
     transition: none;
   }
 }
@@ -7775,6 +7612,8 @@
 
 .session-group {
   gap: 9px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 160px;
 }
 
 .session-group-head {
@@ -7890,6 +7729,8 @@
 .session-card {
   gap: 9px;
   padding: 18px 18px 17px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
 }
 
 /*
@@ -8722,7 +8563,7 @@
   overflow: hidden;
 }
 
-:root[data-client='standalone'] :is(.session-row, .session-card, .session-card-main, .session-card-head, .session-card-body) {
+:root[data-client='standalone'] :is(.session-row, .session-card, .session-card-head) {
   background: transparent;
   border-radius: 0;
   box-shadow: none;
@@ -9495,7 +9336,7 @@
 }
 
 :root[data-client='standalone'] .session-rows,
-:root[data-client='standalone'] :is(.session-row, .session-card-main, .session-card-head, .session-card-body) {
+:root[data-client='standalone'] :is(.session-row, .session-card-head) {
   background: transparent;
   box-shadow: none;
   -webkit-backdrop-filter: none;
@@ -9693,5 +9534,907 @@
     background: var(--surface-primary);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+}
+
+/* --- tabular numerals -------------------------------------------------- */
+
+/*
+ * Timers, clocks and counts set in tabular figures (Linear's rule, via
+ * Refero: `font-feature-settings` with `tnum`). A ticking clock in
+ * proportional figures visibly jitters as 1s and 8s swap widths; tabular
+ * figures hold the column still. One rule over every class that shows a
+ * measured number.
+ */
+.activity-meta-time,
+.activity-meta-count,
+.activity-island-clock,
+.session-row-time,
+.session-card-time,
+.boot-elapsed,
+.toast-message {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- focus visibility -------------------------------------------------- */
+
+/*
+ * Focus for everything the stacked-ring section above does not name.
+ *
+ * That section covers five controls with a surface ring inside an accent
+ * ring; every other focusable thing fell back to the browser default,
+ * which is how a switch and a send button came to focus in two different
+ * visual languages. This extends the SAME ring to all of them -- zero
+ * specificity, so the named rules still win where they overlap, and the
+ * result is one focus system instead of two.
+ */
+:where(
+  button,
+  [role='button'],
+  input,
+  textarea,
+  select,
+  a,
+  [tabindex]:not([tabindex='-1'])
+):focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--surface-primary),
+    0 0 0 4px var(--ring);
+}
+
+/* --- toasts ------------------------------------------------------------ */
+
+/*
+ * Transient notices docked above the composer (beUI's toast stack, bencho's
+ * Notify). Fixed to the viewport rather than the footer because the host
+ * is global -- one host per screen, fed by the module bus in Toasts.tsx.
+ * The offset clears the tallest composer the dock can grow into; a toast
+ * is transient, so grazing an unusually tall composer on its way out is
+ * acceptable, overlapping it at rest is not.
+ *
+ * The host itself is click-through; only the pills take taps, and a tap
+ * anywhere on a pill dismisses it. Newest on top, stacked upward.
+ */
+.toast-host {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  /*
+   * When the island is out (a live turn, scrolled up), the stack rides
+   * above it instead of through it. The host is a later sibling of the
+   * footer, so this stays a pure CSS rule with no React involvement --
+   * and the home screen, which has no island, keeps the base offset.
+   */
+  z-index: 90;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px;
+  pointer-events: none;
+}
+
+.thread-footer[data-at-end='false'] ~ .toast-host {
+  bottom: calc(178px + env(safe-area-inset-bottom, 0px));
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, 100%);
+  padding: 10px 14px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--surface-primary) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: var(--hairline) solid var(--border-surface);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.16);
+  font-size: var(--text-sm);
+  color: var(--foreground);
+  animation: toast-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.toast.is-leaving {
+  animation: toast-out 0.22s var(--ease-out) both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.97);
+  }
+}
+
+.toast-message {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-action {
+  flex: none;
+  font-weight: var(--font-weight-semibold);
+  color: var(--brand-text);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.toast.is-success .toast-message {
+  color: var(--success);
+}
+
+.toast.is-error .toast-message {
+  color: var(--destructive);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation-duration: 0.01s;
+  }
+  .toast.is-leaving {
+    animation-duration: 0.01s;
+  }
+}
+
+/* --- slide to confirm -------------------------------------------------- */
+
+/*
+ * bencho's slide-to-confirm, guarding Full Access approval. A 56px track
+ * with a knob that travels it; the fill follows the finger and the commit
+ * threshold sits near the far end, so completing it is unmistakably
+ * deliberate. The knob glides home on a short release -- the transition
+ * only runs when NOT dragging (see the component), so mid-gesture the
+ * knob tracks the thumb exactly.
+ */
+.slide-confirm {
+  position: relative;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.slide-confirm-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--permission) 32%, transparent);
+  transform-origin: left center;
+}
+
+.slide-confirm-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--secondary-foreground);
+  padding: 0 60px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.slide-confirm.is-done .slide-confirm-fill {
+  transform: scaleX(1);
+  background: color-mix(in oklab, var(--permission) 45%, transparent);
+}
+
+.slide-confirm.is-done .slide-confirm-label {
+  color: var(--permission);
+}
+
+.slide-confirm-knob {
+  position: absolute;
+  top: 4px;
+  width: 44px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--surface-primary);
+  border: var(--hairline) solid var(--border-surface);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--foreground);
+  cursor: grab;
+  touch-action: none;
+}
+
+.slide-confirm:not(.is-dragging) .slide-confirm-knob,
+.slide-confirm:not(.is-dragging) .slide-confirm-fill {
+  transition:
+    left 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.slide-confirm-knob:active {
+  cursor: grabbing;
+}
+
+/* --- pull to refresh --------------------------------------------------- */
+
+/*
+ * bencho's pull-to-refresh over the home scroller. The indicator hangs
+ * above the content's top edge and the wrapper clips it at rest, so the
+ * first pixel of the pull reveals it and the top bar above is never
+ * painted over. The content pushes down on a margin (not a transform,
+ * which would slide it under that same clip); the snap-home transition
+ * lives here and the component disables it mid-gesture.
+ */
+.pull-refresh {
+  position: relative;
+  overflow: hidden;
+  /* The wrapper stands in for its children in .home-rest's flex column
+     (hero, then cue), so it takes the same shape: full width, growing to
+     fill, stacking vertically. The top bar stays OUTSIDE it -- web mode
+     hides every direct child except the bar, and swallowing the switch
+     would strand the user (see the mode-web note). */
+  flex: 1 0 auto;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pull-refresh-content {
+  position: relative;
+  flex: 1 0 auto;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: margin-top 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pull-refresh-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  transform: translate3d(0, -100%, 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  pointer-events: none;
+}
+
+.pull-refresh-arrow {
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.pull-refresh-arrow.is-armed {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pull-refresh-content {
+    transition: none;
+  }
+  .pull-refresh-indicator,
+  .pull-refresh-arrow,
+  .slide-confirm:not(.is-dragging) .slide-confirm-knob,
+  .slide-confirm:not(.is-dragging) .slide-confirm-fill {
+    transition: none;
+  }
+}
+
+/* --- activity island --------------------------------------------------- */
+
+/*
+ * The live-turn pill pinned above the composer (beUI's Dynamic Island,
+ * in CSS). One element morphs between compact (orb + clock) and expanded
+ * (heading + measurements + stop): the shell's width animates on a long
+ * ease and the text swaps through a rise-and-fade, which is the same
+ * two-part recipe as the reference's spring shell + blur content.
+ *
+ * Absolutely positioned, deliberately: an in-flow island would reserve
+ * its slot (and the footer's gap) even while hidden at the tail, leaving
+ * a dead band between the transcript and the composer, and every show or
+ * hide would shift the composer. Floating, it arrives and leaves without
+ * moving anything. Visibility itself is free -- the footer's `data-at-end`
+ * already tracks whether the tail footer is on screen, so the island only
+ * shows while scrolled away from it. No React state, no re-render per
+ * scroll frame, and the two can never double-report, because exactly one
+ * is visible at a time.
+ */
+.activity-island {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 2px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(340px, calc(100% - 32px));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--surface-primary) 86%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  border: var(--hairline) solid var(--border-surface);
+  box-shadow: 0 10px 32px rgb(0 0 0 / 0.18);
+  overflow: hidden;
+  transition:
+    max-width 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.3s var(--ease-out),
+    transform 0.3s var(--ease-out);
+}
+
+.activity-island.is-expanded {
+  max-width: min(420px, calc(100% - 16px));
+  border-radius: var(--radius-2xl);
+}
+
+/* At the tail the footer says it all; anywhere else the island does. */
+.thread-footer:not([data-at-end='false']) .activity-island {
+  opacity: 0;
+  /* The -50% is the centering, kept through the hide. */
+  transform: translate(-50%, 8px) scale(0.96);
+  pointer-events: none;
+}
+
+.activity-island-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+}
+
+.activity-island-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: island-text-in 0.3s var(--ease-out) both;
+}
+
+@keyframes island-text-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.activity-island-clock {
+  font-weight: var(--font-weight-medium);
+}
+
+.activity-island-heading {
+  font-weight: var(--font-weight-medium);
+}
+
+.activity-island-chevron {
+  display: flex;
+  margin-left: auto;
+  color: var(--muted-foreground);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.activity-island-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.activity-island-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* Aligned under the text: main padding + orb slot + gap. */
+  padding: 0 12px 10px 36px;
+  animation: island-text-in 0.3s var(--ease-out) both;
+}
+
+.activity-island-stop {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--radius-full);
+  background: var(--foreground);
+  color: var(--background);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.activity-island-stop:disabled {
+  opacity: 0.6;
+}
+
+.activity-island-stop {
+  transition: transform var(--duration) var(--ease-out);
+}
+
+.activity-island-stop:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-island,
+  .activity-island-chevron {
+    transition: none;
+  }
+  .activity-island-text,
+  .activity-island-detail {
+    animation: none;
+  }
+}
+
+/* --- send button ------------------------------------------------------- */
+
+/*
+ * Two upgrades in the one slot. The sheen is libraries.dev's liquid-metal
+ * idea at its most restrained: a faint diagonal light that sweeps the
+ * enabled send disc when pressed, and never animates on its own -- a
+ * button that shimmers unprompted is jewellery, not a control.
+ *
+ * The morph is beUI's action-swap: send and stop are one slot with two
+ * identities, and the icon now pops in with a quarter-turn instead of
+ * cutting. Keyed in the component, so the animation replays on every
+ * swap in either direction. (Opacity and transform only: the glass audit
+ * forbids `filter: blur` anywhere past the standalone artwork field.)
+ */
+.round-button.send:not(:disabled):not(:focus-visible) {
+  position: relative;
+  overflow: hidden;
+}
+
+.round-button.send:not(:disabled):not(:focus-visible)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgb(255 255 255 / 0.28) 46%,
+    transparent 62%
+  );
+  transform: translate3d(-110%, 0, 0);
+  pointer-events: none;
+}
+
+.round-button.send:not(:disabled):not(:focus-visible):active::after {
+  transform: translate3d(110%, 0, 0);
+  transition: transform 0.45s var(--ease-out);
+}
+
+.send-swap {
+  display: flex;
+  animation: send-swap-in 0.25s var(--ease-out) both;
+}
+
+@keyframes send-swap-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7) rotate(-30deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .round-button.send:not(:disabled):not(:focus-visible):active::after {
+    transition: none;
+    transform: none;
+  }
+  .send-swap {
+    animation: none;
+  }
+}
+
+/*
+ * The composer's focus shadow, relocated.
+ *
+ * The voice-glow wrapper clips to the composer's own radius (its layers
+ * rely on the clip), which also clips the lifted shadow `:focus-within`
+ * paints -- the border still firms, but the lift silently vanished. So
+ * the wrapper carries the shadow instead: same values, same radius, same
+ * moment, via `:has`. The border-color half of the focus rule stays on
+ * the composer, where no clip touches it.
+ */
+.thread-footer > [data-voice-beam],
+.home-dock > [data-voice-beam] {
+  transition: box-shadow var(--duration-slow) var(--ease-out);
+}
+
+.thread-footer > [data-voice-beam]:has(.composer:focus-within),
+.home-dock > [data-voice-beam]:has(.composer:focus-within) {
+  box-shadow:
+    0 1px 2px oklch(14.5% 0 0 / 0.06),
+    0 8px 20px -6px oklch(14.5% 0 0 / 0.12);
+}
+
+/* --- designed failure states ------------------------------------------- */
+
+/*
+ * 404s.design's thesis, applied to the app's dead ends: an error is a
+ * moment with the user's full attention, so it gets a composed state --
+ * mark, title, reason, way out -- instead of a grey sentence. The thread
+ * error keeps the transcript's own refresh as its retry; the boot
+ * failure keeps the pairing form, elevated with the same mark and a
+ * steadier layout.
+ */
+.thread-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 48px 32px;
+}
+
+.thread-error-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+
+.thread-error-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--foreground);
+}
+
+.thread-error-reason {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  max-width: 300px;
+}
+
+.thread-error-retry {
+  margin-top: 8px;
+  padding: 9px 20px;
+  border-radius: var(--radius-full);
+  background: var(--foreground);
+  color: var(--background);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  transition: transform var(--duration) var(--ease-out);
+}
+
+.thread-error-retry:active {
+  transform: scale(0.97);
+}
+
+.boot-failure-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+
+/* How long the boot has been working, under the skeleton. Appears late
+   (see BootElapsed): a fast boot should never flash a number. */
+.boot-elapsed {
+  margin: 16px 0 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+/* --- history empty state ----------------------------------------------- */
+
+.history-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 32px 24px 40px;
+}
+
+.history-blank-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+
+.history-blank-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--foreground);
+}
+
+.history-blank-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  max-width: 260px;
+}
+
+.history-blank-cta {
+  margin-top: 8px;
+  padding: 9px 20px;
+  border-radius: var(--radius-full);
+  background: var(--foreground);
+  color: var(--background);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  transition: transform var(--duration) var(--ease-out);
+}
+
+.history-blank-cta:active {
+  transform: scale(0.97);
+}
+
+/* --- question skip ----------------------------------------------------- */
+
+.question-skip {
+  margin-top: 10px;
+  padding: 6px 2px;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
+.question-skip:active {
+  color: var(--foreground);
+}
+
+.question-skip:disabled {
+  opacity: 0.5;
+}
+
+/* --- condensed thread header ------------------------------------------- */
+
+/*
+ * TypeUI's hide-on-scroll bars, restrained: this header is a fixed flex
+ * row above the scroller, not an overlay, so hiding it outright would
+ * yank the transcript. Instead it condenses -- the subtitle collapses and
+ * the padding tightens -- handing ~22px back to the conversation while
+ * scrolled deep, and expanding the moment the scroll turns upward.
+ * Driven by `data-condensed`, flipped on direction change only (no
+ * per-frame state).
+ */
+.thread-header {
+  transition:
+    padding 0.28s var(--ease-out),
+    min-height 0.28s var(--ease-out);
+}
+
+.thread-header .thread-subtitle {
+  display: block;
+  max-height: 24px;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    max-height 0.28s var(--ease-out),
+    opacity 0.22s var(--ease-out),
+    margin 0.28s var(--ease-out);
+}
+
+.thread-header[data-condensed='true'] {
+  padding-top: calc(6px + var(--tg-chrome-top, var(--shell-content-top, 0px)));
+  padding-bottom: 6px;
+  min-height: 0;
+}
+
+.thread-header[data-condensed='true'] .thread-subtitle {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-header,
+  .thread-header .thread-subtitle {
+    transition: none;
+  }
+}
+
+/* --- swipe inline confirm ------------------------------------------------ */
+
+/*
+ * The armed half of the two-tap delete. Same well, deepened in place and
+ * a slightly heavier label, so the moment reads as "this is really going
+ * to happen" without moving the target under the thumb. Deepened rather
+ * than re-tinted: `--destructive` is a text colour in light mode, and as
+ * a fill under a dark label it fails contrast -- the brand fill darkened
+ * keeps its 7:1 and the transition on `filter` carries the change.
+ */
+.swipe-action.is-armed {
+  filter: brightness(0.84);
+}
+
+.swipe-action.is-armed .swipe-action-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* --- palette actions --------------------------------------------------- */
+
+/*
+ * The command palette inside the history search: action rows above the
+ * filtered chats, in the same visual language as the search hits below
+ * them so the two read as one results list.
+ */
+.palette-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 8px;
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.palette-row:active {
+  background: var(--muted);
+}
+
+.palette-row-icon {
+  display: flex;
+  color: var(--muted-foreground);
+  flex: none;
+}
+
+.palette-row-label {
+  font-weight: var(--font-weight-medium);
+}
+
+/* --- permission slide -------------------------------------------------- */
+
+.permission-slide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 8px;
+  animation: permission-slide-in 0.28s var(--ease-out) both;
+}
+
+@keyframes permission-slide-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .permission-slide {
+    animation: none;
+  }
+}
+
+.permission-slide-cancel {
+  align-self: center;
+  padding: 8px 16px;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
+/* --- timeline expand-all ------------------------------------------------- */
+
+.timeline-toggle {
+  align-self: flex-start;
+  margin: 2px 0 6px 2px;
+  padding: 4px 2px;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--muted-foreground);
+}
+
+.timeline-toggle:active {
+  color: var(--foreground);
+}
+
+/* --- settings segmented + theme reveal --------------------------------- */
+
+.settings-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.settings-segment {
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--muted-foreground);
+  transition:
+    background var(--duration) var(--ease-out),
+    color var(--duration) var(--ease-out);
+}
+
+.settings-segment.is-on {
+  background: var(--surface-primary);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px oklch(14.5% 0 0 / 0.06);
+}
+
+/*
+ * The theme lands as a circle growing from the tap point. The old frame
+ * holds still underneath while the new one wipes in -- no crossfade, so
+ * there is no muddy halfway frame where light and dark mix.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  animation: theme-reveal 0.45s var(--ease-out);
+}
+
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--reveal-x, 50%) var(--reveal-y, 50%));
+  }
+  to {
+    clip-path: circle(120vmax at var(--reveal-x, 50%) var(--reveal-y, 50%));
   }
 }

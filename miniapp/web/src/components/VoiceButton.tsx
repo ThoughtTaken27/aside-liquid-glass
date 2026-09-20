@@ -30,13 +30,26 @@ interface VoiceButtonProps {
   disabled?: boolean;
   /** Surfaced by the composer as a one-line hint under the input. */
   onError?: (message: string) => void;
+  /**
+   * Recording state for the voice glow.
+   *
+   * The stream is live only between begin and stop; `busy` covers the
+   * transcription after it, while the glow holds its processing beam.
+   * Both go quiet together when the take resolves for any reason.
+   */
+  onVoiceActivity?: (stream: MediaStream | null, busy: boolean) => void;
 }
 
 type Phase = 'idle' | 'recording' | 'transcribing';
 
 const BAR_COUNT = 5;
 
-export function VoiceButton({ onTranscript, disabled, onError }: VoiceButtonProps) {
+export function VoiceButton({
+  onTranscript,
+  disabled,
+  onError,
+  onVoiceActivity,
+}: VoiceButtonProps) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [levels, setLevels] = useState<number[]>(() => new Array(BAR_COUNT).fill(0.15));
   const handle = useRef<RecorderHandle | null>(null);
@@ -45,13 +58,16 @@ export function VoiceButton({ onTranscript, disabled, onError }: VoiceButtonProp
 
   // A recorder outliving its component would hold the mic open, which on
   // Android shows a permanent recording indicator in the status bar.
+  // The glow is stood down with it: it analyses a dead stream as
+  // silence, but there is no reason to leave it holding one.
   useEffect(
     () => () => {
       cancelAnimationFrame(frame.current);
       handle.current?.cancel();
       handle.current = null;
+      onVoiceActivity?.(null, false);
     },
-    [],
+    [onVoiceActivity],
   );
 
   const pump = useCallback(() => {
@@ -73,6 +89,7 @@ export function VoiceButton({ onTranscript, disabled, onError }: VoiceButtonProp
     api.warmTranscriber();
     try {
       handle.current = await startRecording();
+      onVoiceActivity?.(handle.current.stream, false);
       setPhase('recording');
       haptic('medium');
       frame.current = requestAnimationFrame(pump);
@@ -82,7 +99,7 @@ export function VoiceButton({ onTranscript, disabled, onError }: VoiceButtonProp
       onError?.(voiceErrorMessage(code));
       haptic('error');
     }
-  }, [disabled, onError, phase, pump, supported]);
+  }, [disabled, onError, onVoiceActivity, phase, pump, supported]);
 
   const finish = useCallback(async () => {
     const h = handle.current;
@@ -96,6 +113,7 @@ export function VoiceButton({ onTranscript, disabled, onError }: VoiceButtonProp
       recording = await h.stop();
     } catch {
       setPhase('idle');
+      onVoiceActivity?.(null, false);
       onError?.('Recording failed.');
       return;
     }
@@ -103,9 +121,11 @@ export function VoiceButton({ onTranscript, disabled, onError }: VoiceButtonProp
     if (recording.ms < MIN_RECORDING_MS || recording.blob.size < 1024) {
       // A mis-tap, not a message. Say nothing.
       setPhase('idle');
+      onVoiceActivity?.(null, false);
       return;
     }
 
+    onVoiceActivity?.(null, true);
     setPhase('transcribing');
     haptic('light');
     try {
@@ -131,8 +151,9 @@ export function VoiceButton({ onTranscript, disabled, onError }: VoiceButtonProp
       haptic('error');
     } finally {
       setPhase('idle');
+      onVoiceActivity?.(null, false);
     }
-  }, [onError, onTranscript, phase]);
+  }, [onError, onTranscript, onVoiceActivity, phase]);
 
   if (!supported) return null;
 
@@ -168,6 +189,7 @@ export function VoiceButton({ onTranscript, disabled, onError }: VoiceButtonProp
         handle.current?.cancel();
         handle.current = null;
         cancelAnimationFrame(frame.current);
+        onVoiceActivity?.(null, false);
         setPhase('idle');
       }}
       // The browser's own long-press menu on a button you are holding down is

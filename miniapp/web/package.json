@@ -24,7 +24,8 @@
     "react-markdown": "^9.0.3",
     "remark-gfm": "^4.0.0",
     "shiki": "^4.4.1",
-    "thinking-orbs": "^0.3.1"
+    "thinking-orbs": "^0.3.1",
+    "voice-glow": "^0.2.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",

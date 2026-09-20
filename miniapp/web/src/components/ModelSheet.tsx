@@ -15,6 +15,7 @@
  */
 import { useMemo, useState } from 'react';
 import { Sheet } from './Sheet';
+import { SlideToConfirm } from './SlideToConfirm';
 import {
   Check,
   ChevronRight,
@@ -124,6 +125,13 @@ export function ModelSheet({
   const [view, setView] = useState<View>('models');
   const [browsing, setBrowsing] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  /*
+   * The mode waiting on its slide. Full access is the one setting in
+   * this sheet that removes a guardrail instead of moving one, so it is
+   * the one that asks for a gesture with commitment in it (bencho's
+   * slide-to-confirm) rather than a tap that could be a mis-tap.
+   */
+  const [slideFor, setSlideFor] = useState<string | null>(null);
 
   const active =
     catalog.find((p) => p.id === currentProvider) || catalog[0] || null;
@@ -210,13 +218,22 @@ export function ModelSheet({
     );
   }
 
+  const pickMode = (id: string) => {
+    onPickMode(id);
+    setSlideFor(null);
+    setView('models');
+  };
+
   // --- permission ----------------------------------------------------
   if (view === 'permission') {
     return (
       <Sheet
         side="bottom"
         title="Permission"
-        onBack={() => setView('models')}
+        onBack={() => {
+          setSlideFor(null);
+          setView('models');
+        }}
         backLabel="model"
         onClose={onClose}
       >
@@ -235,12 +252,40 @@ export function ModelSheet({
                 option.id === permissionMode ? <Check size={17} /> : null
               }
               onClick={() => {
-                onPickMode(option.id);
-                setView('models');
+                // Full access earns its slide; everything else picks on
+                // tap exactly as before.
+                if (
+                  option.id === 'full-access' &&
+                  option.id !== permissionMode
+                ) {
+                  setSlideFor(option.id);
+                  return;
+                }
+                pickMode(option.id);
               }}
             />
           ))}
         </div>
+
+        {slideFor ? (
+          <div className="permission-slide">
+            <p className="sheet-note surface-meta" data-surface-meta="note">
+              Full access lets the agent work without asking first. Only for
+              machines you trust.
+            </p>
+            <SlideToConfirm
+              label="Slide to allow full access"
+              onConfirm={() => pickMode(slideFor)}
+            />
+            <button
+              type="button"
+              className="permission-slide-cancel"
+              onClick={() => setSlideFor(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : null}
 
         {/*
           The switch does not navigate back the way the mode rows do. Modes

@@ -196,8 +196,13 @@ describe('Zeron standalone liquid glass correction', () => {
     expect(bytes.subarray(0, 4).toString('ascii')).toBe('RIFF');
     expect(bytes.subarray(8, 12).toString('ascii')).toBe('WEBP');
     expect(tokens).toContain("url('/art/zeron-liquid-dots-v2.webp')");
-    expect(index).toContain('rel="preload"');
-    expect(index).toContain('fetchpriority="high"');
+    // Standalone-only: a static <link rel=preload> fetched the 201KB webp
+    // on Telegram boots that never render it. Injected from the head script
+    // instead, still before first paint, only for the shell that uses it.
+    expect(index).not.toContain('<link');
+    expect(index).toContain("art.rel = 'preload'");
+    expect(index).toContain("fetchPriority = 'high'");
+    expect(index).toContain('/art/zeron-liquid-dots-v2.webp');
     expect(index).toContain("location.pathname.startsWith('/app')");
     expect(sw).toContain("url.pathname.startsWith('/art/')");
     expect(sw).toContain('cache.add(ART_URL)');

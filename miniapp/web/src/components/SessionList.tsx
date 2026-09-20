@@ -16,13 +16,17 @@ import { api } from '../api';
 import { dayBucket, listTime, relativeTime } from '../utils/time';
 import {
   ArrowDownUp,
+  AsideSymbol,
+  Globe,
   LayoutGrid,
   ListIcon,
+  Plus,
   Search,
+  Settings as SettingsIcon,
   Spinner,
   TrashIcon,
 } from './Icons';
-import { haptic, showConfirm } from '../telegram';
+import { haptic } from '../telegram';
 import { readLocal, writeLocal } from '../utils/storage';
 import { SwipeToDelete } from './SwipeToDelete';
 
@@ -45,6 +49,14 @@ export interface SessionListProps {
    * cannot work is worse than no swipe.
    */
   onDelete?: (id: string) => Promise<void>;
+  /**
+   * Palette actions, offered when the search box is open. Each absent one
+   * simply leaves its row out -- the palette is whatever the host can
+   * actually do, never a menu of dead ends.
+   */
+  onNewChat?: () => void;
+  onOpenTabs?: () => void;
+  onOpenSettings?: () => void;
 }
 
 /**
@@ -73,6 +85,9 @@ export function SessionList({
   onOpen,
   loading,
   onDelete,
+  onNewChat,
+  onOpenTabs,
+  onOpenSettings,
 }: SessionListProps) {
   const [view, setView] = useState<SessionView>(readStoredView);
   const [searching, setSearching] = useState(false);
@@ -153,19 +168,85 @@ export function SessionList({
   };
 
   /**
-   * Ask, then delete.
+   * Delete, after the swipe's own inline confirm.
    *
-   * Telegram's own confirm dialog rather than a webview one: it is the
-   * OS-level sheet, it cannot be missed behind the keyboard, and it is the
-   * same dialog the Stop control already uses. Deleting is the one action
-   * in this list with no undo inside the app, so it gets the interruption.
+   * The second tap used to be Telegram's confirm dialog. SwipeToDelete
+   * now arms in place instead -- same two deliberate gestures, but the
+   * target never moves and the standalone shell (where the alternative
+   * was a raw window.confirm) gets the same treatment. By the time this
+   * runs, the user has committed twice.
    */
   const remove = async (session: SessionRow) => {
     if (!onDelete) return;
-    const ok = await showConfirm(`Delete “${session.title}”?`);
-    if (!ok) return;
     haptic('medium');
     await onDelete(session.id);
+  };
+
+  /*
+   * The search box is also the command palette (beUI's ⌘K block, minus
+   * the desktop chrome). With an empty query it offers actions; typing
+   * filters sessions AND actions together, so "set" finds Settings next
+   * to the chat about settings. ⌘K / Ctrl+K opens it from anywhere on
+   * this screen -- the keyboard shortcut costs nothing on a phone and is
+   * the fastest path there is on desktop Telegram.
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      // A sheet owns the keyboard while it is open: ⌘K must not arm the
+      // search behind the model picker, and Escape belongs to the sheet.
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.('.sheet-layer, .lightbox')) return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearching(true);
+      } else if (event.key === 'Escape' && searching) {
+        setSearching(false);
+        setQuery('');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [searching]);
+
+  const paletteActions: Array<{
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    run: () => void;
+  }> = [];
+  if (onNewChat) {
+    paletteActions.push({
+      id: 'new',
+      label: 'New chat',
+      icon: <Plus size={16} strokeWidth={1.75} />,
+      run: onNewChat,
+    });
+  }
+  if (onOpenTabs) {
+    paletteActions.push({
+      id: 'tabs',
+      label: 'Browser tabs',
+      icon: <Globe size={16} strokeWidth={1.75} />,
+      run: onOpenTabs,
+    });
+  }
+  if (onOpenSettings) {
+    paletteActions.push({
+      id: 'settings',
+      label: 'Settings',
+      icon: <SettingsIcon size={16} strokeWidth={1.75} />,
+      run: onOpenSettings,
+    });
+  }
+  const paletteQuery = query.trim().toLowerCase();
+  const paletteVisible = searching
+    ? paletteActions.filter((a) => a.label.toLowerCase().includes(paletteQuery))
+    : [];
+  const runPalette = (run: () => void) => {
+    haptic('light');
+    setSearching(false);
+    setQuery('');
+    run();
   };
 
   // Rows are already sorted by the memo above; grouping only inserts
@@ -208,6 +289,7 @@ export function SessionList({
           type="button"
           className="icon-button"
           aria-label="Search sessions"
+          title="Search (⌘K)"
           onClick={() => {
             setSearching((prev) => !prev);
             if (searching) setQuery('');
@@ -231,17 +313,63 @@ export function SessionList({
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search chats"
+          placeholder="Search chats and actions"
+          aria-label="Search chats and actions"
         />
       ) : null}
 
+      {paletteVisible.length > 0 ? (
+        <div className="palette-actions" role="list" aria-label="Actions">
+          {paletteVisible.map((action) => (
+            <div key={action.id} role="listitem">
+              <button
+                type="button"
+                className="palette-row"
+                onClick={() => runPalette(action.run)}
+              >
+                <span className="palette-row-icon" aria-hidden="true">
+                  {action.icon}
+                </span>
+                <span className="palette-row-label">{action.label}</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {loading && sessions.length === 0 ? (
-        <p className="list-empty">Loading chats…</p>
+        <div className="history-skeleton" role="status" aria-label="Loading chats">
+          <span className="history-skeleton-row" aria-hidden="true" />
+          <span className="history-skeleton-row" aria-hidden="true" />
+          <span className="history-skeleton-row" aria-hidden="true" />
+        </div>
       ) : null}
       {!loading && visible.length === 0 ? (
-        <p className="list-empty is-blank">
-          {query ? 'No chats match that.' : 'No chats yet.'}
-        </p>
+        query ? (
+          <p className="list-empty is-blank">No chats match that.</p>
+        ) : (
+          <div className="history-blank">
+            <span className="history-blank-mark" aria-hidden="true">
+              <AsideSymbol size={22} />
+            </span>
+            <p className="history-blank-title">No chats yet</p>
+            <p className="history-blank-note">
+              Ask anything below and it will land here, ready to pick back up.
+            </p>
+            {onNewChat ? (
+              <button
+                type="button"
+                className="history-blank-cta"
+                onClick={() => {
+                  haptic('light');
+                  onNewChat();
+                }}
+              >
+                Start chatting
+              </button>
+            ) : null}
+          </div>
+        )
       ) : null}
 
       {view === 'list' ? (

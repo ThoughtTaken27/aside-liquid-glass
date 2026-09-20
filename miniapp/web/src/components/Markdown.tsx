@@ -2,6 +2,7 @@ import {
   memo,
   isValidElement,
   type ReactElement,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -145,12 +146,22 @@ function MarkdownImage({
         src={resolved}
         alt={alt}
         loading="lazy"
+        decoding="async"
         draggable={false}
         onError={() => setFailed(true)}
       />
     </button>
   );
 }
+
+/**
+ * The plugin list, hoisted.
+ *
+ * Written inline (`remarkPlugins={[remarkGfm]}`) this is a new array on
+ * every render, and react-markdown treats new plugin identities as new
+ * configuration. The plugins never change, so they are a module constant.
+ */
+const REMARK_PLUGINS = [remarkGfm];
 
 /**
  * Assistant text as clean markdown.
@@ -180,12 +191,28 @@ export const Markdown = memo(function Markdown({
   sessionId?: string;
   onOpenCitation?: (mark: CitationMark) => void;
 }) {
+  /*
+   * The citation transform only asks which source refs EXIST, so it is
+   * keyed on the key set rather than the record identity. `thread_meta`
+   * hands this component a fresh `sources` object on every tick with the
+   * same keys in it; depending on the identity would re-parse every
+   * visible answer and mint a new `marks` array -- and a new `components`
+   * map below -- each time, remounting every code block and link.
+   */
+  const sourcesRef = useRef(sources);
+  sourcesRef.current = sources;
+  const sourceKeys = useMemo(
+    () => Object.keys(sources ?? {}).sort().join('\n'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the key set is the dep, deliberately, not the identity
+    [sources],
+  );
   const { markdown, marks } = useMemo(() => {
     const body = streaming
       ? closeOpenFence(dropPartialCitation(text))
       : text;
-    return transformCitations(body, (ref) => Boolean(sources?.[ref]));
-  }, [text, streaming, sources]);
+    return transformCitations(body, (ref) => Boolean(sourcesRef.current?.[ref]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see the note above: key set, not identity
+  }, [text, streaming, sourceKeys]);
 
   /*
    * The languages this particular message actually contains.
@@ -220,81 +247,95 @@ export const Markdown = memo(function Markdown({
     [sessionId],
   );
 
+  /*
+   * Stable on purpose. react-markdown uses whatever is in this map AS the
+   * element type, so an arrow function written inline here is a new type on
+   * every render -- which unmounts and remounts every image (losing the
+   * "this one failed" state and re-requesting the file), every code block
+   * and every link, each time the streaming answer ticks or a `thread_meta`
+   * event hands down a fresh `sources` identity. Memoised, the map only
+   * changes when the text -- and therefore the marks -- actually changed.
+   */
+  const urlTransform = useCallback(
+    // react-markdown drops any href outside its safe-protocol list, so
+    // `cite:` links arrive with an empty href and render as ordinary
+    // text. Only our own scheme is let past; everything else still goes
+    // through the default sanitiser, which is what blocks `javascript:`.
+    // A local absolute path is let past for `src` only. The default
+    // transform drops `file:` (not a safe protocol) and would otherwise
+    // hand the image renderer an empty src, so the rewrite would never
+    // get a chance to run. Scoping it to `src` keeps `file:` links out
+    // of `href`, where nothing wants them.
+    (url: string, key?: string) => {
+      if (url.startsWith('cite:')) return url;
+      if (key === 'src' && localImagePath(url)) return url;
+      return defaultUrlTransform(url);
+    },
+    [],
+  );
+
+  const components = useMemo(
+    () => ({
+      img: imageRenderer,
+      // `CodeBlock` renders its OWN `<pre>` (plain, or Shiki's), so the
+      // default `pre` wrapper is passed through unwrapped here rather
+      // than nesting a second `<pre>` around it. Inline code (no fence,
+      // no language) is untouched -- rendered exactly as before.
+      pre: ({ children }: { children?: React.ReactNode }) => {
+        const child = isValidElement(children)
+          ? children as ReactElement<{ className?: string; children?: React.ReactNode }>
+          : null;
+        // A fence without a language still needs block semantics and scrolling.
+        if (child && !/language-/.test(child.props.className || '')) {
+          return <pre className="md-pre"><code>{child.props.children}</code></pre>;
+        }
+        return <>{children}</>;
+      },
+      code: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
+        const match = /language-(\S+)/.exec(className || '');
+        const codeText = String(children ?? '').replace(/\n$/, '');
+        if (!match) return <code className="md-inline-code">{children}</code>;
+        const lang = normalizeLang(match[1]);
+        if (!lang) {
+          return (
+            <pre className="md-pre">
+              <code className="md-code">{codeText}</code>
+            </pre>
+          );
+        }
+        return <CodeBlock code={codeText} lang={lang} />;
+      },
+      a: ({ node: _node, href, children, ...props }: { node?: unknown; href?: string; children?: React.ReactNode } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+        const index = citationIndexFrom(String(href || ''));
+        if (index === null) {
+          return (
+            <a {...props} href={href} target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
+          );
+        }
+        const mark = marks[index - 1];
+        return (
+          <button
+            type="button"
+            className="cite-chip"
+            aria-label={`Open source ${index}`}
+            onClick={() => mark && onOpenCitation?.(mark)}
+          >
+            {children}
+          </button>
+        );
+      },
+    }),
+    [imageRenderer, marks, onOpenCitation],
+  );
+
   return (
     <div className="md">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        // react-markdown drops any href outside its safe-protocol list, so
-        // `cite:` links arrive with an empty href and render as ordinary
-        // text. Only our own scheme is let past; everything else still goes
-        // through the default sanitiser, which is what blocks `javascript:`.
-        // A local absolute path is let past for `src` only. The default
-        // transform drops `file:` (not a safe protocol) and would otherwise
-        // hand the image renderer an empty src, so the rewrite would never
-        // get a chance to run. Scoping it to `src` keeps `file:` links out
-        // of `href`, where nothing wants them.
-        urlTransform={(url, key) => {
-          if (url.startsWith('cite:')) return url;
-          if (key === 'src' && localImagePath(url)) return url;
-          return defaultUrlTransform(url);
-        }}
-        components={{
-          // Memoised on purpose. react-markdown uses whatever is in this
-          // map AS the element type, so an arrow function written inline
-          // here is a new type on every render -- which unmounts and
-          // remounts every image, losing the "this one failed" state and
-          // re-requesting the file each time the streaming answer ticks.
-          img: imageRenderer,
-          // `CodeBlock` renders its OWN `<pre>` (plain, or Shiki's), so the
-          // default `pre` wrapper is passed through unwrapped here rather
-          // than nesting a second `<pre>` around it. Inline code (no fence,
-          // no language) is untouched -- rendered exactly as before.
-          pre: ({ children }) => {
-            const child = isValidElement(children)
-              ? children as ReactElement<{ className?: string; children?: React.ReactNode }>
-              : null;
-            // A fence without a language still needs block semantics and scrolling.
-            if (child && !/language-/.test(child.props.className || '')) {
-              return <pre className="md-pre"><code>{child.props.children}</code></pre>;
-            }
-            return <>{children}</>;
-          },
-          code: ({ className, children }) => {
-            const match = /language-(\S+)/.exec(className || '');
-            const text = String(children ?? '').replace(/\n$/, '');
-            if (!match) return <code className="md-inline-code">{children}</code>;
-            const lang = normalizeLang(match[1]);
-            if (!lang) {
-              return (
-                <pre className="md-pre">
-                  <code className="md-code">{text}</code>
-                </pre>
-              );
-            }
-            return <CodeBlock code={text} lang={lang} />;
-          },
-          a: ({ node: _node, href, children, ...props }) => {
-            const index = citationIndexFrom(String(href || ''));
-            if (index === null) {
-              return (
-                <a {...props} href={href} target="_blank" rel="noopener noreferrer">
-                  {children}
-                </a>
-              );
-            }
-            const mark = marks[index - 1];
-            return (
-              <button
-                type="button"
-                className="cite-chip"
-                aria-label={`Open source ${index}`}
-                onClick={() => mark && onOpenCitation?.(mark)}
-              >
-                {children}
-              </button>
-            );
-          },
-        }}
+        remarkPlugins={REMARK_PLUGINS}
+        urlTransform={urlTransform}
+        components={components}
       >
         {markdown}
       </ReactMarkdown>

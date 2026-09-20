@@ -23,11 +23,16 @@ import { MemoryBrowser } from './MemoryBrowser';
 import { RoutinesList } from './RoutinesList';
 import { api } from '../api';
 import {
+  applyTheme,
   biometricsSupported,
   cloudStorage,
   haptic,
+  readThemeOverride,
   requestBiometricAccess,
+  setThemeOverride,
 } from '../telegram';
+import type { ThemeOverride } from '../telegram';
+import { playSound, setSoundsEnabled, soundsEnabled } from '../utils/sounds';
 import type { MiniappSettings, StatusResponse } from '../types';
 
 const BIOMETRICS_KEY = 'biometricsEnabled';
@@ -207,6 +212,12 @@ export function SettingsScreen({
   );
 
   const [biometricsOn, setBiometricsOn] = useState(false);
+
+  // Theme and UI sounds are the only settings on this screen that live
+  // on the device rather than on the server -- both are about THIS
+  // screen on THIS phone, not about sessions the daemon will spawn.
+  const [theme, setTheme] = useState<ThemeOverride>(() => readThemeOverride());
+  const [soundsOn, setSoundsOn] = useState(() => soundsEnabled());
   useEffect(() => {
     cloudStorage.getItem(BIOMETRICS_KEY).then((value) => setBiometricsOn(value === '1'));
   }, []);
@@ -218,6 +229,47 @@ export function SettingsScreen({
    * telegram.ts), which reads as a broken toggle rather than an honest
    * one. Turning OFF has no such requirement.
    */
+  /*
+   * A manual theme lands with a circle reveal from the tap point
+   * (the view-transition theme flip from the inspiration trawl).
+   * Plain applyTheme underneath when transitions or motion are off.
+   */
+  const pickTheme = (
+    event: { clientX: number; clientY: number },
+    next: ThemeOverride,
+  ) => {
+    if (next === theme) return;
+    haptic('light');
+    setThemeOverride(next);
+    setTheme(next);
+    const doc = document as Document & {
+      startViewTransition?: (update: () => void) => void;
+    };
+    const reduceMotion = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    // A keyboard pick has no tap point (0,0 is the corner, not the
+    // control), so it lands plainly like the reduced-motion path.
+    const fromKeyboard = event.clientX === 0 && event.clientY === 0;
+    if (doc.startViewTransition && !reduceMotion && !fromKeyboard) {
+      const root = document.documentElement;
+      root.style.setProperty('--reveal-x', event.clientX + 'px');
+      root.style.setProperty('--reveal-y', event.clientY + 'px');
+      doc.startViewTransition(() => {
+        applyTheme();
+      });
+    } else {
+      applyTheme();
+    }
+  };
+
+  const toggleSounds = (next: boolean) => {
+    haptic('light');
+    setSoundsEnabled(next);
+    setSoundsOn(next);
+    if (next) playSound('toggle');
+  };
+
   const toggleBiometrics = async (next: boolean) => {
     haptic('light');
     if (!next) {
@@ -471,8 +523,82 @@ export function SettingsScreen({
             <Section title="Appearance">
               <Row
                 title="Theme"
-                description="Follows Telegram’s own light or dark setting."
-                control={<span className="settings-readout">Automatic</span>}
+                description={
+                  theme === 'auto'
+                    ? "Follows Telegram\u2019s own light or dark setting."
+                    : theme === 'light'
+                      ? 'Always light, whatever the client says.'
+                      : 'Always dark, whatever the client says.'
+                }
+                control={
+                  <span
+                    className="settings-segmented"
+                    role="radiogroup"
+                    aria-label="Theme"
+                  >
+                    {(
+                      [
+                        { id: 'auto', label: 'Auto' },
+                        { id: 'light', label: 'Light' },
+                        { id: 'dark', label: 'Dark' },
+                      ] as Array<{ id: ThemeOverride; label: string }>
+                    ).map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={theme === option.id}
+                        className={
+                          'settings-segment' +
+                          (theme === option.id ? ' is-on' : '')
+                        }
+                        onClick={(event) => pickTheme(event, option.id)}
+                        onKeyDown={(event) => {
+                          if (
+                            event.key !== 'ArrowRight' &&
+                            event.key !== 'ArrowLeft'
+                          ) {
+                            return;
+                          }
+                          event.preventDefault();
+                          const order: ThemeOverride[] = [
+                            'auto',
+                            'light',
+                            'dark',
+                          ];
+                          const at = order.indexOf(option.id);
+                          const next =
+                            order[
+                              (at +
+                                (event.key === 'ArrowRight'
+                                  ? 1
+                                  : order.length - 1)) %
+                                order.length
+                            ];
+                          pickTheme({ clientX: 0, clientY: 0 }, next);
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </span>
+                }
+              />
+              <Row
+                title="Interface sounds"
+                description="Quiet taps and chimes for sends, arrivals and switches. Off unless you ask."
+                control={
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={soundsOn}
+                    aria-label="Interface sounds"
+                    className={"switch" + (soundsOn ? ' is-on' : '')}
+                    onClick={() => toggleSounds(!soundsOn)}
+                  >
+                    <span className="switch-knob" />
+                  </button>
+                }
               />
             </Section>
 

@@ -191,12 +191,8 @@ describe('deleting a chat', () => {
     delete window.matchMedia;
   });
 
-  it('asks before it deletes, and does nothing if the answer is no', async () => {
+  it('arms on the first tap and only deletes on the second', async () => {
     const { SessionList } = await import('../src/components/SessionList');
-    const telegram = await import('../src/telegram');
-    const confirm = vi
-      .spyOn(telegram, 'showConfirm')
-      .mockResolvedValue(false);
     const onDelete = vi.fn().mockResolvedValue(undefined);
 
     const sessions = [
@@ -214,10 +210,15 @@ describe('deleting a chat', () => {
       <SessionList sessions={sessions} onOpen={() => {}} onDelete={onDelete} />,
     );
 
+    // First tap arms the well -- the delete must not fire yet.
     fireEvent.click(screen.getByLabelText('Delete'));
-    await vi.waitFor(() => expect(confirm).toHaveBeenCalled());
+    await vi.waitFor(() =>
+      expect(screen.getByLabelText('Confirm: Delete')).toBeTruthy(),
+    );
     expect(onDelete).not.toHaveBeenCalled();
-    confirm.mockRestore();
+    // Second tap commits.
+    fireEvent.click(screen.getByLabelText('Confirm: Delete'));
+    await vi.waitFor(() => expect(onDelete).toHaveBeenCalledWith('s1'));
   });
 
   it('draws no delete affordance at all when deleting is not offered', async () => {

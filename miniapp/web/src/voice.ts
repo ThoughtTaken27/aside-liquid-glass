@@ -70,6 +70,14 @@ export interface RecorderHandle {
   cancel(): void;
   /** Current input level, 0..1, for the waveform. */
   level(): number;
+  /**
+   * The live mic stream, for the voice glow.
+   *
+   * The glow analyses it (level plus low/mid/high bands) and never
+   * retains it: its track stops with the recording, and handing the
+   * stream to a second analyser does not disturb the MediaRecorder.
+   */
+  stream: MediaStream;
 }
 
 /**
@@ -161,6 +169,7 @@ export async function startRecording(): Promise<RecorderHandle> {
   };
 
   return {
+    stream,
     level() {
       if (!analyser || !buffer) return 0;
       analyser.getByteFrequencyData(buffer);
