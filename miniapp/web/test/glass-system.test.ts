@@ -111,16 +111,39 @@ describe('Zeron standalone liquid glass correction', () => {
     expect(standalone).toContain('opacity: 0;');
   });
 
-  it('docks the composer on phones instead of centering it', () => {
-    // The lifted composition is a wide-screen look; on a tall phone it
-    // strands the composer mid-screen, so the three hero-phase transforms
-    // are cancelled below 640px and the phone gets the standard layout:
-    // greeting centred in flow, composer docked at the bottom.
-    const narrow = standalone.slice(at(standalone, '@media (max-width: 640px)'));
-    expect(narrow).toContain(".app-home[data-home-phase='hero'] .home-dock,");
-    expect(narrow).toContain(".rest-hero,");
-    expect(narrow).toContain('.rest-cue {');
-    expect(narrow).toContain('transform: none;');
+  it('keeps the lifted home composition on wide screens only', () => {
+    // The lift itself is gated behind min-width -- asserted on both
+    // copies, because the shell region and the composition region each
+    // declare the transform and the later one wins the cascade. A narrow
+    // override placed between them was tried first and changed nothing on
+    // a phone screenshot, which is why the lift is gated instead of
+    // overridden.
+    const gatedDock =
+      '@media (min-width: 641px) {\n' +
+      "  :root[data-client='standalone'] .app-home[data-home-phase='hero'] .home-dock {\n" +
+      '    transform: translateY(min(calc(var(--dock-h, 104px) - 50svh), 0px));\n' +
+      '  }\n' +
+      '}';
+    expect(standalone.split(gatedDock).length - 1).toBe(2);
+    // And no ungated lift survives anywhere: one straggler re-lifts
+    // every narrow screen.
+    expect(standalone.split(gatedDock).join('')).not.toContain(
+      'transform: translateY(min(calc(var(--dock-h, 104px) - 50svh), 0px));',
+    );
+
+    // The copy nudges compose around the lifted composer, so they travel
+    // with the same gate -- one gated block per declaration, no strays.
+    const nudges = [
+      "  :root[data-client='standalone'] .rest-hero {\n    transform: translateY(48px);",
+      "  :root[data-client='standalone'] .rest-cue {\n    transform: translateY(-42px);",
+      "  :root[data-client='standalone'] .rest-hero {\n    transform: translateY(-28px);",
+      "  :root[data-client='standalone'] .rest-cue {\n    transform: translateY(-18px);",
+    ];
+    for (const nudge of nudges) {
+      expect(standalone).toContain(`@media (min-width: 641px) {\n${nudge}`);
+      const decl = nudge.slice(nudge.indexOf('transform:'));
+      expect(standalone.split(decl).length - 1).toBe(1);
+    }
   });
 
   it('keeps keyboard focus transparent instead of painting a grey dock', () => {

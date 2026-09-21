@@ -8693,8 +8693,24 @@
   will-change: transform;
 }
 
-:root[data-client='standalone'] .app-home[data-home-phase='hero'] .home-dock {
-  transform: translateY(min(calc(var(--dock-h, 104px) - 50svh), 0px));
+/*
+ * Wide screens only. The lifted composition -- dock raised half a
+ * viewport, greeting and cue nudged around it -- earns its place where
+ * the group reads as one centred object. On a tall phone the same lift
+ * strands the composer mid-screen with dead space below it and out of
+ * thumb reach, which reads as broken rather than composed. So the lift
+ * itself is gated behind min-width, in BOTH regions that declare it (this
+ * one and the composition region below, which restates the transform and
+ * wins the cascade): narrow screens never lift, and fall back to what the
+ * base styles already describe -- greeting centred in flow, composer
+ * docked at the bottom, cue riding in flow just above the card.
+ * Landscape phones keep the centred composition, correctly: a short
+ * viewport behaves like a laptop, not like a portrait phone.
+ */
+@media (min-width: 641px) {
+  :root[data-client='standalone'] .app-home[data-home-phase='hero'] .home-dock {
+    transform: translateY(min(calc(var(--dock-h, 104px) - 50svh), 0px));
+  }
 }
 
 :root[data-client='standalone'] .app-home[data-home-phase='history'] .home-dock,
@@ -8725,14 +8741,27 @@
 :root[data-client='standalone'] .rest-hero {
   justify-content: center;
   padding-bottom: 0;
-  transform: translateY(48px);
   transition: opacity 150ms ease-out;
 }
 
 :root[data-client='standalone'] .rest-cue {
-  transform: translateY(-42px);
   white-space: nowrap;
   transition: opacity 150ms ease-out, color 140ms ease-out;
+}
+
+/* The nudges compose the copy around the lifted composer, so they are
+   gated with the lift: on narrow screens the greeting and cue sit in
+   normal flow above the docked composer. */
+@media (min-width: 641px) {
+  :root[data-client='standalone'] .rest-hero {
+    transform: translateY(48px);
+  }
+}
+
+@media (min-width: 641px) {
+  :root[data-client='standalone'] .rest-cue {
+    transform: translateY(-42px);
+  }
 }
 
 :root[data-client='standalone'] .app-home:has(.composer:focus-within) :is(.rest-hero, .rest-cue) {
@@ -8754,30 +8783,6 @@
 
   :root[data-client='standalone'] .app-home::before {
     animation: none;
-  }
-}
-
-/*
- * Phones get the standard layout: greeting centred in flow, composer
- * docked at the bottom, like every other mobile AI app.
- *
- * The lifted composition above (dock raised half a viewport, hero and cue
- * nudged around it) earns its place on wide screens, where the group
- * reads as one centred object. On a tall phone the same lift strands the
- * composer mid-screen with dead space below it and out of thumb reach,
- * which reads as broken rather than composed. So below 640px the three
- * hero-phase transforms are cancelled and the phone falls back to what
- * the base styles already describe: the hero flexes centred in the space
- * above a bottom-docked composer, the cue riding in flow just above the
- * card. Nothing else changes -- same artwork, same glass, same motion.
- * Landscape phones keep the centred composition, correctly: a short
- * viewport behaves like a laptop, not like a portrait phone.
- */
-@media (max-width: 640px) {
-  :root[data-client='standalone'] .app-home[data-home-phase='hero'] .home-dock,
-  :root[data-client='standalone'] .rest-hero,
-  :root[data-client='standalone'] .rest-cue {
-    transform: none;
   }
 }
 
@@ -9129,7 +9134,14 @@
   align-items: center;
   justify-content: center;
   padding-inline: 20px;
-  transform: translateY(-28px);
+}
+
+/* Gated with the lift (see the shell region): on narrow screens the
+   greeting sits in normal flow above the docked composer. */
+@media (min-width: 641px) {
+  :root[data-client='standalone'] .rest-hero {
+    transform: translateY(-28px);
+  }
 }
 
 :root[data-client='standalone'] .rest-greeting {
@@ -9146,12 +9158,19 @@
 }
 
 :root[data-client='standalone'] .rest-cue {
-  transform: translateY(-18px);
   color: color-mix(in srgb, var(--foreground) 62%, transparent);
   font-size: 0.78rem;
   font-weight: 560;
   letter-spacing: 0.01em;
   text-shadow: 0 1px 12px color-mix(in srgb, var(--page) 72%, transparent);
+}
+
+/* Gated with the lift (see the shell region): on narrow screens the cue
+   rides in flow just above the docked composer. */
+@media (min-width: 641px) {
+  :root[data-client='standalone'] .rest-cue {
+    transform: translateY(-18px);
+  }
 }
 
 /* Quiet Claude-like controls with Zeron optical material. */
@@ -9351,8 +9370,12 @@
   transition: transform 210ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-:root[data-client='standalone'] .app-home[data-home-phase='hero'] .home-dock {
-  transform: translateY(min(calc(var(--dock-h, 104px) - 50svh), 0px));
+/* Second copy of the wide-only lift (see the shell region): this restates
+   the transform and wins the cascade, so it carries the same gate. */
+@media (min-width: 641px) {
+  :root[data-client='standalone'] .app-home[data-home-phase='hero'] .home-dock {
+    transform: translateY(min(calc(var(--dock-h, 104px) - 50svh), 0px));
+  }
 }
 
 :root[data-client='standalone'] .app-home[data-home-phase='history'] .home-dock,
