@@ -297,6 +297,97 @@ function FreshTurn() {
   );
 }
 
+/**
+ * The mid-answer moment: every step has its result and the final response
+ * is streaming, so the tail has settled early into the collapsed
+ * summary-plus-measurements row the turn will keep.
+ *
+ * Reached by `?answering` -- it is the state the reference holds for the
+ * whole length of a long answer, and the one the live row must get out
+ * of the way for.
+ */
+function AnsweringPreview() {
+  const done = {
+    kind: 'work' as const,
+    id: 'w-answering',
+    durationMs: 27000,
+    running: true,
+    items: runOne,
+  };
+  return (
+    <div className="app" data-at-start="true" data-at-end="true">
+      <header className="thread-header">
+        <div className="thread-header-left">
+          <button type="button" className="icon-button" aria-label="Back">
+            <ChevronLeft size={20} strokeWidth={1.75} />
+          </button>
+        </div>
+        <span className="thread-titles">
+          <span className="thread-title">Release readiness review</span>
+          <span className="thread-subtitle">GPT-5.6 Luna · Full access</span>
+        </span>
+        <div className="thread-header-right">
+          <button type="button" className="icon-button" aria-label="Browser tabs">
+            <Globe size={18} strokeWidth={1.75} />
+          </button>
+          <button type="button" className="icon-button" aria-label="Session panel">
+            <MoreVertical size={19} strokeWidth={1.75} />
+          </button>
+        </div>
+      </header>
+      <div className="thread-scroll">
+        <div className="thread">
+          <div className="thread-row is-user after-start">
+            <div className="turn turn-user">
+              <UserBubble text="Tell me what changed in the build since Friday" />
+            </div>
+          </div>
+          <div className="thread-row is-streaming after-work">
+            <div className="turn turn-answer">
+              <div className="answer">
+                <Markdown text={ANSWER} sources={{}} sessionId="gallery" onOpenCitation={() => {}} />
+              </div>
+            </div>
+          </div>
+        </div>
+        <LiveWorkTail
+          block={done}
+          activity={{
+            label: 'Writing…',
+            work: 'writing',
+            startedAt: Date.now() - 27000,
+            tokens: 1301,
+            seed: 'gallery-answering',
+          }}
+          answering
+          subagentSteps={{}}
+          onInspectSubagent={() => {}}
+        />
+      </div>
+      <footer className="thread-footer" data-at-end="true">
+        <div className="composer composer-reply">
+          <div className="composer-above" />
+          <div className="composer-input" role="textbox">
+            <span style={{ opacity: 0.45 }}>Queue a message…</span>
+          </div>
+          <div className="composer-actions">
+            <button type="button" className="round-button ghost" aria-label="Add">
+              +
+            </button>
+            <button type="button" className="pill">
+              GPT-5.6 Luna
+            </button>
+            <span style={{ flex: 1 }} />
+            <button type="button" className="round-button send stop" aria-label="Stop">
+              <StopSquare size={15} />
+            </button>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
 function HomePreview() {
   const [mode, setMode] = useState<'chat' | 'search'>('chat');
   const history = [
@@ -491,6 +582,7 @@ function PolishPreview() {
 function Gallery() {
   if (location.search.includes('home')) return <HomePreview />;
   if (location.search.includes('fresh')) return <FreshTurn />;
+  if (location.search.includes('answering')) return <AnsweringPreview />;
   if (location.search.includes('polish')) return <PolishPreview />;
   return (
     <div className="app" data-at-start="false">

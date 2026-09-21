@@ -15,7 +15,7 @@ import { TodoSection, todoSummary } from '../src/components/TodoSection';
 import { StreamFooter } from '../src/components/StreamFooter';
 import { STATUS_WORDS } from '../src/utils/activityPhase';
 import { Composer } from '../src/components/Composer';
-import { foldIsLive, threadRowClassName } from '../src/components/Thread';
+import { foldIsLive, tailIsAnswering, threadRowClassName } from '../src/components/Thread';
 import { ProviderMark, hasProviderMark } from '../src/components/Brand';
 import type {
   ComposerAttachment,
@@ -99,6 +99,41 @@ describe('when a work fold shows its timeline', () => {
   it('is never live for anything that is not a fold', () => {
     expect(foldIsLive([answer], 0)).toBe(false);
     expect(foldIsLive([streaming], 0)).toBe(false);
+  });
+});
+
+describe('when the tail settles while the turn still runs', () => {
+  const user: ThreadItem = { kind: 'user', id: 'u', text: 'Go', ts: 1 };
+
+  it('stays live before anything streams', () => {
+    expect(tailIsAnswering([user, fold(true)])).toBe(false);
+    expect(
+      tailIsAnswering([user, fold(true, [step('success'), step('pending')])]),
+    ).toBe(false);
+  });
+
+  it('settles once the final answer streams over settled steps', () => {
+    expect(tailIsAnswering([user, fold(true), streaming])).toBe(true);
+  });
+
+  it('STAYS live while commentary streams over a running step', () => {
+    // Same rule as the fold: streaming text with a step still in flight
+    // is narration between tools, not the answer.
+    expect(
+      tailIsAnswering([
+        user,
+        fold(true, [step('success'), step('pending')]),
+        streaming,
+      ]),
+    ).toBe(false);
+  });
+
+  it('settles when the answer streams with no work block at all', () => {
+    expect(tailIsAnswering([user, streaming])).toBe(true);
+  });
+
+  it('ignores streaming text from before the last user message', () => {
+    expect(tailIsAnswering([streaming, user, fold(true)])).toBe(false);
   });
 });
 

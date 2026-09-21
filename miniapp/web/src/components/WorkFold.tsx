@@ -400,6 +400,7 @@ function StepRun({
   steps,
   pinKey,
   running,
+  answering = false,
   activity,
   subagentSteps,
   onInspectSubagent,
@@ -407,6 +408,12 @@ function StepRun({
   steps: WorkStep[];
   pinKey: string;
   running: boolean;
+  /**
+   * The answer has started streaming while this turn still runs.
+   * The row renders its settled form early -- summary sentence plus the
+   * quiet measurements -- instead of the live orb and shimmer.
+   */
+  answering?: boolean;
   /** Set only on the run that is actually in flight. */
   activity?: LiveActivity | null;
   subagentSteps: Record<string, ChildSteps>;
@@ -433,8 +440,15 @@ function StepRun({
    * letting it have one is what made this line flicker. Once settled, the
    * ordinary tally becomes useful again.
    */
-  const live = running && activity?.label ? activity : null;
-  const elapsed = useActivityElapsed(live?.startedAt ?? null, Boolean(live));
+  const live = !answering && running && activity?.label ? activity : null;
+  /* Answering keeps the measurements: the turn is still active, so the
+     clock and tokens are live information, not trivia. Only the live
+     heading treatment -- orb, shimmer -- stands down. */
+  const measured = live ?? (answering ? activity : null);
+  const elapsed = useActivityElapsed(
+    measured?.startedAt ?? null,
+    Boolean(measured),
+  );
   /* Paced while live, immediate once settled: the final tally is the
      answer to "is it done", and delaying that by a beat reads as a hang. */
   const heading = useSteadyText(
@@ -446,13 +460,13 @@ function StepRun({
 
   return (
     <div
-      className={`fold ${open ? 'is-open' : ''} ${running ? 'is-running' : ''} ${live ? `is-${live.work}` : ''}`}
+      className={`fold ${open ? 'is-open' : ''} ${running ? 'is-running' : ''} ${answering ? 'is-answering' : ''} ${live ? `is-${live.work}` : ''}`}
       data-content-surface="activity-fold"
-      data-activity-state={running ? 'running' : 'settled'}
+      data-activity-state={answering ? 'answering' : running ? 'running' : 'settled'}
     >
       <button
         type="button"
-        className={`fold-row ${running ? 'is-running' : ''}`}
+        className={`fold-row ${running && !answering ? 'is-running' : ''}`}
         data-activity-role="heading"
         aria-expanded={open}
         aria-label={
@@ -521,7 +535,9 @@ function StepRun({
       </button>
 
       {/* Measurements stay attached to the heading when details open. */}
-      {live ? <ActivityMeta elapsedMs={elapsed} tokens={live.tokens} /> : null}
+      {measured ? (
+        <ActivityMeta elapsedMs={elapsed} tokens={measured.tokens} />
+      ) : null}
 
       {open ? (
         <Timeline
@@ -643,16 +659,22 @@ export function WorkFold(props: WorkFoldProps) {
  * Only the live run moves. Earlier summaries and authored commentary stay
  * in chronological order, while the control for what is happening now
  * remains at the bottom as streamed answer text grows above it.
+ *
+ * Once the answer starts, the tail settles early (`answering`): the same
+ * collapsed summary-plus-measurements row the turn will keep, instead of
+ * the live orb and shimmer underneath an answer that has begun.
  */
 export function LiveWorkTail({
   block,
   activity,
+  answering = false,
   subagentSteps,
   onInspectSubagent,
   onLayoutChange,
 }: {
   block: WorkBlock;
   activity: LiveActivity;
+  answering?: boolean;
   subagentSteps: Record<string, ChildSteps>;
   onInspectSubagent: (childId: string, title: string) => void;
   onLayoutChange?: () => void;
@@ -675,14 +697,15 @@ export function LiveWorkTail({
   return (
     <div
       ref={root}
-      className="work is-running is-live-tail"
+      className={`work is-running is-live-tail${answering ? ' is-answering' : ''}`}
       data-content-surface="activity-group"
-      data-activity-state="running"
+      data-activity-state={answering ? 'answering' : 'running'}
     >
       <StepRun
         steps={run.steps}
         pinKey={run.key}
         running
+        answering={answering}
         activity={activity}
         subagentSteps={subagentSteps}
         onInspectSubagent={onInspectSubagent}

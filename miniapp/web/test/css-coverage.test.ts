@@ -111,3 +111,35 @@ describe('states and rows', () => {
     );
   });
 });
+
+describe('answering tail and activity type', () => {
+  // Keyframes, `var()` weights, and tabular figures do not survive jsdom's
+  // computed styles, so these are asserted from source like touch-action.
+  const cssText = fs.readFileSync('src/theme/components.css', 'utf8');
+
+  it('settles the answering summary in with a rise-and-fade', () => {
+    expect(cssText).toContain('.fold.is-answering .fold-label {');
+    expect(cssText).toContain('@keyframes fold-settle {');
+  });
+
+  it('weights the live sentence above its settled siblings', () => {
+    const live = cssText.slice(
+      cssText.indexOf('.fold-row.is-running .fold-label,'),
+      cssText.indexOf('.fold-row.is-running .fold-label,') + 700,
+    );
+    expect(live).toContain('font-weight: var(--font-weight-medium);');
+  });
+
+  it('pins the token count to tabular figures', () => {
+    expect(cssText).toContain(
+      '.activity-meta-time,\n.activity-meta-count {\n  font-variant-numeric: tabular-nums;\n}',
+    );
+  });
+
+  it('airs out the expanded steps and weights the ones that matter', () => {
+    expect(css('step-row').lineHeight).toBe('1.45');
+    expect(cssText).toContain(
+      '.step-row.is-error .step-label,\n.step-row.is-pending .step-label {',
+    );
+  });
+});

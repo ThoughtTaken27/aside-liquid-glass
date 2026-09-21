@@ -1531,6 +1531,17 @@
   background: var(--muted);
 }
 
+/*
+ * Hover is a laptop affordance, so it stays behind `hover: hover`. On
+ * touch, `:hover` sticks to whatever was last tapped, which would leave
+ * a highlight parked on a summary row until the next tap lands.
+ */
+@media (hover: hover) {
+  .fold-row:hover {
+    background: var(--muted);
+  }
+}
+
 /* Settled summaries stay text-only; the Aside mark appears only while the
    row is the single live control. */
 
@@ -1672,10 +1683,14 @@
  * both asked for, and both affordable now that the crest is actually on
  * screen long enough to be seen properly.
  */
-/* One warm live treatment, shared by the expandable run and the footer. */
+/* One warm live treatment, shared by the expandable run and the footer.
+   The live sentence carries medium weight: it is the one line on screen
+   that is happening now, and the weight is what says so once the settled
+   rows around it stay at normal. */
 .fold-row.is-running .fold-label,
 .stream-footer.is-working .activity-line > [role='status'],
 .stream-footer.is-thinking .activity-line > [role='status'] {
+  font-weight: var(--font-weight-medium);
   background-image: linear-gradient(
     100deg,
     var(--status-trough) 0%,
@@ -1708,6 +1723,36 @@
   .fold-row.is-running .fold-label {
     background-image: none;
     color: var(--brand-text);
+    animation: none;
+  }
+}
+
+/*
+ * The tail settling into its answering form.
+ *
+ * The moment the final answer starts streaming, the live row becomes the
+ * settled summary-plus-measurements row the turn will keep. The sentence
+ * arrives with a short rise-and-fade rather than cutting in: the state
+ * change is real -- orb gone, shimmer off -- and an unanimated swap at
+ * the exact instant the answer appears would read as a flicker.
+ */
+.fold.is-answering .fold-label {
+  animation: fold-settle 0.32s var(--ease-out) both;
+}
+
+@keyframes fold-settle {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fold.is-answering .fold-label {
     animation: none;
   }
 }
@@ -1856,14 +1901,14 @@
   align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 5px 8px 5px 6px;
+  padding: 6px 8px 6px 6px;
   margin-left: -6px;
   border-radius: var(--radius-md);
   text-align: left;
   color: var(--work-ink);
   font-family: var(--font-sans);
   font-size: 0.875rem;
-  line-height: 1.4;
+  line-height: 1.45;
   letter-spacing: -0.005em;
   transition: background var(--duration) var(--ease-out),
     color var(--duration) var(--ease-out);
@@ -1871,6 +1916,12 @@
 
 .step-row.is-expandable:active {
   background: var(--muted);
+}
+
+@media (hover: hover) {
+  .step-row.is-expandable:hover {
+    background: var(--muted);
+  }
 }
 
 .step.is-open > .step-row {
@@ -1903,6 +1954,17 @@
 .step-row.is-pending .step-icon,
 .step-row.is-pending .step-label {
   color: var(--brand-text);
+}
+
+/*
+ * Finished steps stay quiet; the rows that still matter carry weight.
+ * The in-flight step is the reader's current position in the run, and a
+ * failed step is why they opened the timeline at all -- medium weight
+ * puts both on the page without adding a single pill or badge.
+ */
+.step-row.is-error .step-label,
+.step-row.is-pending .step-label {
+  font-weight: var(--font-weight-medium);
 }
 
 .step-label {
@@ -4088,13 +4150,16 @@
 }
 
 /*
- * Fixed-width digits, because this one ticks.
+ * Fixed-width digits, because this row ticks.
  *
  * `1m 9s` becoming `1m 10s` in a proportional face changes the width of
  * everything to its right once a second, so the whole row twitches for
- * the entire length of a turn. Tabular figures pin it.
+ * the entire length of a turn. Tabular figures pin it. The token count
+ * gets the same treatment: it animates upward through CountUp, and a
+ * count that changes width as it climbs shivers against the clock.
  */
-.activity-meta-time {
+.activity-meta-time,
+.activity-meta-count {
   font-variant-numeric: tabular-nums;
 }
 
@@ -8692,6 +8757,30 @@
   }
 }
 
+/*
+ * Phones get the standard layout: greeting centred in flow, composer
+ * docked at the bottom, like every other mobile AI app.
+ *
+ * The lifted composition above (dock raised half a viewport, hero and cue
+ * nudged around it) earns its place on wide screens, where the group
+ * reads as one centred object. On a tall phone the same lift strands the
+ * composer mid-screen with dead space below it and out of thumb reach,
+ * which reads as broken rather than composed. So below 640px the three
+ * hero-phase transforms are cancelled and the phone falls back to what
+ * the base styles already describe: the hero flexes centred in the space
+ * above a bottom-docked composer, the cue riding in flow just above the
+ * card. Nothing else changes -- same artwork, same glass, same motion.
+ * Landscape phones keep the centred composition, correctly: a short
+ * viewport behaves like a laptop, not like a portrait phone.
+ */
+@media (max-width: 640px) {
+  :root[data-client='standalone'] .app-home[data-home-phase='hero'] .home-dock,
+  :root[data-client='standalone'] .rest-hero,
+  :root[data-client='standalone'] .rest-cue {
+    transform: none;
+  }
+}
+
 /* Header and dock have one neutral treatment each. Neither adds a second
    blurred pane over the reading canvas or the fixed art. */
 :root[data-client='standalone'] .thread-header {
@@ -10387,6 +10476,12 @@
 
 .timeline-toggle:active {
   color: var(--foreground);
+}
+
+@media (hover: hover) {
+  .timeline-toggle:hover {
+    color: var(--foreground);
+  }
 }
 
 /* --- settings segmented + theme reveal --------------------------------- */

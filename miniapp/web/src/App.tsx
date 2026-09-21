@@ -18,7 +18,7 @@ import {
   useState,
 } from 'react';
 import { SessionList } from './components/SessionList';
-import { Thread, liveWorkBlock } from './components/Thread';
+import { Thread, liveWorkBlock, tailIsAnswering } from './components/Thread';
 import { LiveWorkTail } from './components/WorkFold';
 import { Composer } from './components/Composer';
 import type { ComposerMode } from './components/Composer';
@@ -1093,6 +1093,14 @@ function ThreadScreen({
    * the standalone footer uses the identical two-line treatment.
    */
   const liveWork = activeTurn ? liveWorkBlock(thread.items) : null;
+  /*
+   * The answer has started streaming while the turn still runs. The tail
+   * settles into its collapsed form early rather than keeping the live
+   * thinking treatment underneath an answer that has begun -- and when
+   * there is no run to fold, the footer stands down entirely, leaving
+   * the island above the composer as the remaining stop control.
+   */
+  const answering = activeTurn && tailIsAnswering(thread.items);
   const liveActivity = activeTurn
     ? {
         label: activity.label,
@@ -1676,13 +1684,14 @@ function ThreadScreen({
             <LiveWorkTail
               block={liveWork}
               activity={liveActivity}
+              answering={answering}
               subagentSteps={thread.subagentSteps}
               onInspectSubagent={(childId) =>
                 onInspectSubagent(childId, thread.title)
               }
               onLayoutChange={updateLiveTailLayout}
             />
-          ) : (
+          ) : answering ? null : (
             <StreamFooter phase={activity.phase} {...liveActivity} />
           )
         ) : null}

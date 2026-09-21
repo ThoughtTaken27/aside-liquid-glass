@@ -266,6 +266,38 @@ describe('the live row', () => {
     expect(settled.querySelectorAll('.activity-mark')).toHaveLength(0);
   });
 
+  it('settles the tail early once the answer streams', () => {
+    // The turn still runs, so the measurements stay -- but the row itself
+    // is the settled summary, with no orb and no live treatment.
+    const { container } = render(
+      <LiveWorkTail
+        block={block(
+          [
+            step({
+              id: 'answering',
+              label: 'Searched the web',
+              icon: 'search',
+              tool: 'websearch',
+            }),
+          ],
+          true,
+        )}
+        activity={activity}
+        answering
+        subagentSteps={{}}
+        onInspectSubagent={() => {}}
+      />,
+    );
+    expect(container.querySelector('.fold')?.className).toContain('is-answering');
+    expect(container.querySelector('.fold-row.is-running')).toBeNull();
+    expect(container.querySelector('.fold-label')?.textContent)
+      .toMatch(/Searched the web/);
+    expect(container.querySelectorAll('.activity-mark')).toHaveLength(0);
+    expect(container.querySelectorAll('.activity-meta')).toHaveLength(1);
+    expect(container.querySelector('.activity-meta')?.textContent)
+      .toContain('11k tokens');
+  });
+
   it('keeps the chevron and the steps behind it in both states', () => {
     const steps = [step({ id: 'd', label: 'Ran a command' })];
     for (const running of [true, false]) {

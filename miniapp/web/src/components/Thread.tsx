@@ -204,6 +204,39 @@ export function foldIsLive(items: ThreadItem[], index: number): boolean {
 }
 
 /**
+ * Whether the tail should already be settling while the turn runs.
+ *
+ * This is the moment the final answer starts streaming: every step has
+ * its result, so there is no more work to narrate, but the turn is still
+ * active and the transcript tail is still mounted. Keeping the full live
+ * treatment here -- orb, shimmer, ticking clock -- leaves the thinking
+ * UI shouting underneath an answer that has already begun. Instead the
+ * tail renders its settled form early: the summary sentence plus the
+ * quiet measurements, exactly the collapsed row the turn will keep.
+ *
+ * The commentary rule from `foldIsLive` applies unchanged: streaming
+ * text while a step is still in flight is narration between tools, so
+ * the tail stays live. Only streaming with nothing left pending -- or
+ * streaming with no work block at all -- counts as answering.
+ */
+export function tailIsAnswering(items: ThreadItem[]): boolean {
+  let start = 0;
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    if (items[i].kind === 'user') {
+      start = i + 1;
+      break;
+    }
+  }
+  if (!items.slice(start).some((item) => item.kind === 'streaming')) {
+    return false;
+  }
+  for (let i = start; i < items.length; i += 1) {
+    if (items[i].kind === 'work' && foldIsLive(items, i)) return false;
+  }
+  return true;
+}
+
+/**
  * Whether a run of tool calls is currently in flight.
  *
  * This decides WHO draws the live row. When a run is running it draws its

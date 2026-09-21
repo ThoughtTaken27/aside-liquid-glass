@@ -111,6 +111,18 @@ describe('Zeron standalone liquid glass correction', () => {
     expect(standalone).toContain('opacity: 0;');
   });
 
+  it('docks the composer on phones instead of centering it', () => {
+    // The lifted composition is a wide-screen look; on a tall phone it
+    // strands the composer mid-screen, so the three hero-phase transforms
+    // are cancelled below 640px and the phone gets the standard layout:
+    // greeting centred in flow, composer docked at the bottom.
+    const narrow = standalone.slice(at(standalone, '@media (max-width: 640px)'));
+    expect(narrow).toContain(".app-home[data-home-phase='hero'] .home-dock,");
+    expect(narrow).toContain(".rest-hero,");
+    expect(narrow).toContain('.rest-cue {');
+    expect(narrow).toContain('transform: none;');
+  });
+
   it('keeps keyboard focus transparent instead of painting a grey dock', () => {
     const focusDock = standalone.slice(
       standalone.indexOf(".app-home[data-home-phase='hero'] .home-dock:focus-within::before"),
