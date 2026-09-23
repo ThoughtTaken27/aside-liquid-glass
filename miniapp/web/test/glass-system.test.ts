@@ -52,7 +52,7 @@ describe('Zeron standalone liquid glass correction', () => {
     expect(history).toContain('background: transparent;');
     expect(history).toContain('.session-group,');
     expect(history).toContain('backdrop-filter: blur(26px) saturate(132%);');
-    expect(history).toContain('.session-row-preview {\n  display: none;');
+    expect(history).toContain(":root[data-client='standalone'] .session-row {");
   });
 
   it('centres the greeting above the composer', () => {

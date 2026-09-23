@@ -12,7 +12,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QuestionCard } from '../src/components/QuestionCard';
-import { PermissionPicker } from '../src/components/Pickers';
 import type { QuestionItem } from '../src/types';
 
 afterEach(cleanup);
@@ -129,61 +128,6 @@ describe('the recovery affordance on a stuck question', () => {
   });
 });
 
-describe('the permission popover’s confirm switch', () => {
-  const props = {
-    anchor: null,
-    options: [{ id: 'guard', label: 'Guard' }],
-    current: 'guard',
-    onPickMode: vi.fn(),
-    onClose: vi.fn(),
-  };
-
-  it('no longer claims to be the daemon’s final confirm', () => {
-    render(
-      <PermissionPicker
-        {...props}
-        finalConfirm={false}
-        softConfirm
-        onToggleConfirm={vi.fn()}
-      />,
-    );
-    expect(screen.getByText('Confirm before acting')).toBeTruthy();
-    expect(screen.queryByText('Final confirm')).toBeNull();
-    // The whole point: it asks somewhere the phone can answer.
-    expect(screen.getByText(/on a card you can answer/)).toBeTruthy();
-  });
-
-  it('keeps the plain note on a session started at the desk', () => {
-    render(
-      <PermissionPicker
-        {...props}
-        finalConfirm={false}
-        softConfirm={false}
-        onToggleConfirm={vi.fn()}
-      />,
-    );
-    expect(screen.getByText('Applies from your next message.')).toBeTruthy();
-  });
-
-  it('reflects and toggles the switch', () => {
-    const onToggleConfirm = vi.fn();
-    render(
-      <PermissionPicker
-        {...props}
-        finalConfirm
-        softConfirm
-        onToggleConfirm={onToggleConfirm}
-      />,
-    );
-    // `hidden: true` because the popover renders invisible until it has
-    // measured its anchor, and there is no anchor in a unit test.
-    const sw = screen.getByRole('switch', { hidden: true });
-    expect(sw.getAttribute('aria-label')).toBe('Confirm before acting');
-    expect(sw.getAttribute('aria-checked')).toBe('true');
-    fireEvent.click(sw);
-    expect(onToggleConfirm).toHaveBeenCalledWith(false);
-  });
-});
 
 describe('suspended recovery regressions', () => {
   it('allows recovery even when the daemon reports the old session busy', () => {

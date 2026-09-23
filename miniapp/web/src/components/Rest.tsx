@@ -11,7 +11,7 @@
  * addresses the owner by name, and it is also the thing that makes an
  * otherwise empty screen feel deliberate rather than unloaded.
  */
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { AsideSymbol } from './Brand';
 import { ChevronDown } from './Icons';
 
@@ -124,6 +124,13 @@ export function greetingFor(
  * Telegram keeps the signature in the shared markup; the standalone shell
  * hides it in the standalone-only material layer so the phone stays quiet.
  */
+/**
+ * Whether the resting hero has played its entrance yet.
+ *
+ * Once per app load -- see the note on `first` inside `RestHero`.
+ */
+let heroEntrancePlayed = false;
+
 export function RestHero({ name }: { name?: string }) {
   /*
    * Chosen once per mount, not per render.
@@ -140,10 +147,26 @@ export function RestHero({ name }: { name?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [band],
   );
+  /*
+   * The entrance plays once per app load, not once per mount.
+   *
+   * Home remounts on every return from a thread, and a greeting that
+   * sweeps in each time reads as a splash screen that cannot be
+   * dismissed. The flag lives at module level because it is about the
+   * app's life, not any one screen's: read in a layout effect so the
+   * class lands before first paint, with no flash of the settled hero.
+   */
+  const [first, setFirst] = useState(false);
+  useLayoutEffect(() => {
+    if (!heroEntrancePlayed) {
+      heroEntrancePlayed = true;
+      setFirst(true);
+    }
+  }, []);
 
   return (
     <section
-      className="rest-hero"
+      className={`rest-hero${first ? ' is-first' : ''}`}
       aria-labelledby="rest-greeting"
       data-surface="atmospheric"
     >

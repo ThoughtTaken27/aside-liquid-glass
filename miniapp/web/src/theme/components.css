@@ -5,7 +5,7 @@
  * page, hairline borders at `--border`, generous radii from the squircle
  * scale, and colour reserved for the few places Aside uses it (the
  * permission label, a diffstat, an error). The shared/Telegram baseline
- * uses glass only on popovers, the thread footer, and the inverse lightbox
+ * uses glass only on the thread footer and the inverse lightbox
  * control; the standalone phone app adds its scoped functional glass layer
  * at the end of this file.
  */
@@ -2412,122 +2412,6 @@
   }
 }
 
-/* --- popovers ------------------------------------------------------------ */
-
-.popover {
-  position: fixed;
-  z-index: 60;
-  padding: 6px;
-  border-radius: var(--radius-2xl);
-  background: var(--surface-secondary);
-  backdrop-filter: blur(var(--blur-xl)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--blur-xl)) saturate(1.4);
-  border: var(--hairline) solid var(--border-surface-strong);
-  box-shadow:
-    0 12px 32px oklch(14.5% 0 0 / 0.14),
-    0 2px 8px oklch(14.5% 0 0 / 0.06);
-  /* max-height is set inline from the measured available space, so the
-     popover scrolls internally instead of running off an edge. */
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  animation: popover-in 0.14s var(--ease-out);
-}
-
-/* Rise toward the anchor from whichever side the popover opened on. */
-.popover.is-below {
-  animation-name: popover-in-below;
-}
-
-@supports not (backdrop-filter: blur(1px)) {
-  .popover {
-    background: var(--popover);
-  }
-}
-
-@keyframes popover-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px) scale(0.98);
-  }
-}
-
-@keyframes popover-in-below {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .popover {
-    animation: none;
-  }
-}
-
-.popover-title {
-  padding: 8px 10px 6px;
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-}
-
-.popover-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 9px 10px;
-  border-radius: var(--radius-lg);
-  text-align: left;
-  font-size: var(--text-base);
-  color: var(--popover-foreground);
-  transition: background var(--duration) var(--ease-out);
-}
-
-.popover-row:active,
-.popover-row.is-selected {
-  background: var(--muted);
-}
-
-.popover-row-lead,
-.popover-row-trail {
-  display: inline-flex;
-  align-items: center;
-  color: var(--secondary-foreground);
-  flex: none;
-}
-
-.popover-row-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Ultrabrowse keeps a distinctive sheen without introducing a second
-   palette. Every stop is the same orange text ink mixed darker, so the
-   sheen never trades small-text contrast for brightness. */
-.popover-row.is-ultrabrowse .popover-row-label {
-  background: linear-gradient(
-    100deg,
-    var(--brand-text),
-    color-mix(in oklab, var(--brand-text) 78%, var(--foreground)),
-    var(--brand-text),
-    color-mix(in oklab, var(--brand-text) 78%, var(--foreground)),
-    var(--brand-text)
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  font-weight: var(--font-weight-medium);
-}
-
-.popover-sep {
-  height: var(--hairline);
-  margin: 5px 4px;
-  background: var(--border);
-}
-
 /* --- markdown ------------------------------------------------------------ */
 
 /*
@@ -3285,16 +3169,6 @@
 /* (The composer carries no permission mark. It is named in the model
    sheet instead -- see the note in Composer.tsx.) */
 
-.popover-switch-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 7px 10px;
-  font-size: var(--text-base);
-  color: var(--popover-foreground);
-}
-
 /* The on state uses the app's single clay accent. */
 .switch {
   position: relative;
@@ -3327,17 +3201,6 @@
 
 .switch.is-on .switch-knob {
   transform: translateX(16px);
-}
-
-/*
- * Both permission settings are read when the daemon spawns the next
- * `aside exec`, so a change binds from the next message. Saying so beats
- * letting the owner find out.
- */
-.popover-note {
-  padding: 4px 10px 6px;
-  font-size: var(--text-xs);
-  color: var(--muted-foreground);
 }
 
 .visually-hidden {
@@ -5179,6 +5042,37 @@
 }
 
 /*
+ * The entrance, played once per app load.
+ *
+ * Mark first, then the greeting a beat later -- the order the eye reads
+ * them in. 6px of travel over a short window: even played once, a hero
+ * that sweeps in reads as a splash screen, and this screen is the
+ * opposite of one. The `is-first` class comes from the module flag in
+ * Rest.tsx, so returning from a thread never replays it.
+ */
+@keyframes rest-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.rest-hero.is-first .rest-mark {
+  animation: rest-in 0.45s var(--ease-out) both;
+}
+
+.rest-hero.is-first .rest-greeting {
+  animation: rest-in 0.5s var(--ease-out) 0.07s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rest-hero.is-first .rest-mark,
+  .rest-hero.is-first .rest-greeting {
+    animation: none;
+  }
+}
+
+/*
  * The whole-list frame lived here. Deleted rather than overridden: its
  * `min-height: auto` and its padding were the two declarations that
  * survived being overridden later in the sheet, and between them they
@@ -5653,24 +5547,6 @@
   --duration-fast: 0.14s;
   --duration-base: 0.24s;
   --duration-slow: 0.34s;
-}
-
-/*
- * A new turn arriving.
- *
- * 8px of travel, not 20. A large rise on a message that is REPLACING a
- * streaming block (they swap when the transcript settles) reads as the
- * answer jumping, because the reader was already looking at the text.
- */
-@keyframes turn-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 8px, 0);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 /*
@@ -6977,23 +6853,15 @@
 }
 
 /*
- * Floating surfaces: popovers and sheets.
+ * Floating surfaces: sheets.
  *
- * Popovers are already backdrop-blurred; sheets receive the same physical
- * edge here before the standalone-only layer below makes the sheet itself
- * translucent. The rim stops a frosted panel reading as a smudge of the
- * page rather than as a pane over it -- the edge is the only part of a frosted surface
- * that can carry a specular line, which is why every real frosted material
- * in a physical product has a polished border.
+ * Sheets receive a physical edge here before the standalone-only layer
+ * below makes the sheet itself translucent. The rim stops a frosted panel
+ * reading as a smudge of the page rather than as a pane over it -- the edge
+ * is the only part of a frosted surface that can carry a specular line,
+ * which is why every real frosted material in a physical product has a
+ * polished border.
  */
-.popover {
-  box-shadow:
-    var(--rim-top),
-    var(--rim-edge),
-    0 12px 32px oklch(14.5% 0 0 / 0.14),
-    0 2px 8px oklch(14.5% 0 0 / 0.06);
-}
-
 .sheet {
   box-shadow:
     var(--rim-top),
@@ -7071,8 +6939,9 @@
  *
  * Arrival gets a focus pull, not just a rise.
  *
- * The existing `turn-in` moves 8px and fades, and the note above it is
- * right that a bigger rise reads as the answer jumping. But translation
+ * The existing `turn-in` moves 8px and fades: a bigger rise on a message
+ * REPLACING a streaming block reads as the answer jumping, because the
+ * reader was already looking at the text. But translation
  * alone is the motion of a card being slid into place, and what actually
  * reads as expensive is content RESOLVING -- coming into focus rather than
  * arriving from somewhere. React Bits' FadeContent goes from `blur(10px)`
@@ -7107,29 +6976,6 @@
 }
 
 /*
- * Overlays resolve too, and can afford slightly more of it.
- *
- * A popover is a discrete object appearing over a settled page rather than
- * a line of text the reader is mid-sentence on, so the softness is not
- * competing with anything being read. It is still only 4px.
- */
-@keyframes popover-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px) scale(0.98);
-    filter: blur(4px);
-  }
-}
-
-@keyframes popover-in-below {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-    filter: blur(4px);
-  }
-}
-
-/*
  * Reduced motion keeps the fade and drops the focus pull.
  *
  * A blur transition is a vestibular trigger in the same family as motion,
@@ -7138,8 +6984,7 @@
  * to mark that new content arrived.
  */
 @media (prefers-reduced-motion: reduce) {
-  .user-bubble,
-  .popover {
+  .user-bubble {
     animation-duration: 0.01ms;
     filter: none;
   }
@@ -7169,7 +7014,45 @@
 .icon-button:focus-visible,
 .pill:focus-visible,
 .question-option:focus-visible,
-.segmented button:focus-visible {
+.segmented button:focus-visible,
+/*
+ * Every other keyboard-reachable control shares the same ring rather
+ * than inventing its own: switches, the slide knob, the mode options,
+ * and all the row-shaped buttons. Focus never changes dialect between
+ * screens, and `:focus-visible` keeps it off touch either way.
+ */
+.switch:focus-visible,
+.slide-confirm-knob:focus-visible,
+.mode-switch-option:focus-visible,
+.session-row:focus-visible,
+.session-card:focus-visible,
+.palette-row:focus-visible,
+.search-hit-row:focus-visible,
+.omni-row:focus-visible,
+.sheet-row:focus-visible,
+.settings-row.is-button:focus-visible,
+.settings-choice:focus-visible,
+.settings-segment:focus-visible,
+.panel-row:focus-visible,
+.fold-row:focus-visible,
+.step-row.is-expandable:focus-visible,
+.memory-tree-dir:focus-visible,
+.memory-tree-file:focus-visible,
+.tab-deck-row-main:focus-visible,
+.subagent-spawn:focus-visible,
+.user-bubble-toggle:focus-visible,
+.swipe-action:focus-visible,
+.rest-cue:focus-visible,
+.toast-action:focus-visible,
+.boot-retry:focus-visible,
+.thread-error-retry:focus-visible,
+.history-blank-cta:focus-visible,
+.question-recover:focus-visible,
+.question-reply button:focus-visible,
+.chip-remove:focus-visible,
+.answer-action:focus-visible,
+.cite-source:focus-visible,
+.lightbox-close:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 1px var(--surface-primary),
@@ -8380,8 +8263,7 @@
   -webkit-backdrop-filter: none;
 }
 
-/* Popovers use regular glass; text-heavy sheets use the stronger variant. */
-:root[data-client='standalone'] .popover,
+/* The jump control uses regular glass; text-heavy sheets use the stronger variant. */
 :root[data-client='standalone'] .jump-latest {
   background: var(--glass-surface);
   border-color: var(--glass-stroke);
@@ -8448,7 +8330,6 @@
   :root[data-client='standalone'] :is(
     .thread-header,
     .composer,
-    .popover,
     .sheet,
     .jump-latest,
     .mode-switch,
@@ -8478,7 +8359,6 @@
   :root[data-client='standalone'] :is(
     .thread-header,
     .composer,
-    .popover,
     .sheet,
     .jump-latest,
     .mode-switch,
@@ -8937,7 +8817,6 @@
 /* Other standalone-only functional surfaces keep the same material without
    changing shared Telegram rendering. */
 :root[data-client='standalone'] :is(
-  .popover,
   .sheet,
   .jump-latest,
   .utility-card,
@@ -8980,7 +8859,6 @@
     .composer,
     .mode-switch,
     .segmented,
-    .popover,
     .sheet,
     .jump-latest,
     .home-history,
@@ -9016,7 +8894,6 @@
     .composer,
     .mode-switch,
     .segmented,
-    .popover,
     .sheet,
     .jump-latest,
     .home-history,
@@ -9481,10 +9358,6 @@
   letter-spacing: -0.014em;
 }
 
-:root[data-client='standalone'] .session-row-preview {
-  display: none;
-}
-
 :root[data-client='standalone'] :is(.session-row-time, .session-card-preview, .session-card-time) {
   color: color-mix(in srgb, var(--foreground) 57%, transparent);
 }
@@ -9561,7 +9434,7 @@
   background: color-mix(in srgb, var(--surface-primary) 94%, transparent);
 }
 
-:root[data-client='standalone'] :is(.sheet, .popover, .jump-latest) {
+:root[data-client='standalone'] :is(.sheet, .jump-latest) {
   background: color-mix(in srgb, var(--surface-primary) 84%, transparent);
   -webkit-backdrop-filter: blur(24px) saturate(120%);
   backdrop-filter: blur(24px) saturate(120%);
@@ -9622,7 +9495,6 @@
     .session-card,
     .list-toolbar,
     .sheet,
-    .popover,
     .jump-latest
   ) {
     background: var(--surface-primary);
@@ -9640,7 +9512,6 @@
     .session-card,
     .list-toolbar,
     .sheet,
-    .popover,
     .jump-latest
   ) {
     background: var(--surface-primary);

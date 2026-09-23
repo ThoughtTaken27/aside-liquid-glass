@@ -263,8 +263,11 @@ export function SettingsScreen({
     }
   };
 
+  /*
+   * No haptic here: the shared `Switch` already taps on every flip, and
+   * two in a row reads as a stutter.
+   */
   const toggleSounds = (next: boolean) => {
-    haptic('light');
     setSoundsEnabled(next);
     setSoundsOn(next);
     if (next) playSound('toggle');
@@ -588,16 +591,11 @@ export function SettingsScreen({
                 title="Interface sounds"
                 description="Quiet taps and chimes for sends, arrivals and switches. Off unless you ask."
                 control={
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={soundsOn}
-                    aria-label="Interface sounds"
-                    className={"switch" + (soundsOn ? ' is-on' : '')}
-                    onClick={() => toggleSounds(!soundsOn)}
-                  >
-                    <span className="switch-knob" />
-                  </button>
+                  <Switch
+                    checked={soundsOn}
+                    label="Interface sounds"
+                    onChange={toggleSounds}
+                  />
                 }
               />
             </Section>

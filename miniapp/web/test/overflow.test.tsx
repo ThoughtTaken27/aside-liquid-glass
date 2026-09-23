@@ -246,13 +246,6 @@ describe('the single accent system', () => {
     );
     expect(liveText).toContain('var(--brand-text)');
     expect(liveText).not.toMatch(/var\(--brand\)(?!-text)/);
-
-    const ultrabrowse = ruleBody(
-      componentsCss,
-      '.popover-row.is-ultrabrowse .popover-row-label',
-    );
-    expect(ultrabrowse).toContain('var(--brand-text)');
-    expect(ultrabrowse).not.toMatch(/var\(--brand\)(?!-text)/);
   });
 
   /*

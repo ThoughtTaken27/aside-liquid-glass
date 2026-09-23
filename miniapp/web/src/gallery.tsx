@@ -25,7 +25,7 @@ import { LiveWorkTail, WorkFold } from './components/WorkFold';
 import { UserBubble } from './components/Thread';
 import { StreamFooter } from './components/StreamFooter';
 import { Markdown } from './components/Markdown';
-import { ChevronLeft, Globe, MoreVertical, StopSquare } from './components/Icons';
+import { ChevronDown, ChevronLeft, Globe, MoreVertical, StopSquare } from './components/Icons';
 import { ToastHost, toast } from './components/Toasts';
 import { SlideToConfirm } from './components/SlideToConfirm';
 import { ActivityIsland } from './components/ActivityIsland';
@@ -391,14 +391,14 @@ function AnsweringPreview() {
 function HomePreview() {
   const [mode, setMode] = useState<'chat' | 'search'>('chat');
   const history = [
-    ['Release readiness review', 'Socket suite and dependency changes', '10:42 AM'],
-    ['College planner', 'Updated the shortlist and next steps', '8:16 AM'],
-    ['Schoology daily plan', 'Prioritized tonight’s assignments', 'Yesterday'],
-    ['Zeron mobile polish', 'Reviewed the frost and transcript surfaces', 'Yesterday'],
-    ['Application timeline', 'Compared deadlines and recommendation tasks', 'Mon'],
-    ['Research notes', 'Captured the sources worth revisiting', 'Sun'],
-    ['Essay revision', 'Tightened the opening and evidence', 'Sat'],
-    ['Summer planning', 'Mapped the next three concrete steps', 'Fri'],
+    ['Release readiness review', '10:42 AM'],
+    ['College planner', '8:16 AM'],
+    ['Schoology daily plan', 'Yesterday'],
+    ['Zeron mobile polish', 'Yesterday'],
+    ['Application timeline', 'Mon'],
+    ['Research notes', 'Sun'],
+    ['Essay revision', 'Sat'],
+    ['Summer planning', 'Fri'],
   ];
 
   return (
@@ -412,29 +412,29 @@ function HomePreview() {
             </button>
           </div>
           <RestHero name="Alex" />
-          <button type="button" className="rest-cue">Recent work <span aria-hidden="true">↓</span></button>
+          <button type="button" className="rest-cue"><span className="rest-cue-label">Recent work</span><ChevronDown size={14} strokeWidth={2} /></button>
         </section>
         <section className="home-history">
           <h2 className="home-history-head">Recent work</h2>
           <div className="session-groups">
             <section className="session-group">
               <h3 className="session-group-head">Today</h3>
-              <div className="session-rows" data-separator="inset">
-                {history.slice(0, 2).map(([title, preview, time], index) => (
+              <div className="session-rows">
+                {history.slice(0, 2).map(([title, time], index) => (
                   <button type="button" className="session-row" style={{ '--i': index } as CSSProperties} key={title}>
-                    <span className="session-row-main"><span className="session-row-title">{title}</span><span className="session-row-preview">{preview}</span></span>
-                    <span className="session-row-time">{time}</span>
+                    <span className="session-row-main"><span className="session-row-title">{title}</span></span>
+                    <span className="session-row-marks"><span className="session-row-time">{time}</span></span>
                   </button>
                 ))}
               </div>
             </section>
             <section className="session-group">
               <h3 className="session-group-head">Earlier</h3>
-              <div className="session-rows" data-separator="inset">
-                {history.slice(2).map(([title, preview, time], index) => (
+              <div className="session-rows">
+                {history.slice(2).map(([title, time], index) => (
                   <button type="button" className="session-row" style={{ '--i': index + 2 } as CSSProperties} key={title}>
-                    <span className="session-row-main"><span className="session-row-title">{title}</span><span className="session-row-preview">{preview}</span></span>
-                    <span className="session-row-time">{time}</span>
+                    <span className="session-row-main"><span className="session-row-title">{title}</span></span>
+                    <span className="session-row-marks"><span className="session-row-time">{time}</span></span>
                   </button>
                 ))}
               </div>

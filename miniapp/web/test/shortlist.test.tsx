@@ -218,3 +218,33 @@ describe('full access slide', () => {
     expect(onPickMode).toHaveBeenCalledWith('full-access');
   });
 });
+
+describe('permission confirm switch', () => {
+  it('reflects and toggles on the live permission view', async () => {
+    const { ModelSheet } = await import('../src/components/ModelSheet');
+    const onToggleConfirm = vi.fn();
+    render(
+      <ModelSheet
+        catalog={[]}
+        currentProvider=""
+        currentModel=""
+        effortOptions={[]}
+        currentEffort=""
+        permissionOptions={[{ id: 'guard', label: 'Guard' }]}
+        permissionMode="guard"
+        finalConfirm
+        onPickMode={() => {}}
+        onToggleConfirm={onToggleConfirm}
+        onPickModel={() => {}}
+        onPickEffort={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Permission/ }));
+    const sw = screen.getByRole('switch', { name: 'Confirm before acting' });
+    expect(sw.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(sw);
+    expect(onToggleConfirm).toHaveBeenCalledWith(false);
+    expect(screen.getByText('Applies from your next message.')).toBeTruthy();
+  });
+});

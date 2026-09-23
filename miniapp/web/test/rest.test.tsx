@@ -80,11 +80,21 @@ describe('bandFor', () => {
 });
 
 describe('RestHero', () => {
+  // File order matters here: the first test mounts the first RestHero in
+  // the file, so it carries the once-per-load entrance, and the next
+  // mount must not replay it.
   it('renders the greeting as the screen heading', () => {
-    render(<RestHero name="Alex" />);
+    const { container } = render(<RestHero name="Alex" />);
     expect(
       screen.getByRole('heading', { level: 1 }).textContent,
     ).toContain('Alex');
+    expect(container.querySelector('.rest-hero.is-first')).toBeTruthy();
+  });
+
+  it('plays the entrance only on the first mount', () => {
+    const { container, unmount } = render(<RestHero name="Alex" />);
+    expect(container.querySelector('.rest-hero.is-first')).toBeNull();
+    unmount();
   });
 });
 
