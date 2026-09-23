@@ -15,6 +15,17 @@
  * never by resetting anything, because a blanket `serve reset` would wipe
  * serve endpoints the owner configured for other things.
  *
+ * The status document is only half the verification, and the incident that
+ * proved it had Funnel ON in `serve status` while the public path was
+ * dead: TCP to the edge connected, then the TLS handshake stalled with
+ * zero bytes, and no phone request ever reached the server log. So a
+ * config that reads back fine is advertised only after a real request
+ * walks the phone's path -- public DNS, TCP, TLS with SNI, `/api/health`
+ * -- and reads the health marker back (see `publicprobe.ts`). When that
+ * probe fails the relay reports no URL with a stage-named detail, the
+ * pairing page warns instead of printing a QR that cannot work, and the
+ * phone falls through to the next relay or the tailnet link.
+ *
  * Everything here degrades to "no URL" rather than throwing: a Mac without
  * Tailscale, a tailnet whose admin never enabled Funnel, or a CLI that
  * speaks an older status dialect all produce a handle whose `url()` is null
@@ -26,6 +37,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { tailnetHost } from './tailnet.js';
+import { verifyPublicEndpoint, type PublicProbeResult } from './publicprobe.js';
 import {
   toPublicOrigin,
   type RelayHandle,
@@ -55,6 +67,11 @@ export interface FunnelOptions {
   logger?: FunnelLogger;
   /** Watchdog period. Production 30s; tests pass something tiny. */
   checkIntervalMs?: number;
+  /**
+   * Override the end-to-end public-HTTPS probe in tests. Production walks
+   * the phone's path to the advertised origin; tests inject a verdict.
+   */
+  verifyEndpoint?: (origin: string) => Promise<PublicProbeResult>;
 }
 
 interface CliAttempt {
@@ -66,6 +83,13 @@ const CHECK_INTERVAL_MS = 30_000;
 const EXEC_TIMEOUT_MS = 15_000;
 /** Backoff ceiling for re-applying after repeated failures. */
 const REAPPLY_MAX_DELAY_MS = 5 * 60_000;
+/**
+ * Failed end-to-end probes before a config that reads back fine gets a
+ * fresh `funnel --bg` anyway. Edge registrations occasionally go stale
+ * while the local config looks perfect; a re-apply is the only client-side
+ * repair, and at this threshold it fires minutes apart at most.
+ */
+const PROBE_FAILURES_BEFORE_REAPPLY = 3;
 
 function candidateBinaries(explicit?: string): string[] {
   const candidates = [
@@ -176,6 +200,45 @@ function funnelNotEnabled(stderr: string): boolean {
   return /funnel/i.test(stderr) && /not enabled|enable.+admin|no-funnel/i.test(stderr);
 }
 
+/**
+ * Name the macOS variant problem directly when it applies.
+ *
+ * Funnel port-sharing on macOS requires the App Store app or the
+ * Standalone system extension. A Mac with neither -- typically a Homebrew
+ * CLI driving a userspace daemon -- accepts `funnel --bg` and reports
+ * Funnel on, while public TLS never completes. "Not answering (tls ...)"
+ * alone would send the owner chasing certificates, so the detail says
+ * which requirement the Mac fails.
+ *
+ * Pure for tests: production passes `process.platform` and the bundle path.
+ */
+export function funnelPlatformNote(platform: string, appBundlePresent: boolean): string | null {
+  if (platform !== 'darwin' || appBundlePresent) return null;
+  return 'this Mac has no Tailscale.app (Homebrew/userspace daemon), and Funnel port-sharing on macOS requires the App Store or Standalone app';
+}
+
+/**
+ * The user-facing sentence for "configured but not answering".
+ *
+ * Names the stage so the owner can tell a TLS stall (this Mac's likely
+ * shape) from a DNS wait or a wrong-server answer, and appends the macOS
+ * variant note when this Mac fails that requirement -- the most probable
+ * root cause on a Homebrew/userspace install, stated rather than guessed.
+ */
+function funnelDownDetail(
+  origin: string,
+  probe: Extract<PublicProbeResult, { ok: false }>,
+): string {
+  const base =
+    `Funnel is configured but ${origin} is not answering ` +
+    `(${probe.stage}: ${probe.detail})`;
+  const note = funnelPlatformNote(
+    process.platform,
+    fs.existsSync('/Applications/Tailscale.app/Contents/MacOS/Tailscale'),
+  );
+  return note ? `${base}; ${note}` : base;
+}
+
 export interface FunnelHandle extends RelayHandle {
   readonly kind: 'funnel';
 }
@@ -210,11 +273,19 @@ export async function startFunnel(opts: FunnelOptions): Promise<FunnelHandle> {
       'Tailscale CLI not found (TAILSCALE_CLI, the macOS app, or Homebrew)',
     );
   }
+  const verify = opts.verifyEndpoint ?? verifyPublicEndpoint;
 
   // The combination that answered, pinned after the first success so every
   // later check and re-apply talks to the same daemon.
   let cli: CliAttempt | null = null;
   let serving = false;
+  /**
+   * The serve config names our port but the public URL does not answer.
+   * Distinct from "disabled" (healthy null): this is "broken" (healthy
+   * false), the state the pairing page must warn about.
+   */
+  let configuredDown = false;
+  let probeFailures = 0;
   let detail: string | null = 'starting';
   let consecutiveFailures = 0;
   let nextApplyAt = 0;
@@ -259,13 +330,74 @@ export async function startFunnel(opts: FunnelOptions): Promise<FunnelHandle> {
       detail = 'tailscale status was not JSON';
       return;
     }
-    if (funnelServesPort(parsed, opts.port)) {
-      if (!serving) {
-        logger?.info(`[funnel] serving https://${dns} -> 127.0.0.1:${opts.port}`);
+    /**
+     * Advertise the origin only after the public path proves itself.
+     * Returns the probe verdict so the caller can decide about re-applying.
+     */
+    const verifyAndRecord = async (dnsName: string): Promise<PublicProbeResult | null> => {
+      const origin = toPublicOrigin(dnsName);
+      if (!origin) {
+        serving = false;
+        configuredDown = true;
+        detail = `tailnet name ${dnsName} is not a usable public origin`;
+        return null;
       }
-      serving = true;
-      consecutiveFailures = 0;
-      detail = null;
+      let probe: PublicProbeResult;
+      try {
+        probe = await verify(origin);
+      } catch (err) {
+        probe = {
+          ok: false,
+          stage: 'http',
+          detail: `endpoint probe failed: ${String((err as Error).message || err).slice(0, 120)}`,
+          viaIp: null,
+        };
+      }
+      if (probe.ok) {
+        if (!serving) {
+          logger?.info(
+            `[funnel] serving ${origin} -> 127.0.0.1:${opts.port} (verified end-to-end${probe.publicPath ? '' : '; tested over the tailnet path only'})`,
+          );
+        }
+        serving = true;
+        configuredDown = false;
+        probeFailures = 0;
+        consecutiveFailures = 0;
+        detail = null;
+        return probe;
+      }
+      probeFailures += 1;
+      serving = false;
+      configuredDown = true;
+      detail = funnelDownDetail(origin, probe);
+      return probe;
+    };
+
+    if (funnelServesPort(parsed, opts.port)) {
+      const probe = await verifyAndRecord(dns);
+      // The config reads back fine but the URL does not answer: the edge
+      // registration may be stale, which a fresh apply sometimes repairs.
+      // Gated on repeated failures plus the re-apply backoff, and never
+      // for DNS -- re-registering cannot hurry propagation, and churning
+      // enables risks the Let's Encrypt rate limit.
+      if (
+        probe &&
+        !probe.ok &&
+        probeFailures >= PROBE_FAILURES_BEFORE_REAPPLY &&
+        probe.stage !== 'dns' &&
+        Date.now() >= nextApplyAt
+      ) {
+        nextApplyAt = Date.now() + REAPPLY_MAX_DELAY_MS;
+        probeFailures = 0;
+        try {
+          await runCli(funnelApplyArgs(opts.port));
+          logger?.info(
+            `[funnel] re-applied after repeated failed probes (${probe.stage}: ${probe.detail})`,
+          );
+        } catch (err) {
+          logger?.warn(`[funnel] re-apply failed: ${(err as Error).message}`);
+        }
+      }
       return;
     }
     // Our port is missing from a config that is otherwise readable: apply,
@@ -280,9 +412,11 @@ export async function startFunnel(opts: FunnelOptions): Promise<FunnelHandle> {
       await runCli(funnelApplyArgs(opts.port));
       consecutiveFailures = 0;
       nextApplyAt = 0;
-      serving = true;
-      detail = null;
       logger?.info(`[funnel] enabled https://${dns} -> 127.0.0.1:${opts.port}`);
+      // A fresh registration can take minutes to become dialable (public
+      // DNS, edge state). Advertise only after the probe passes; until
+      // then the watchdog re-checks every interval with an honest detail.
+      await verifyAndRecord(dns);
     } catch (err) {
       consecutiveFailures += 1;
       const wait = Math.min(
@@ -336,8 +470,11 @@ export async function startFunnel(opts: FunnelOptions): Promise<FunnelHandle> {
         // And health is exactly "advertising a URL", because the watchdog
         // re-verifies `serving` every interval -- a dropped endpoint shows
         // up here as no URL plus a detail saying why, within one period.
+        // `false` (rather than null) means the config names our port but
+        // the public probe fails: broken, not merely unverified, which is
+        // the state the pairing page warns about instead of staying quiet.
         url,
-        healthy: url ? true : null,
+        healthy: url ? true : configuredDown ? false : null,
         detail,
       };
     },

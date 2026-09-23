@@ -21,7 +21,7 @@
 import crypto from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import QRCode from 'qrcode';
-import { isPublicOrigin } from './relays.js';
+import { isPublicOrigin, type RelayInfo } from './relays.js';
 
 /** Default port for the pairing listener: one above the app's own. */
 export const DEFAULT_PAIR_PORT_OFFSET = 1;
@@ -101,6 +101,12 @@ export interface PairServerOptions {
    * the phone and has to be paired once.
    */
   publicUrls?: () => { label: string; url: string }[];
+  /**
+   * Live relay snapshots, so the page can warn when a relay is configured
+   * but not answering instead of staying quiet about the outage. Without
+   * it the page behaves exactly as before (no banner either way).
+   */
+  relayHealth?: () => RelayInfo[];
   logger?: boolean;
 }
 
@@ -135,6 +141,16 @@ export function buildPairServer(opts: PairServerOptions): FastifyInstance {
         });
       }
     }
+    /*
+     * Relays that are configured but failing their public probe. They
+     * contribute no entry (their URLs would not work), but the page must
+     * not stay quiet about them: a silently missing Funnel link reads as
+     * "not enabled yet" and sends the owner to re-enable what is already
+     * on, while the real problem is the public path.
+     */
+    const brokenRelays = (opts.relayHealth?.() ?? []).filter(
+      (relay) => relay.url === null && relay.healthy === false && relay.detail,
+    );
     if (host) {
       entries.push({
         label: entries.length
@@ -145,11 +161,22 @@ export function buildPairServer(opts: PairServerOptions): FastifyInstance {
       });
     }
     if (!entries.length) {
+      const brokenHtml = brokenRelays.length
+        ? '<ul>' +
+          brokenRelays
+            .map(
+              (relay) =>
+                `<li><b>${escapeHtml(relay.kind === 'funnel' ? 'Funnel' : 'ngrok')}</b>: ${escapeHtml(relay.detail ?? '')}</li>`,
+            )
+            .join('') +
+          '</ul>'
+        : '';
       return reply.code(503).type('text/html; charset=utf-8').send(
         '<!doctype html><meta charset="utf-8"><body style="font:16px system-ui;padding:2rem">' +
           '<h1>No address to pair</h1>' +
-          '<p>No public relay is up and Tailscale is not connected. Start Tailscale ' +
-          '(or set <code>ASIDE_TAILNET_HOST</code>), wait for a relay to verify, ' +
+          '<p>No public relay is answering and Tailscale has no hostname for this Mac.</p>' +
+          brokenHtml +
+          '<p>Fix the relay (or sign Tailscale in for the tailnet link), ' +
           'then reload this page.</p>' +
           '<p>No pairing code was issued.</p></body>',
       );
@@ -162,9 +189,17 @@ export function buildPairServer(opts: PairServerOptions): FastifyInstance {
       label: entry.label,
       link: `${entry.origin}/app#pair=${opts.issuePairingCode()}`,
     }));
+    const relayDown = !primary.relay && brokenRelays.length > 0;
     const introCopy = primary.relay
       ? 'No app needed on the phone -- any browser works, on any network.'
-      : 'Tailscale has to be installed and signed in on the phone first.';
+      : relayDown
+        ? 'The public relay is down, so this link uses your Tailnet address -- the phone needs the Tailscale app until the relay is fixed.'
+        : 'Tailscale has to be installed and signed in on the phone first.';
+    const relayWarnHtml = relayDown
+      ? '<div class="alert" role="alert"><b>Public relay down.</b> ' +
+        brokenRelays.map((relay) => escapeHtml(relay.detail ?? '')).join(' ') +
+        ' The code below pairs over the Tailnet instead. Fix the relay and reload for a link that needs no app.</div>'
+      : '';
     const extrasHtml = extraLinks.length
       ? '<div class="plat">\n    <h2>Other addresses</h2>\n' +
         '    <p class="hint">Each address pairs separately. Open one on the phone once ' +
@@ -227,11 +262,14 @@ export function buildPairServer(opts: PairServerOptions): FastifyInstance {
        background:#3d3a34;color:#f6f3ee;border:0;border-radius:9px;padding:0 1rem}
   .linkrow button:active{opacity:.75}
   .hint{font-size:.8rem;color:#8a8378;margin:.45rem 0 0;text-align:left}
+  .alert{text-align:left;background:#f6e7e2;border:1px solid #d9a79a;color:#7a3b2e;
+       border-radius:12px;padding:.7rem .9rem;margin:1rem 0 0;font-size:.9rem}
   .warn{margin-top:1.5rem;font-size:.85rem;color:#8a8378;border-top:1px solid #e2ddd4;padding-top:1rem}
 </style>
 <div class="card">
   <h1>Pair your phone</h1>
   <p>${introCopy}</p>
+  ${relayWarnHtml}
   <img src="${qr}" width="320" height="320" alt="Pairing QR code">
 
   <div class="linkrow">

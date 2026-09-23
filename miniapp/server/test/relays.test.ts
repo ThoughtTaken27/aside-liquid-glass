@@ -14,10 +14,12 @@ import {
 import {
   disabledFunnel,
   funnelApplyArgs,
+  funnelPlatformNote,
   funnelServesPort,
   startFunnel,
   tailscaleAttempts,
 } from '../src/funnel.js';
+import type { PublicProbeResult } from '../src/publicprobe.js';
 import {
   disabledNgrok,
   ngrokArgs,
@@ -236,6 +238,12 @@ describe('funnel supervisor', () => {
   const handles: RelayHandle[] = [];
   const savedCli = process.env.TAILSCALE_CLI;
 
+  const passingProbe = async (): Promise<PublicProbeResult> => ({
+    ok: true,
+    viaIp: '203.0.113.7',
+    publicPath: true,
+  });
+
   beforeEach(() => {
     delete process.env.TAILSCALE_CLI;
   });
@@ -277,6 +285,7 @@ describe('funnel supervisor', () => {
         tailscaleCli: process.execPath,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 60_000,
+        verifyEndpoint: passingProbe,
         exec: async (_binary, args) => {
           calls.push(args);
           if (args[0] === 'serve') {
@@ -306,6 +315,7 @@ describe('funnel supervisor', () => {
         tailscaleCli: process.execPath,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 60_000,
+        verifyEndpoint: passingProbe,
         exec: async (_binary, args) => {
           calls.push(args);
           return JSON.stringify({
@@ -330,6 +340,9 @@ describe('funnel supervisor', () => {
         tailscaleCli: process.execPath,
         readTailnetHost: () => null,
         checkIntervalMs: 60_000,
+        verifyEndpoint: async () => {
+          throw new Error('must not probe without DNS');
+        },
         exec: async () => {
           throw new Error('must not run without DNS');
         },
@@ -355,6 +368,7 @@ describe('funnel supervisor', () => {
         tailscaleCli: process.execPath,
         readTailnetHost: () => dns,
         checkIntervalMs: 60_000,
+        verifyEndpoint: passingProbe,
         exec: async (_binary, args) => {
           calls.push(args);
           return JSON.stringify({
@@ -402,6 +416,214 @@ describe('funnel supervisor', () => {
       detail: 'off in tests',
     });
     await handle.stop();
+  });
+
+  it('withholds the URL when the config reads fine but the probe fails', async () => {
+    // The incident shape: AllowFunnel plus our proxy in the status, while
+    // the public TLS handshake stalls with zero bytes. The relay must read
+    // as broken (healthy false, stage-named detail), never advertised.
+    const handle = track(
+      await startFunnel({
+        port: 8790,
+        tailscaleCli: process.execPath,
+        readTailnetHost: () => 'mac.tailnet.ts.net',
+        checkIntervalMs: 60_000,
+        verifyEndpoint: async (): Promise<PublicProbeResult> => ({
+          ok: false,
+          stage: 'tls',
+          detail: 'TLS handshake to mac.tailnet.ts.net timed out',
+          viaIp: '203.0.113.7',
+        }),
+        exec: async () =>
+          JSON.stringify({
+            Web: {
+              'mac.tailnet.ts.net:443': {
+                Handlers: { '/': { Proxy: 'http://127.0.0.1:8790' } },
+              },
+            },
+            AllowFunnel: { 'mac.tailnet.ts.net:443': true },
+          }),
+      }),
+    );
+    expect(handle.snapshot().url).toBeNull();
+    expect(handle.snapshot().healthy).toBe(false);
+    expect(handle.snapshot().detail).toMatch(/not answering/);
+    expect(handle.snapshot().detail).toMatch(/tls/);
+  });
+
+  it('a probe throw reads as down, not a crash', async () => {
+    const handle = track(
+      await startFunnel({
+        port: 8790,
+        tailscaleCli: process.execPath,
+        readTailnetHost: () => 'mac.tailnet.ts.net',
+        checkIntervalMs: 60_000,
+        verifyEndpoint: async () => {
+          throw new Error('probe blew up');
+        },
+        exec: async () =>
+          JSON.stringify({
+            Web: {
+              'mac.tailnet.ts.net:443': {
+                Handlers: { '/': { Proxy: 'http://127.0.0.1:8790' } },
+              },
+            },
+            AllowFunnel: { 'mac.tailnet.ts.net:443': true },
+          }),
+      }),
+    );
+    expect(handle.snapshot().url).toBeNull();
+    expect(handle.snapshot().healthy).toBe(false);
+    expect(handle.snapshot().detail).toMatch(/probe failed/);
+  });
+
+  it('re-applies after repeated probe failures, at most on backoff', async () => {
+    const calls: string[][] = [];
+    const handle = track(
+      await startFunnel({
+        port: 8790,
+        tailscaleCli: process.execPath,
+        readTailnetHost: () => 'mac.tailnet.ts.net',
+        checkIntervalMs: 20,
+        verifyEndpoint: async (): Promise<PublicProbeResult> => ({
+          ok: false,
+          stage: 'tls',
+          detail: 'TLS handshake timed out',
+          viaIp: '203.0.113.7',
+        }),
+        exec: async (_binary, args) => {
+          calls.push(args);
+          return JSON.stringify({
+            Web: {
+              'mac.tailnet.ts.net:443': {
+                Handlers: { '/': { Proxy: 'http://127.0.0.1:8790' } },
+              },
+            },
+            AllowFunnel: { 'mac.tailnet.ts.net:443': true },
+          });
+        },
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await handle.stop();
+    // Many status reads over ~15 ticks, but exactly one re-apply: the
+    // backoff gate holds after the first.
+    expect(calls.filter((args) => args[0] === 'serve').length).toBeGreaterThan(3);
+    const reapplies = calls.filter((args) => args[0] === 'funnel');
+    expect(reapplies).toHaveLength(1);
+    expect(reapplies[0]).toEqual(['funnel', '--bg', 'http://127.0.0.1:8790']);
+  });
+
+  it('never re-applies for DNS-stage failures', async () => {
+    // Re-registering cannot hurry public DNS propagation, and churning
+    // enables risks the Let's Encrypt rate limit.
+    const calls: string[][] = [];
+    const handle = track(
+      await startFunnel({
+        port: 8790,
+        tailscaleCli: process.execPath,
+        readTailnetHost: () => 'mac.tailnet.ts.net',
+        checkIntervalMs: 20,
+        verifyEndpoint: async (): Promise<PublicProbeResult> => ({
+          ok: false,
+          stage: 'dns',
+          detail: 'mac.tailnet.ts.net does not resolve yet',
+          viaIp: null,
+        }),
+        exec: async (_binary, args) => {
+          calls.push(args);
+          return JSON.stringify({
+            Web: {
+              'mac.tailnet.ts.net:443': {
+                Handlers: { '/': { Proxy: 'http://127.0.0.1:8790' } },
+              },
+            },
+            AllowFunnel: { 'mac.tailnet.ts.net:443': true },
+          });
+        },
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await handle.stop();
+    expect(calls.length).toBeGreaterThan(3);
+    expect(calls.every((args) => args[0] === 'serve')).toBe(true);
+    expect(handle.snapshot().healthy).toBe(false);
+  });
+
+  it('recovers the URL when the probe starts passing', async () => {
+    let probes = 0;
+    const handle = track(
+      await startFunnel({
+        port: 8790,
+        tailscaleCli: process.execPath,
+        readTailnetHost: () => 'mac.tailnet.ts.net',
+        checkIntervalMs: 20,
+        verifyEndpoint: async (): Promise<PublicProbeResult> => {
+          probes += 1;
+          return probes <= 2
+            ? { ok: false, stage: 'tcp', detail: 'refused', viaIp: '203.0.113.7' }
+            : { ok: true, viaIp: '203.0.113.7', publicPath: true };
+        },
+        exec: async () =>
+          JSON.stringify({
+            Web: {
+              'mac.tailnet.ts.net:443': {
+                Handlers: { '/': { Proxy: 'http://127.0.0.1:8790' } },
+              },
+            },
+            AllowFunnel: { 'mac.tailnet.ts.net:443': true },
+          }),
+      }),
+    );
+    expect(handle.snapshot().url).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(handle.snapshot()).toMatchObject({
+      url: 'https://mac.tailnet.ts.net',
+      healthy: true,
+      detail: null,
+    });
+  });
+
+  it('does not advertise a fresh apply until the probe passes', async () => {
+    const handle = track(
+      await startFunnel({
+        port: 8790,
+        tailscaleCli: process.execPath,
+        readTailnetHost: () => 'mac.tailnet.ts.net',
+        checkIntervalMs: 60_000,
+        verifyEndpoint: async (): Promise<PublicProbeResult> => ({
+          ok: false,
+          stage: 'dns',
+          detail: 'mac.tailnet.ts.net does not resolve yet',
+          viaIp: null,
+        }),
+        exec: async (_binary, args) => {
+          if (args[0] === 'serve') {
+            return JSON.stringify({
+              Web: { 'mac.tailnet.ts.net:443': { Handlers: {} } },
+              AllowFunnel: {},
+            });
+          }
+          return '';
+        },
+      }),
+    );
+    // The apply ran (no throw), but the URL stays dark until dialable.
+    expect(handle.snapshot().url).toBeNull();
+    expect(handle.snapshot().healthy).toBe(false);
+    expect(handle.snapshot().detail).toMatch(/dns/);
+  });
+});
+
+describe('funnel macOS variant note', () => {
+  it('names the requirement on darwin without the app bundle', () => {
+    expect(funnelPlatformNote('darwin', false)).toMatch(/Tailscale.app/);
+    expect(funnelPlatformNote('darwin', false)).toMatch(/App Store or Standalone/);
+  });
+
+  it('stays quiet when the app is present or the platform is not macOS', () => {
+    expect(funnelPlatformNote('darwin', true)).toBeNull();
+    expect(funnelPlatformNote('linux', false)).toBeNull();
   });
 });
 

@@ -283,3 +283,71 @@ describe('the pairing listener', () => {
     await pairApp.close();
   });
 });
+
+describe('the pairing page when a relay is down', () => {
+  const DOWN = 'Funnel is configured but https://mac.example.ts.net is not answering (tls: handshake timed out)';
+
+  function downPage(relayHealth: import('../src/relays.js').RelayInfo[]) {
+    const codes = new PairingCodeStore();
+    const pairApp = buildPairServer({
+      issuePairingCode: () => codes.issue(),
+      appPort: 8790,
+      tailnetHost: () => 'mac.example.ts.net',
+      publicUrls: () => [],
+      relayHealth: () => relayHealth,
+    });
+    return pairApp;
+  }
+
+  it('warns instead of silently printing only the tailnet link', async () => {
+    const pairApp = downPage([
+      { kind: 'funnel', url: null, healthy: false, detail: DOWN },
+    ]);
+    await pairApp.ready();
+    const res = await pairApp.inject({ method: 'GET', url: '/pair', remoteAddress: '127.0.0.1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Public relay down');
+    expect(res.body).toContain('handshake timed out');
+    // The QR still pairs -- over the tailnet, with the intro copy saying
+    // the relay is down and the phone needs the Tailscale app.
+    expect(res.body).toContain('The public relay is down, so this link uses your Tailnet address');
+    expect(res.body).toContain('the phone needs the Tailscale app until the relay is fixed');
+    const match = /value="([^"]*#pair=[^"]+)"/.exec(res.body);
+    expect(match?.[1]).toMatch(/^https:[/][/]mac[.]example[.]ts[.]net[/]app#pair=/);
+    await pairApp.close();
+  });
+
+  it('stays quiet when relays are merely unverified or disabled', async () => {
+    for (const relayHealth of [
+      [],
+      [{ kind: 'funnel', url: null, healthy: null, detail: 'starting' }],
+      [{ kind: 'funnel', url: null, healthy: null, detail: 'disabled in config' }],
+    ] as import('../src/relays.js').RelayInfo[][]) {
+      const pairApp = downPage(relayHealth);
+      await pairApp.ready();
+      const res = await pairApp.inject({ method: 'GET', url: '/pair', remoteAddress: '127.0.0.1' });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).not.toContain('Public relay down');
+      await pairApp.close();
+    }
+  });
+
+  it('names the broken relay on the no-address page', async () => {
+    const codes = new PairingCodeStore();
+    const pairApp = buildPairServer({
+      issuePairingCode: () => codes.issue(),
+      appPort: 8790,
+      tailnetHost: () => null,
+      publicUrls: () => [],
+      relayHealth: () => [{ kind: 'funnel', url: null, healthy: false, detail: DOWN }],
+    });
+    await pairApp.ready();
+    const res = await pairApp.inject({ method: 'GET', url: '/pair', remoteAddress: '127.0.0.1' });
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toContain('No address to pair');
+    expect(res.body).toContain('Funnel');
+    expect(res.body).toContain('handshake timed out');
+    expect(res.body).not.toContain('#pair=');
+    await pairApp.close();
+  });
+});

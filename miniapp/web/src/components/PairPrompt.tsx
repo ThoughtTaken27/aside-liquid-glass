@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { api } from '../api';
-import { storeName, storeToken } from '../standalone';
+import {
+  PHONE_OFFLINE_MESSAGE,
+  pairUnreachableMessage,
+  phoneIsOffline,
+  storeName,
+  storeToken,
+} from '../standalone';
 import { haptic } from '../telegram';
 import { playSound } from '../utils/sounds';
 import { useActivityElapsed } from './ActivityMeta';
@@ -66,7 +72,9 @@ export function PairPrompt({
       setError(
         status === 401
           ? 'That link was rejected or already used. Generate a fresh one on your Mac.'
-          : "Couldn't reach your Mac. Check it's awake and on the same tailnet.",
+          : phoneIsOffline()
+            ? PHONE_OFFLINE_MESSAGE
+            : pairUnreachableMessage(),
       );
       setBusy(false);
     }

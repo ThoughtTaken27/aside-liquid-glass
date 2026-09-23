@@ -72,8 +72,10 @@ import { WatchModeCard } from './components/WatchMode';
 import type { CitationMark } from './utils/citations';
 import { api, setAuthToken, setUnauthorizedHandler } from './api';
 import {
+  PHONE_OFFLINE_MESSAGE,
   clearStoredToken,
   isStandaloneEntry,
+  pairUnreachableMessage,
   readStoredToken,
   resolveStandaloneAuth,
 } from './standalone';
@@ -512,9 +514,11 @@ export default function App() {
         reason:
           result.reason === 'pair_rejected'
             ? 'That pairing link is no longer valid. Generate a new one on your Mac and paste it below.'
-            : result.reason === 'unreachable'
-              ? "Can't reach your Mac. Make sure it's awake and Amphetamine is on."
-              : 'Not paired yet. Paste the pairing link from your Mac below.',
+            : result.reason === 'offline'
+              ? PHONE_OFFLINE_MESSAGE
+              : result.reason === 'unreachable'
+                ? pairUnreachableMessage()
+                : 'Not paired yet. Paste the pairing link from your Mac below.',
       });
     });
     return () => {

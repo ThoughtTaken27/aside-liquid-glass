@@ -28,7 +28,11 @@ like the server did before relays existed.
 1. Open the [Tailscale admin console](https://login.tailscale.com/admin/settings/general),
    find **Funnel**, and switch it **On** for the tailnet.
 2. Restart the server (or wait ~30 seconds). It enables Funnel for the app
-   port itself and verifies it by reading the status back.
+   port itself, then verifies end to end: `serve status` must name the app
+   port AND a real request must walk the phone's path (public DNS, TCP, TLS
+   with SNI, `/api/health`) and read the health marker back. Status alone
+   is not proof — it has said Funnel is on while public TLS stalled with
+   zero bytes — so only a passing probe advertises the URL.
 
 Confirm with the doctor:
 
@@ -36,9 +40,18 @@ Confirm with the doctor:
 cd miniapp && npm run doctor
 ```
 
-Look for `ok funnel serves this server (https://<mac>...)` under
-**Public relays**. If it says Funnel is not enabled, step 1 has not
-propagated yet — give it a minute and rerun.
+Look for BOTH lines under **Public relays**:
+
+```
+ok funnel serves this server (https://<mac>...)
+ok funnel answers over the public internet (203.0.113.7)
+```
+
+If it says Funnel is not enabled, step 1 has not propagated yet — give it
+a minute and rerun. If the first line passes and the second fails with a
+`tls` stage, Funnel's config is fine but the public path is dead; on a Mac
+with no Tailscale.app (Homebrew CLI + userspace daemon) that is expected —
+Funnel port-sharing on macOS requires the App Store or Standalone app.
 
 No account, no daemon, no config: the Tailscale the Mac already runs does
 it. The phone needs nothing at all.
@@ -84,6 +97,11 @@ once on the phone (same install-first-then-paste order on iPhone as
 before). Each origin keeps its own stored token, which is why every
 address needs its own pairing and why the app can then move between them
 without asking again.
+
+When a relay is configured but failing its public probe, the page says so
+at the top ("Public relay down" plus the reason) and the QR pairs over the
+tailnet instead — install the Tailscale app on the phone and sign in first.
+Fix the relay and reload for a link that needs no app.
 
 ## How failover behaves
 

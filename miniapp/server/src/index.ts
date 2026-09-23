@@ -161,6 +161,9 @@ async function main(): Promise<void> {
       }
       return urls;
     },
+    // Lets /pair warn when a relay is configured but failing its public
+    // probe, instead of silently printing only the tailnet link.
+    relayHealth: () => relays.snapshot(),
     logger: false,
   });
   try {

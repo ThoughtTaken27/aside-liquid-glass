@@ -142,7 +142,54 @@ function secondsLeft(token: string): number {
 
 export type StandaloneAuth =
   | { ok: true; token: string; paired: boolean; name?: string }
-  | { ok: false; reason: 'needs_pairing' | 'pair_rejected' | 'unreachable' };
+  | { ok: false; reason: 'needs_pairing' | 'pair_rejected' | 'unreachable' | 'offline' };
+
+/**
+ * True when the browser admits the phone has no network at all.
+ *
+ * The one case worth fast-pathing: every request and every failover probe
+ * will fail, so waiting through them only delays the honest message.
+ * Anything unknown (no `navigator`, an exception) reads as online, which
+ * keeps every previous behavior exactly where it was.
+ */
+export function phoneIsOffline(): boolean {
+  try {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Which pairing failure the phone is looking at. Pure for tests; both the
+ * boot path and the paste-a-link screen map through it.
+ *
+ * A 401 is a wrong or spent link. Anything else with no HTTP status means
+ * the fetch itself died -- but "no network on the phone" and "the
+ * link's address is dead" have different fixes, so they stay distinct.
+ */
+export function classifyPairFailure(
+  status: number | undefined,
+  offline: boolean,
+): 'rejected' | 'offline' | 'unreachable' {
+  if (status === 401) return 'rejected';
+  if (offline) return 'offline';
+  return 'unreachable';
+}
+
+export const PHONE_OFFLINE_MESSAGE = 'No internet on this phone. Reconnect and try again.';
+
+/**
+ * The link's address is not answering.
+ *
+ * Names the likely shape -- the Mac up with its public relay down is the
+ * common one now, and the pairing page warns about it -- and gives the
+ * recovery that works: the tailnet link. The old copy blamed the tailnet
+ * for Funnel links, which sent owners to fix the wrong thing.
+ */
+export function pairUnreachableMessage(): string {
+  return "Couldn't reach your Mac. If it's awake, the public relay is likely down — reopen the pairing page on the Mac: if it warns about Funnel, use the Tailnet link instead (needs the Tailscale app on this phone).";
+}
 
 /**
  * Resolve a usable bearer token for a standalone launch.
@@ -165,6 +212,9 @@ export async function resolveStandaloneAuth(): Promise<StandaloneAuth> {
     } catch (err) {
       scrubPairingKey();
       const status = (err as { status?: number }).status;
+      if (classifyPairFailure(status, phoneIsOffline()) === 'offline') {
+        return { ok: false, reason: 'offline' };
+      }
       if (status === undefined) {
         // No HTTP status at all: this origin is dead, not disagreeing. Try
         // the relays awaited -- the api client's own hook already fired for
@@ -207,6 +257,12 @@ export async function resolveStandaloneAuth(): Promise<StandaloneAuth> {
     if (status === 401) {
       // Genuinely not paired, or the session finally aged out.
       return { ok: false, reason: 'needs_pairing' };
+    }
+    if (phoneIsOffline()) {
+      // Every failover probe would fail the same way, so skip the wait --
+      // but a stored token is still worth booting with, exactly as below.
+      if (stored) return { ok: true, token: stored, paired: false, name: readStoredName() };
+      return { ok: false, reason: 'offline' };
     }
     // The Mac did not answer at all. Saying "not paired" here would send the
     // owner to generate a pairing link on a machine that is asleep. Fail

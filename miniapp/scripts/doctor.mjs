@@ -245,11 +245,18 @@ for (const bin of [...new Set(tsCandidates.filter((p) => p && fs.existsSync(p)))
 if (!tsCandidates.some((p) => p && fs.existsSync(p))) {
   warn('Tailscale not found', 'brew install --cask tailscale, then sign in on the Mac and the phone');
 } else if (!status) {
-  warn('could not read Tailscale status', 'is the daemon running? open -a Tailscale');
+  warn('could not read Tailscale status', 'is any tailscaled running (Tailscale.app or a userspace daemon)?');
 } else {
   tailnetHost = String(status?.Self?.DNSName || '').replace(/\.$/, '');
   if (tailnetHost) ok('tailnet hostname', tailnetHost);
-  else warn('Tailscale is installed but this Mac has no hostname yet', 'sign in: open -a Tailscale');
+  else warn('Tailscale is installed but this Mac has no hostname yet', 'sign in: tailscale up (add --socket <path> for a userspace daemon)');
+  ok('tailscale answers via', `${ts}${tsArgs.length ? ` ${tsArgs.join(' ')}` : ' (default socket)'}`);
+  if (process.platform === 'darwin' && !fs.existsSync('/Applications/Tailscale.app/Contents/MacOS/Tailscale')) {
+    // Neutral here on purpose: a Homebrew/userspace setup serves the
+    // tailnet fine. Whether PUBLIC Funnel works on it is decided by the
+    // probe below, and only a failing probe earns the variant warning.
+    ok('tailscale runs without Tailscale.app', tsArgs.includes('--socket') ? 'Homebrew CLI + userspace daemon socket' : 'Homebrew CLI, default socket');
+  }
 
   try {
     const serve = sh(ts, [...tsArgs, 'serve', 'status']);
@@ -276,8 +283,9 @@ if (!relayNgrokOn) warn('ngrok relay is disabled in config', 'miniapp.relay_ngro
 
 if (relayFunnelOn) {
   if (!status) {
-    warn('cannot verify funnel: Tailscale status unreadable', 'open -a Tailscale, then rerun the doctor');
+    warn('cannot verify funnel: Tailscale status unreadable', 'start a tailscaled (Tailscale.app or your userspace daemon), then rerun the doctor');
   } else {
+    let servesAppPort = false;
     try {
       const doc = JSON.parse(sh(ts, [...tsArgs, 'serve', 'status', '--json']));
       const funnelOn = doc?.AllowFunnel && Object.keys(doc.AllowFunnel).length > 0;
@@ -291,7 +299,10 @@ if (relayFunnelOn) {
           }
         }
       }
-      if (ours && funnelOn && tailnetHost) ok('funnel serves this server', `https://${tailnetHost}`);
+      if (ours && funnelOn && tailnetHost) {
+        ok('funnel serves this server', `https://${tailnetHost}`);
+        servesAppPort = true;
+      }
       else if (ours && !funnelOn) warn('app port is served to the tailnet only, not funneled', 'the server enables funnel itself when relay_funnel is on; if it stays off, enable Funnel in the Tailscale admin console');
       else runtimeBad('funnel is not serving this server yet', 'start the server and give it 30s to verify, then rerun the doctor');
     } catch (err) {
@@ -300,6 +311,42 @@ if (relayFunnelOn) {
         warn('funnel is not enabled for this tailnet', 'Tailscale admin console -> Settings -> Funnel: On');
       } else {
         warn('could not read the funnel status', `${ts} serve status --json`);
+      }
+    }
+    /*
+     * The config is only half the story: serve status has said Funnel is
+     * on while the public TLS handshake stalled with zero bytes and no
+     * phone request ever arrived. Walk the phone's path for real --
+     * public DNS, TCP, TLS with SNI, /api/health -- and fail LOUD when
+     * the URL the pairing page prints does not answer.
+     */
+    if (servesAppPort) {
+      try {
+        const { verifyPublicEndpoint } = await import(path.join(miniapp, 'server/dist/publicprobe.js'));
+        const probe = await verifyPublicEndpoint(`https://${tailnetHost}`, { timeoutMs: 12000 });
+        if (probe.ok) {
+          ok('funnel answers over the public internet', `${probe.viaIp}${probe.publicPath ? '' : ' (tailnet path only)'}`);
+          if (!probe.publicPath) {
+            warn('the probe tested the tailnet path, not the public one', 'public DNS did not answer here; confirm from a phone off the tailnet');
+          }
+        } else {
+          const noApp =
+            process.platform === 'darwin' &&
+            !fs.existsSync('/Applications/Tailscale.app/Contents/MacOS/Tailscale');
+          const fix =
+            probe.stage === 'dns'
+              ? 'public DNS has no record yet (up to ~10 min after enabling) or the name is wrong; wait and rerun'
+              : probe.stage === 'tcp'
+                ? `the Funnel edge is unreachable from here (${probe.viaIp}); check this Mac's internet route, then rerun`
+                : probe.stage === 'tls' && noApp
+                  ? 'public TLS never completes and this Mac has no Tailscale.app (Homebrew/userspace daemon): Funnel port-sharing on macOS requires the App Store or Standalone app'
+                  : probe.stage === 'tls'
+                    ? `public TLS fails (${probe.detail}); check tailnet HTTPS certificates: ${ts} cert ${tailnetHost}`
+                    : `the relay answers but not as this app (${probe.detail}); look for another serve rule on 443: ${ts} serve status`;
+          runtimeBad(`funnel does not answer: ${probe.stage}: ${probe.detail}`, fix);
+        }
+      } catch (err) {
+        warn('could not probe the public URL', `is the server built? ${err.message}`);
       }
     }
   }
