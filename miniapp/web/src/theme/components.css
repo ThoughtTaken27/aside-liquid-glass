@@ -3128,6 +3128,13 @@
 /* Sent, not yet confirmed by the transcript. Present, but visibly provisional. */
 .user-bubble.is-pending {
   opacity: 0.6;
+  /*
+   * No entrance while provisional. `turn-in` fills both, so its final
+   * keyframe (opacity 1) outranks this rule and pending bubbles used to
+   * render at full opacity -- the dim never showed. The entrance replays
+   * when the class lifts, which reads as the message landing.
+   */
+  animation: none;
 }
 
 /* --- streaming answer ---------------------------------------------------- */

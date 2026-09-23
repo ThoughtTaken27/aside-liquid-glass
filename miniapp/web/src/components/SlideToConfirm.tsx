@@ -97,6 +97,12 @@ export function SlideToConfirm({
           const el = track.current;
           if (!el) return;
           event.preventDefault();
+          // `preventDefault` above blocks the implicit focus a press would
+          // otherwise move here, so take it explicitly: without this a
+          // mouse or touch user who taps the knob can never drive it from
+          // the keyboard afterwards, because arrows go wherever focus
+          // already was.
+          event.currentTarget.focus();
           event.currentTarget.setPointerCapture?.(event.pointerId);
           const rect = el.getBoundingClientRect();
           // Knob travel: full width minus both insets and the knob itself,

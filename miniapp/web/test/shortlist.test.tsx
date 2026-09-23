@@ -219,6 +219,16 @@ describe('full access slide', () => {
   });
 });
 
+describe('slide knob focus', () => {
+  it('takes focus on press so arrows work after a tap', async () => {
+    const { SlideToConfirm } = await import('../src/components/SlideToConfirm');
+    render(<SlideToConfirm label="Slide to allow full access" onConfirm={() => {}} />);
+    const knob = screen.getByRole('slider', { name: 'Slide to allow full access' });
+    fireEvent.pointerDown(knob);
+    expect(document.activeElement).toBe(knob);
+  });
+});
+
 describe('permission confirm switch', () => {
   it('reflects and toggles on the live permission view', async () => {
     const { ModelSheet } = await import('../src/components/ModelSheet');
