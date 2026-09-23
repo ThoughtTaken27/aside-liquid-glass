@@ -85,6 +85,8 @@ import { ActivityIsland } from './components/ActivityIsland';
 import { PullToRefresh } from './components/PullToRefresh';
 import { playSound } from './utils/sounds';
 import { InstallHint } from './components/InstallHint';
+import { RelayBanner } from './components/RelayBanner';
+import { setRefreshedRelays } from './relays';
 import { useThread } from './hooks/useThread';
 import { useAttachments } from './hooks/useAttachments';
 import { useDockHeight } from './hooks/useDockHeight';
@@ -570,6 +572,13 @@ export default function App() {
     if (auth.phase !== 'ready') return;
     void loadSessions();
     api.status().then(setStatus, () => {});
+    // Refresh the failover list the shell was served with. Relays verify
+    // asynchronously after the server boots, so the meta tag baked into
+    // the HTML can lag behind reality on the first load after a restart.
+    api.relays().then(
+      (res) => setRefreshedRelays(res.relays.map((entry) => entry.url)),
+      () => {},
+    );
   }, [auth.phase, loadSessions]);
 
   // The desktop catalog can change while the installed app stays alive.
@@ -875,6 +884,7 @@ export default function App() {
           conversation the owner has deliberately navigated into.
         */}
         <InstallHint />
+        <RelayBanner />
         {/*
           One scroller holding two full panels. The composer is NOT in it:
           it is docked below, so the software keyboard cannot push it out
@@ -1574,6 +1584,7 @@ function ThreadScreen({
 
   return (
     <div className="app" ref={threadShell}>
+      <RelayBanner />
       <header className="thread-header" data-condensed={condensed ? 'true' : 'false'}>
         <div className="thread-header-left">
           <button type="button" className="icon-button" onClick={onBack} aria-label="Back">

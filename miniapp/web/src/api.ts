@@ -26,6 +26,7 @@ import type {
   OmniboxResponse,
   BrowseRecentResponse,
 } from './types';
+import { considerFailover } from './relays';
 
 export class ApiError extends Error {
   constructor(
@@ -85,7 +86,29 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   // HttpOnly session cookie that lets the installed app recover its token
   // after localStorage has been cleared, and the cookie only rides along if
   // credentials are asked for explicitly.
-  const res = await fetch(path, { ...init, credentials: 'same-origin', headers });
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, credentials: 'same-origin', headers });
+  } catch (err) {
+    /*
+     * The fetch itself failed: no HTTP status, no server verdict, just no
+     * answer. That is the shape of a dead origin rather than a rejected
+     * credential, so this is the moment to consider moving to a relay that
+     * does answer. Fire-and-forget: the navigation, if one happens,
+     * unloads this page, and if none does the caller reports the failure
+     * exactly as before. HTTP errors never reach here -- a status code, of
+     * any kind, proves the origin is alive.
+     *
+     * Aborts are the exception: keystroke-driven calls cancel their own
+     * predecessors routinely, and countermanding a deliberate cancel with
+     * a health probe (or worse, a navigation) would punish typing fast on
+     * a slow Mac.
+     */
+    if (!(err instanceof DOMException && err.name === 'AbortError')) {
+      considerFailover();
+    }
+    throw err;
+  }
   const text = await res.text();
   const body = text ? JSON.parse(text) : {};
   if (!res.ok) {
@@ -127,6 +150,14 @@ export const api = {
     request<{ token: string; name?: string; expiresIn: number }>(
       '/api/session',
     ),
+
+  /**
+   * Verified public relay URLs in failover order. Read once per boot after
+   * auth to refresh the list the shell was served with: relays verify
+   * asynchronously after the server starts, so the meta tag can lag.
+   */
+  relays: () =>
+    request<{ relays: { kind: string; url: string }[] }>('/api/relays'),
 
   /**
    * The Aside browser's own visit history, straight from the desktop

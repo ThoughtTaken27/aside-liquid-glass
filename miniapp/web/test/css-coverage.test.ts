@@ -143,3 +143,16 @@ describe('answering tail and activity type', () => {
     );
   });
 });
+
+describe('relay banner', () => {
+  it('docks a centered pill at the top of the viewport', () => {
+    const banner = css('relay-banner');
+    expect(banner.position).toBe('fixed');
+    expect(banner.display).toBe('flex');
+  });
+
+  it('keeps the status text on one line', () => {
+    const text = css('relay-banner-text');
+    expect(text.whiteSpace).toBe('nowrap');
+  });
+});

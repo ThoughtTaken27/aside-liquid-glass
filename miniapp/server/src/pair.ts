@@ -21,6 +21,7 @@
 import crypto from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import QRCode from 'qrcode';
+import { isPublicOrigin } from './relays.js';
 
 /** Default port for the pairing listener: one above the app's own. */
 export const DEFAULT_PAIR_PORT_OFFSET = 1;
@@ -94,6 +95,12 @@ export interface PairServerOptions {
   appPort: number;
   /** Stable tailnet hostname for this Mac, read lazily. */
   tailnetHost?: () => string | null;
+  /**
+   * Verified public relay URLs, best first. The pairing page lists each as
+   * its own pairing link, because each origin keeps its own stored token on
+   * the phone and has to be paired once.
+   */
+  publicUrls?: () => { label: string; url: string }[];
   logger?: boolean;
 }
 
@@ -112,16 +119,66 @@ export function buildPairServer(opts: PairServerOptions): FastifyInstance {
     }
 
     const host = opts.tailnetHost?.() || '';
-    if (!host) {
+    /*
+     * Pairing addresses, best first. Relay URLs need nothing installed on
+     * the phone; the tailnet entry keeps today's behaviour for a Mac with
+     * no relay up. Each address gets its own one-time code, because a code
+     * is single-spend and each origin is paired separately on the phone.
+     */
+    const entries: { label: string; origin: string; relay: boolean }[] = [];
+    for (const candidate of opts.publicUrls?.() ?? []) {
+      if (candidate && isPublicOrigin(candidate.url)) {
+        entries.push({
+          label: candidate.label || 'Public relay',
+          origin: candidate.url,
+          relay: true,
+        });
+      }
+    }
+    if (host) {
+      entries.push({
+        label: entries.length
+          ? 'Tailnet fallback (needs the Tailscale app on the phone)'
+          : 'Tailnet (needs the Tailscale app on the phone)',
+        origin: `https://${host}`,
+        relay: false,
+      });
+    }
+    if (!entries.length) {
       return reply.code(503).type('text/html; charset=utf-8').send(
         '<!doctype html><meta charset="utf-8"><body style="font:16px system-ui;padding:2rem">' +
-          '<h1>Tailscale is not ready</h1>' +
-          '<p>Start Tailscale or set <code>ASIDE_TAILNET_HOST</code>, then reload this page.</p>' +
+          '<h1>No address to pair</h1>' +
+          '<p>No public relay is up and Tailscale is not connected. Start Tailscale ' +
+          '(or set <code>ASIDE_TAILNET_HOST</code>), wait for a relay to verify, ' +
+          'then reload this page.</p>' +
           '<p>No pairing code was issued.</p></body>',
       );
     }
-    const base = `https://${host}`;
+    const primary = entries[0];
+    const extras = entries.slice(1);
+    const base = primary.origin;
     const link = `${base}/app#pair=${opts.issuePairingCode()}`;
+    const extraLinks = extras.map((entry) => ({
+      label: entry.label,
+      link: `${entry.origin}/app#pair=${opts.issuePairingCode()}`,
+    }));
+    const introCopy = primary.relay
+      ? 'No app needed on the phone -- any browser works, on any network.'
+      : 'Tailscale has to be installed and signed in on the phone first.';
+    const extrasHtml = extraLinks.length
+      ? '<div class="plat">\n    <h2>Other addresses</h2>\n' +
+        '    <p class="hint">Each address pairs separately. Open one on the phone once ' +
+        'and it stays paired; the app moves between paired addresses on its own when one is down.</p>\n' +
+        '    <ol>\n' +
+        extraLinks
+          .map(
+            (entry) =>
+              `      <li><b>${escapeHtml(entry.label)}</b><br>` +
+              `<code class="addr">${escapeHtml(entry.link)}</code></li>`,
+          )
+          .join('\n') +
+        '\n    </ol>\n  </div>\n'
+      : '';
     const qr = await QRCode.toDataURL(link, {
       errorCorrectionLevel: 'M',
       margin: 1,
@@ -174,7 +231,7 @@ export function buildPairServer(opts: PairServerOptions): FastifyInstance {
 </style>
 <div class="card">
   <h1>Pair your phone</h1>
-  <p>Tailscale has to be installed and signed in on the phone first.</p>
+  <p>${introCopy}</p>
   <img src="${qr}" width="320" height="320" alt="Pairing QR code">
 
   <div class="linkrow">
@@ -205,7 +262,8 @@ export function buildPairServer(opts: PairServerOptions): FastifyInstance {
     </ol>
   </div>
 
-  <p class="warn">This is a one-time enrollment link. It expires after ten minutes,
+  ${extrasHtml}
+  <p class="warn">Every link on this page is one-time enrollment. Each expires after ten minutes,
   works for one device only, and never appears in an APK.</p>
 </div>
 <script>

@@ -9,6 +9,9 @@ import { loadConfig, loadOrCreateJwtSecret } from './config.js';
 import { MenuSync, Tunnel, defaultBinDir } from './tunnel.js';
 import { primeTailnetHost, tailnetHost } from './tailnet.js';
 import { PairingCodeStore, buildPairServer } from './pair.js';
+import { createRelayRegistry } from './relays.js';
+import { disabledFunnel, startFunnel } from './funnel.js';
+import { disabledNgrok, startNgrok } from './ngrok.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,6 +34,17 @@ async function main(): Promise<void> {
   let externalUrl: string | null = null;
 
   /*
+   * The public relays (Funnel primary, ngrok backup) and the rotating
+   * cloudflared tunnel are independent publishers of the same loopback
+   * port. The registry fills in as each relay verifies it is actually
+   * serving, so every reader below -- settings screen, menu button,
+   * pairing page, client failover list -- sees relay URLs appear without
+   * any restarts, and sees nothing at all when relays are disabled or
+   * down, in which case behaviour is exactly today's.
+   */
+  const relays = createRelayRegistry();
+
+  /*
    * The pairing page gets its own port precisely because `tailscale serve`
    * proxies exactly one. Anything on this port is unreachable from the
    * tailnet without a second, deliberate `serve` rule -- which is the
@@ -47,7 +61,8 @@ async function main(): Promise<void> {
     webDist,
     jwtSecret,
     logger: process.env.MINIAPP_LOG !== '0',
-    publicUrl: () => tunnel?.url ?? externalUrl,
+    publicUrl: () => relays.primary()?.url ?? tunnel?.url ?? externalUrl,
+    relayUrls: () => relays.orderedUrls(),
     version: process.env.MINIAPP_VERSION || '0.1.0',
     tailnetHost,
     pairPort,
@@ -67,6 +82,64 @@ async function main(): Promise<void> {
   );
 
   /*
+   * Public relays: Funnel first, ngrok behind it. Each start call either
+   * verifies its endpoint or returns a handle with no URL and a detail
+   * saying why, so a relay that cannot work on this machine is one log
+   * line, not a failure. Disabled-in-config relays register an explicit
+   * stub so /api/relays can tell "off" apart from "broken".
+   */
+  const relayLog = {
+    info: (message: string) => app.log.info(message),
+    warn: (message: string) => app.log.warn(message),
+  };
+  /*
+   * Started concurrently: each supervisor boots through its own first
+   * verification (Funnel waits briefly for the tailnet cache, ngrok waits
+   * for its agent API), and serializing those waits would push the menu's
+   * `waitForUrl` budget out for no reason. The app is already listening,
+   * so this only orders log lines, never availability.
+   */
+  /*
+   * Belt and braces: both supervisors are written never to throw, but a
+   * relay must never be able to break the boot either way. Worst case the
+   * server runs exactly as it did before relays existed.
+   */
+  const safeStart = async <T>(start: Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await start;
+    } catch (err) {
+      app.log.warn(`relay failed to start: ${(err as Error).message}`);
+      return fallback;
+    }
+  };
+  const [funnelHandle, ngrokHandle] = await Promise.all([
+    config.miniapp.relayFunnel
+      ? safeStart(
+          startFunnel({ port: config.port, logger: relayLog }),
+          disabledFunnel('failed to start; see the log'),
+        )
+      : Promise.resolve(disabledFunnel('disabled in config (miniapp.relay_funnel)')),
+    config.miniapp.relayNgrok
+      ? safeStart(
+          startNgrok({
+            port: config.port,
+            domain: config.miniapp.ngrokDomain,
+            authtoken: config.miniapp.ngrokAuthtoken,
+            logger: relayLog,
+          }),
+          disabledNgrok('failed to start; see the log'),
+        )
+      : Promise.resolve(disabledNgrok('disabled in config (miniapp.relay_ngrok)')),
+  ]);
+  relays.register(funnelHandle);
+  relays.register(ngrokHandle);
+  for (const snap of relays.snapshot()) {
+    app.log.info(
+      `relay ${snap.kind}: ${snap.url ?? snap.detail ?? 'unavailable'}`,
+    );
+  }
+
+  /*
    * Hard-coded to loopback, not `MINIAPP_HOST`: this listener hands out a
    * credential, so it must not follow the app onto a wider interface if
    * someone widens that one.
@@ -75,6 +148,19 @@ async function main(): Promise<void> {
     issuePairingCode: () => pairingCodes.issue(),
     appPort: config.port,
     tailnetHost,
+    publicUrls: () => {
+      const urls = relays.orderedUrls().map((relay) => ({
+        label:
+          relay.kind === 'funnel'
+            ? 'Funnel (recommended -- no app needed on the phone)'
+            : 'ngrok backup (plain HTTPS, no app needed)',
+        url: relay.url,
+      }));
+      if (externalUrl) {
+        urls.push({ label: 'Configured address', url: externalUrl });
+      }
+      return urls;
+    },
     logger: false,
   });
   try {
@@ -127,6 +213,23 @@ async function main(): Promise<void> {
     void menu?.reconcile();
   }
 
+  if (menu && tunnelMode === 'cloudflared') {
+    /*
+     * A verified relay URL beats a rotating quick-tunnel hostname for the
+     * menu button: it never goes stale, so Telegram keeps working across
+     * restarts instead of pointing at last boot's address. External mode
+     * is excluded on purpose -- an explicitly configured hostname is the
+     * owner's choice and always wins over an opportunistic relay.
+     */
+    void relays.waitForUrl(15_000).then((found) => {
+      if (found) {
+        app.log.info(`menu: using stable relay ${found.url}`);
+        menu?.setTarget(found.url);
+        void menu?.reconcile();
+      }
+    });
+  }
+
   if (tunnelMode === 'cloudflared') {
     tunnel = new Tunnel({
       port: config.port,
@@ -142,8 +245,10 @@ async function main(): Promise<void> {
         app.log.info(`public url: ${url}`);
         // Fires once per spawn for a named tunnel (fixed hostname) and on
         // every rotation for a quick tunnel; either way it keeps the
-        // ephemeral-quick-tunnel case pointed at the live hostname.
-        menu?.setTarget(url);
+        // ephemeral-quick-tunnel case pointed at the live hostname -- unless
+        // a stable relay verified first, in which case the relay wins and
+        // the quick hostname stays a fallback the settings screen shows.
+        menu?.setTarget(relays.primary()?.url ?? url);
       },
       onHealthy: (url) => {
         // The tunnel is provably reachable from the public internet, so
@@ -152,7 +257,7 @@ async function main(): Promise<void> {
         // genuine mismatch, which closes the last gap -- a write that
         // returned ok but did not stick -- without turning the health
         // probe into a write loop.
-        menu?.setTarget(url);
+        menu?.setTarget(relays.primary()?.url ?? url);
         void menu?.reconcile();
       },
     });
@@ -184,6 +289,7 @@ async function main(): Promise<void> {
     process.on(signal, () => {
       tunnel?.stop();
       menu?.stop();
+      void relays.stopAll();
       void pairApp.close();
       app.close().then(
         () => process.exit(0),

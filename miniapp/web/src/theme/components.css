@@ -10556,3 +10556,64 @@
     clip-path: circle(120vmax at var(--reveal-x, 50%) var(--reveal-y, 50%));
   }
 }
+
+/*
+ * Relay failover banner. Phone-first and deliberately plain: a fixed pill
+ * at the top of the viewport, clear of the bottom-docked composer and the
+ * install hint. Rendered only on a backup relay (see RelayBanner.tsx), so
+ * most installs never see it.
+ */
+.relay-banner {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(92vw, 26rem);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 22%);
+}
+
+.relay-banner-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning, #e0a63c);
+}
+
+.relay-banner-text {
+  margin: 0;
+  flex: 1;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.relay-banner-switch {
+  flex: none;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--primary-foreground);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.relay-banner-close {
+  flex: none;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  opacity: 0.65;
+}

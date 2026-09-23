@@ -14,6 +14,9 @@
  *   navigation network-first, cache as fallback, so a new build is picked up
  *              the moment the Mac is reachable and the shell still opens when
  *              it is not.
+ *   relay list the `aside-relays` meta tag's origins, scraped from each fresh
+ *              shell and kept under their own cache key, so the offline page
+ *              can offer the backup addresses when the primary is down.
  *
  * The version string is the whole cache-busting story: bump it and every old
  * cache is dropped on activate.
@@ -73,6 +76,7 @@ const ASSETS = `${VERSION}-assets`;
 
 const SHELL_URL = '/app';
 const ART_URL = '/art/zeron-liquid-dots-v2.webp';
+const RELAY_LIST_KEY = 'aside-relay-list';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -142,6 +146,28 @@ self.addEventListener('fetch', (event) => {
             if (res.ok) {
               const cache = await caches.open(SHELL);
               await cache.put(SHELL_URL, res.clone());
+              // Scrape the failover list out of the fresh shell for the
+              // offline page below. Best-effort: a shell without the tag
+              // (Telegram build, old server) leaves the previous list alone.
+              try {
+                const html = await res.clone().text();
+                const match = /<meta\s+name="aside-relays"\s+content="([^"]*)"\s*\/?>/.exec(html);
+                if (match) {
+                  const origins = match[1]
+                    .split(/\s+/)
+                    .filter((o) => /^https:\/\/[A-Za-z0-9.-]+(?::\d+)?$/.test(o));
+                  if (origins.length) {
+                    await cache.put(
+                      RELAY_LIST_KEY,
+                      new Response(origins.join(' '), {
+                        headers: { 'content-type': 'text/plain' },
+                      }),
+                    );
+                  }
+                }
+              } catch {
+                // A lost race or a truncated body must not fail the load.
+              }
             }
             return res;
           })
@@ -167,14 +193,34 @@ self.addEventListener('fetch', (event) => {
         } catch {
           // Offline with nothing cached. An honest page beats the browser's
           // dinosaur, because the fix here is "wake the Mac", not "get signal".
+          // When a relay list was scraped from an earlier shell, offer the
+          // backup addresses too: the primary may be down while a backup
+          // answers, and an installed app launched into an outage has no
+          // other way to learn the other addresses.
+          let relayLinks = '';
+          try {
+            const saved = await caches.match(RELAY_LIST_KEY);
+            const origins = ((await saved?.text()) || '')
+              .split(/\s+/)
+              .filter((o) => /^https:\/\/[A-Za-z0-9.-]+(?::\d+)?$/.test(o));
+            if (origins.length) {
+              relayLinks =
+                '<p>Or try a backup address directly. Each address pairs ' +
+                'separately, so an unpaired one asks for its pairing link first.</p><p>' +
+                origins.map((o) => `<a href="${o}/app">${o}</a>`).join('<br>') +
+                '</p>';
+            }
+          } catch {
+            // No list, no links; the honest page below still stands.
+          }
           return new Response(
             `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
              <style>body{font:16px/1.5 -apple-system,system-ui,sans-serif;background:#f9f9f7;color:#2d2d2b;
              display:flex;min-height:100vh;margin:0;align-items:center;justify-content:center;text-align:center}
-             div{max-width:22rem;padding:2rem}p{opacity:.7}</style>
+             div{max-width:22rem;padding:2rem}p{opacity:.7}a{color:#2d2d2b}</style>
              <div><h1>Can't reach your Mac</h1>
              <p>Aside runs on your MacBook, so it needs to be awake and on the network.
-             Check that Amphetamine is on if the lid is shut.</p></div>`,
+             Check that Amphetamine is on if the lid is shut.</p>${relayLinks}</div>`,
             { headers: { 'content-type': 'text/html; charset=utf-8' }, status: 503 },
           );
         }

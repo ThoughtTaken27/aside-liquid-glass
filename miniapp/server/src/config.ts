@@ -129,6 +129,35 @@ export interface MiniappSection {
   tunnelHostname: string;
   /** cloudflared YAML config (ingress rules + credentials) for the named tunnel. */
   cloudflaredConfig: string;
+  /**
+   * Publish the app port over `tailscale funnel` (the primary $0 relay).
+   *
+   * Default true, and deliberately opportunistic: on a Mac without
+   * Tailscale, or a tailnet whose admin never enabled Funnel, the relay
+   * stays down with a log line saying why, and everything downstream falls
+   * back to the next relay or to today's tailnet behaviour. Set false (or
+   * `MINIAPP_RELAY_FUNNEL=0`) to keep this machine off the public internet
+   * even when Funnel would work.
+   */
+  relayFunnel: boolean;
+  /**
+   * Publish the app port over ngrok with a free static domain (the backup
+   * $0 relay). Default true; needs `ngrok_domain` plus `NGROK_AUTHTOKEN`,
+   * without which it stays down with a log line naming the missing knob.
+   */
+  relayNgrok: boolean;
+  /**
+   * Reserved ngrok static domain, e.g. `aside-mac.ngrok-free.dev` (free,
+   * one per ngrok account; scheme and trailing slash tolerated). Empty
+   * disables the ngrok relay.
+   */
+  ngrokDomain: string;
+  /**
+   * ngrok authtoken. Env (`NGROK_AUTHTOKEN`) wins over config; empty
+   * disables the ngrok relay. Handled like the bot token: passed to the
+   * ngrok child over its environment, never logged.
+   */
+  ngrokAuthtoken: string;
   logPath: string;
   /** Cap on the log file before it is rotated to `<name>.1`. */
   logMaxBytes: number;
@@ -209,6 +238,29 @@ function normalizeTunnelHostname(raw: string): string {
     .replace(/^https?:\/\//i, '')
     .replace(/\/+$/, '')
     .toLowerCase();
+}
+
+/**
+ * A boolean knob that defaults ON.
+ *
+ * Env wins (`1`/`true` on, `0`/`false` off), then the config value, then
+ * true. The relays use this because they are opportunistic: enabled by
+ * default, silently down when their prerequisites are missing, and only
+ * ever off when the owner explicitly says so.
+ */
+function defaultTrue(envValue: string | undefined, sectionValue: unknown): boolean {
+  if (envValue !== undefined) {
+    const normalized = envValue.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  if (typeof sectionValue === 'boolean') return sectionValue;
+  if (typeof sectionValue === 'string') {
+    const normalized = sectionValue.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  return true;
 }
 
 /**
@@ -464,6 +516,14 @@ export function loadConfig(): MiniappConfig {
           section.cloudflared_config || '',
       ),
     ),
+    relayFunnel: defaultTrue(process.env.MINIAPP_RELAY_FUNNEL, section.relay_funnel),
+    relayNgrok: defaultTrue(process.env.MINIAPP_RELAY_NGROK, section.relay_ngrok),
+    ngrokDomain: normalizeTunnelHostname(
+      String(process.env.MINIAPP_NGROK_DOMAIN || section.ngrok_domain || ''),
+    ),
+    ngrokAuthtoken: String(
+      process.env.NGROK_AUTHTOKEN || section.ngrok_authtoken || '',
+    ).trim(),
     logPath: expandHome(
       String(section.log_path || path.join(stateDir, 'miniapp.log')),
     ),

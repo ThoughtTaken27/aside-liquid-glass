@@ -9,11 +9,17 @@
  *
  * The trade is deliberate. Telegram's initData is re-signed on every single
  * launch; a paired token is minted once and then sits in localStorage for
- * three months. That is only reasonable because the server is reachable over
- * a private tailnet rather than the open internet, so the token is a second
- * lock on a door that is already inside the house.
+ * three months. That used to be reasonable because the server was reachable
+ * only over the private tailnet -- a second lock on a door already inside
+ * the house. The public relays changed the shape: the token now travels the
+ * open internet, and the posture is a normal web session instead -- bearer
+ * over TLS only, 90-day expiry with rotation on use, socket-keyed rate
+ * limits that no client header can split. Each relay origin keeps its own
+ * token (storage is per-origin), so every address is paired once from the
+ * pairing page and the app moves between paired addresses on its own.
  */
 import { api, setAuthToken } from './api';
+import { failoverToHealthyRelay } from './relays';
 
 const TOKEN_KEY = 'aside.standalone.token';
 
@@ -159,6 +165,15 @@ export async function resolveStandaloneAuth(): Promise<StandaloneAuth> {
     } catch (err) {
       scrubPairingKey();
       const status = (err as { status?: number }).status;
+      if (status === undefined) {
+        // No HTTP status at all: this origin is dead, not disagreeing. Try
+        // the relays awaited -- the api client's own hook already fired for
+        // this failure, and the single-flight inside shares its probes, so
+        // this is just waiting for the verdict instead of racing it. A
+        // navigation unloads the page; falling through means every address
+        // is down and the message below is honest.
+        await failoverToHealthyRelay().catch(() => false);
+      }
       // A 401 is a wrong key. Anything else means the Mac did not answer,
       // which is a different problem with a different fix, so it gets a
       // different message rather than "pairing failed".
@@ -194,7 +209,14 @@ export async function resolveStandaloneAuth(): Promise<StandaloneAuth> {
       return { ok: false, reason: 'needs_pairing' };
     }
     // The Mac did not answer at all. Saying "not paired" here would send the
-    // owner to generate a pairing link on a machine that is asleep.
+    // owner to generate a pairing link on a machine that is asleep. Fail
+    // over first when there was no HTTP status to learn from -- same deal
+    // as the pairing-key path above, except a stored token is still worth
+    // booting with when every address is down, since the api client will
+    // retry the relays on the first failed call anyway.
+    if (status === undefined) {
+      await failoverToHealthyRelay().catch(() => false);
+    }
     if (stored) return { ok: true, token: stored, paired: false, name: readStoredName() };
     return { ok: false, reason: 'unreachable' };
   }

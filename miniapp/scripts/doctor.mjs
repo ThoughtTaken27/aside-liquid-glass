@@ -266,6 +266,72 @@ if (!tsCandidates.some((p) => p && fs.existsSync(p))) {
   }
 }
 
+// --- 5b. the public relays the phone actually uses -------------------------
+section('Public relays');
+
+const relayFunnelOn = config?.miniapp?.relayFunnel !== false;
+const relayNgrokOn = config?.miniapp?.relayNgrok !== false;
+if (!relayFunnelOn) warn('funnel relay is disabled in config', 'miniapp.relay_funnel or MINIAPP_RELAY_FUNNEL=0');
+if (!relayNgrokOn) warn('ngrok relay is disabled in config', 'miniapp.relay_ngrok or MINIAPP_RELAY_NGROK=0');
+
+if (relayFunnelOn) {
+  if (!status) {
+    warn('cannot verify funnel: Tailscale status unreadable', 'open -a Tailscale, then rerun the doctor');
+  } else {
+    try {
+      const doc = JSON.parse(sh(ts, [...tsArgs, 'serve', 'status', '--json']));
+      const funnelOn = doc?.AllowFunnel && Object.keys(doc.AllowFunnel).length > 0;
+      let ours = false;
+      const web = doc?.Web || {};
+      for (const site of Object.values(web)) {
+        for (const handler of Object.values(site?.Handlers || {})) {
+          if (typeof handler?.Proxy === 'string' && handler.Proxy.endsWith(`:${port}`)) ours = true;
+          if (typeof handler?.Proxy === 'string' && handler.Proxy.endsWith(`:${pairPort}`)) {
+            bad(`a tailscale rule exposes the pairing port ${pairPort}`, `remove that rule now: ${ts} serve reset`);
+          }
+        }
+      }
+      if (ours && funnelOn && tailnetHost) ok('funnel serves this server', `https://${tailnetHost}`);
+      else if (ours && !funnelOn) warn('app port is served to the tailnet only, not funneled', 'the server enables funnel itself when relay_funnel is on; if it stays off, enable Funnel in the Tailscale admin console');
+      else runtimeBad('funnel is not serving this server yet', 'start the server and give it 30s to verify, then rerun the doctor');
+    } catch (err) {
+      const msg = String(err?.message || '');
+      if (/funnel/i.test(msg) && /not enabled|no-funnel/i.test(msg)) {
+        warn('funnel is not enabled for this tailnet', 'Tailscale admin console -> Settings -> Funnel: On');
+      } else {
+        warn('could not read the funnel status', `${ts} serve status --json`);
+      }
+    }
+  }
+}
+
+if (relayNgrokOn) {
+  const ngrokDomain = String(config?.miniapp?.ngrokDomain || '');
+  const ngrokToken = String(process.env.NGROK_AUTHTOKEN || config?.miniapp?.ngrokAuthtoken || '');
+  let ngrokBin = process.env.NGROK_BIN || 'ngrok';
+  try {
+    sh(ngrokBin, ['version']);
+    ok('ngrok installed', ngrokBin);
+  } catch {
+    warn('ngrok not found', 'brew install ngrok; the funnel relay still works without it');
+    ngrokBin = '';
+  }
+  if (!ngrokDomain) warn('no ngrok static domain configured', 'reserve one free at ngrok.com, then set miniapp.ngrok_domain');
+  else ok('ngrok static domain', ngrokDomain);
+  if (!ngrokToken) warn('NGROK_AUTHTOKEN is not set', 'free at ngrok.com; export it where the server runs');
+  if (ngrokBin && ngrokDomain && ngrokToken) {
+    try {
+      const res = await fetch('http://127.0.0.1:4040/api/tunnels');
+      const doc = await res.json();
+      const urls = (doc?.tunnels || []).map((x) => x?.public_url).filter(Boolean);
+      if (urls.includes(`https://${ngrokDomain}`)) ok('ngrok tunnel is up', `https://${ngrokDomain}`);
+      else warn('ngrok is configured but its tunnel is not up', 'the server starts it; check the server log for [ngrok]');
+    } catch {
+      warn('ngrok agent API is not answering', 'the server starts ngrok itself; check the server log for [ngrok]');
+    }
+  }
+}
+
 // --- 6. Android build, only if someone wants it ---------------------------
 section('Android build (optional)');
 

@@ -39,6 +39,7 @@ import { readDesktopState, type DesktopModelRef } from './desktop.js';
 import { TranscribeError, transcribeAudio } from './transcribe.js';
 import { WhisperServer } from './whisperserver.js';
 import { PairingCodeStore } from './pair.js';
+import { isPublicOrigin, type OrderedRelay } from './relays.js';
 import { StateDb, isFullAccess, isSuspended } from './statedb.js';
 import { SettingsStore, defaultSettingsPath, resolveNewSessionModel } from './settings.js';
 import { stripAgentDirectives, withPreamble, withReminder } from './preamble.js';
@@ -248,6 +249,16 @@ export interface BuildOptions {
    * time and has no way to learn a new one.
    */
   tailnetHost?: () => string | null;
+  /**
+   * Verified public relay URLs in failover order (Funnel, then ngrok).
+   *
+   * Read lazily because relays verify asynchronously after boot: a snapshot
+   * taken here would freeze the list at "nothing up yet". Two readers: the
+   * CSP `connect-src` below, which must name every origin the client is
+   * allowed to probe, and the standalone shell, which carries the same list
+   * to the phone as a meta tag.
+   */
+  relayUrls?: () => OrderedRelay[];
   /**
    * Shared one-time enrollment codes, issued by the loopback pairing page
    * and spent here. Injected so tests can issue and spend against the same
@@ -635,6 +646,17 @@ export async function buildServer(
       ? requestHost
       : '';
     const sockets = safeHost ? ` ws://${safeHost} wss://${safeHost}` : '';
+    /*
+     * Exact relay origins the client may probe while failing over. Each
+     * entry passed `isPublicOrigin` -- scheme, host and optional port only,
+     * so no value here can smuggle in a wildcard, a path, or a second
+     * directive. Computed per request because relays verify after boot.
+     */
+    const relaySources = (opts.relayUrls?.() ?? [])
+      .map((relay) => relay.url)
+      .filter(isPublicOrigin)
+      .map((origin) => ` ${origin}`)
+      .join('');
     return [
     "default-src 'self'",
     // The installed app strips Telegram's bridge and stays self-only. The
@@ -647,7 +669,7 @@ export async function buildServer(
     "media-src 'self' blob:",
     "font-src 'self' data:",
     // Same-origin REST plus the exact WebSocket host.
-    `connect-src 'self'${sockets}`,
+    `connect-src 'self'${sockets}${relaySources}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
@@ -871,10 +893,14 @@ export async function buildServer(
    * kind of token, just with a longer life so the app is not re-pairing
    * every day.
    *
-   * The loopback pairing page issues a random, one-time, ten-minute code
-   * into the shared in-memory store. This route spends it once. The route is
-   * reachable only over the private tailnet, so the network
-   * is a second gate behind this one.
+   * The loopback pairing page issues a random (192-bit), one-time,
+   * ten-minute code into the shared in-memory store. This route spends it
+   * once. This route used to be reachable only over the private tailnet, so
+   * the network was a second gate behind this one; the public relays
+   * removed that gate, and the code stands on its own instead -- 192 bits
+   * of entropy, one attempt per code lifetime that matters (a code dies on
+   * first spend), and 5 spends per minute per bucket. Brute force is not
+   * a serious threat against that shape.
    *
    * The loopback-only listener issues opaque codes into the shared store;
    * this route spends each code once and never derives one from the JWT key.
@@ -2225,6 +2251,29 @@ export async function buildServer(
 
   // --- settings ----------------------------------------------------------
 
+  /**
+   * Verified public relay URLs in failover order.
+   *
+   * The installed app reads this after boot to refresh the failover list it
+   * was served with (relays can verify after the page loaded), and the
+   * settings screen shows it so the owner can see which public addresses
+   * are live. Authenticated like everything else: the URLs are public, but
+   * their health is the owner's business, and an unauthenticated endpoint
+   * that answers "which relays are up" is a free reconnaissance feed.
+   */
+  app.get(
+    '/api/relays',
+    {
+      preHandler: requireAuth,
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    },
+    async () => ({
+      relays: (opts.relayUrls?.() ?? [])
+        .filter((relay) => isPublicOrigin(relay.url))
+        .map((relay) => ({ kind: relay.kind, url: relay.url })),
+    }),
+  );
+
   app.get('/api/settings', { preHandler: requireAuth }, async () => ({
     settings: settings.read(),
   }));
@@ -2619,7 +2668,25 @@ export async function buildServer(
             ].join('\n'),
           );
       }
-      return standaloneHtml;
+      /*
+       * Failover list for the phone, injected per request rather than baked
+       * into the cached shell: relays verify asynchronously after boot, so
+       * the cached HTML would otherwise freeze the list at whatever was up
+       * when the first phone happened to load it.
+       *
+       * A meta tag and not an inline script because `script-src 'self'`
+       * forbids inline scripts. The values passed `isPublicOrigin`, whose
+       * charset excludes quotes and angle brackets, so no entry can break
+       * out of the attribute -- the filter IS the escaping.
+       */
+      const relayOrigins = (opts.relayUrls?.() ?? [])
+        .map((relay) => relay.url)
+        .filter(isPublicOrigin);
+      if (!relayOrigins.length) return standaloneHtml;
+      return standaloneHtml.replace(
+        '</head>',
+        `  <meta name="aside-relays" content="${relayOrigins.join(' ')}" />\n</head>`,
+      );
     }
 
     app.get('/app', async (_request, reply) => {

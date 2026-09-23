@@ -95,7 +95,7 @@ describe('the pairing listener', () => {
   });
 
 
-  it('issues no code when the tailnet hostname is unavailable', async () => {
+  it('issues no code when no address is available', async () => {
     let issued = 0;
     const pairApp = buildPairServer({
       issuePairingCode: () => { issued += 1; return 'code'; },
@@ -105,7 +105,7 @@ describe('the pairing listener', () => {
     await pairApp.ready();
     const res = await pairApp.inject({ method: 'GET', url: '/pair', remoteAddress: '127.0.0.1' });
     expect(res.statusCode).toBe(503);
-    expect(res.body).toContain('Tailscale is not ready');
+    expect(res.body).toContain('No address to pair');
     expect(res.body).not.toContain('#pair=');
     expect(issued).toBe(0);
     await pairApp.close();
@@ -215,5 +215,71 @@ describe('the pairing listener', () => {
     } finally {
       await spendApp.close();
     }
+  });
+
+  it('pairs the first relay URL first and lists the rest with their own codes', async () => {
+    const codes = new PairingCodeStore();
+    const pairApp = buildPairServer({
+      issuePairingCode: () => codes.issue(),
+      appPort: 8790,
+      tailnetHost: () => 'mac.example.ts.net',
+      publicUrls: () => [
+        { label: 'Funnel', url: 'https://mac-abc123.ts.net' },
+        { label: 'ngrok backup', url: 'https://aside-mac.ngrok-free.dev' },
+      ],
+    });
+    await pairApp.ready();
+    const res = await pairApp.inject({ method: 'GET', url: '/pair', remoteAddress: '127.0.0.1' });
+    expect(res.statusCode).toBe(200);
+    // The QR and the copyable input carry the primary relay, which needs
+    // nothing installed on the phone.
+    const match = /value="([^"]*#pair=[^"]+)"/.exec(res.body);
+    expect(match?.[1]).toMatch(/^https:[/][/]mac-abc123[.]ts[.]net[/]app#pair=[A-Za-z0-9_-]+$/);
+    expect(res.body).toContain('No app needed on the phone');
+    // Every other address is listed for its own one-time pairing.
+    expect(res.body).toContain('Other addresses');
+    expect(res.body).toContain('https://aside-mac.ngrok-free.dev/app#pair=');
+    expect(res.body).toContain('Tailnet fallback');
+    // Three addresses, three distinct single-spend codes.
+    const found = [...res.body.matchAll(/#pair=([A-Za-z0-9_-]+)/g)].map((m) => m[1]);
+    expect(new Set(found).size).toBe(3);
+    for (const code of found) {
+      expect(codes.consume(code)).toBe(true);
+      expect(codes.consume(code)).toBe(false);
+    }
+    await pairApp.close();
+  });
+
+  it('ignores relay URLs that are not https origins', async () => {
+    const codes = new PairingCodeStore();
+    const pairApp = buildPairServer({
+      issuePairingCode: () => codes.issue(),
+      appPort: 8790,
+      tailnetHost: () => 'mac.example.ts.net',
+      publicUrls: () => [{ label: 'evil', url: 'javascript:alert(1)' }],
+    });
+    await pairApp.ready();
+    const res = await pairApp.inject({ method: 'GET', url: '/pair', remoteAddress: '127.0.0.1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain('javascript:');
+    const match = /value="([^"]*#pair=[^"]+)"/.exec(res.body);
+    expect(match?.[1]).toMatch(/^https:[/][/]mac[.]example[.]ts[.]net[/]app#pair=/);
+    await pairApp.close();
+  });
+
+  it('pairs from a relay when the tailnet hostname is missing', async () => {
+    const codes = new PairingCodeStore();
+    const pairApp = buildPairServer({
+      issuePairingCode: () => codes.issue(),
+      appPort: 8790,
+      tailnetHost: () => null,
+      publicUrls: () => [{ label: 'Funnel', url: 'https://mac-abc123.ts.net' }],
+    });
+    await pairApp.ready();
+    const res = await pairApp.inject({ method: 'GET', url: '/pair', remoteAddress: '127.0.0.1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('https://mac-abc123.ts.net/app#pair=');
+    expect(res.body).not.toContain('Tailnet');
+    await pairApp.close();
   });
 });
