@@ -93,7 +93,7 @@ import { useDockHeight } from './hooks/useDockHeight';
 import { resolvePills } from './utils/pills';
 import { startVisiblePolling } from './utils/polling';
 import { resolveThreadModel } from './utils/sessionState';
-import { readLocal, removeLocal, writeLocal } from './utils/storage';
+import { readLocal, writeLocal } from './utils/storage';
 import {
   applyTheme,
   authenticateIfEnabled,
@@ -108,7 +108,7 @@ import {
   readStartParam,
   stashDevInitData,
 } from './telegram';
-import type { SessionRow, StatusResponse } from './types';
+import type { CatalogProvider, SessionRow, StatusResponse } from './types';
 
 /**
  * A thread on the navigation stack.
@@ -591,22 +591,6 @@ export default function App() {
     }, 8_000);
   }, [auth.phase]);
 
-  // A removed provider must not survive as a local override. This matters
-  // most when a subscription ends: otherwise the catalog can correctly hide
-  // Claude while the composer keeps advertising its stale saved selection.
-  useEffect(() => {
-    if (!status || !provider || !modelId) return;
-    const valid = status.catalog.some(
-      (entry) =>
-        entry.id === provider && entry.models.some((model) => model.id === modelId),
-    );
-    if (valid) return;
-    setProvider('');
-    setModelId('');
-    removeLocal(PROVIDER_KEY);
-    removeLocal(MODEL_KEY);
-  }, [status, provider, modelId]);
-
   // --- navigation ---------------------------------------------------------
   const screen = stack[stack.length - 1] as ThreadScreenState | undefined;
 
@@ -695,6 +679,51 @@ export default function App() {
     () => resolvePills(status, { provider, modelId, effort }),
     [status, provider, modelId, effort],
   );
+
+  // A stored pick the live catalog cannot honor stays stored but stops
+  // running -- resolvePills falls back to the daemon default, and the pick
+  // resumes on its own if the Mac offers it again. This effect only
+  // narrates those transitions, once each: a toast when the fallback
+  // engages, another when the pick comes back. It stays silent for the
+  // user's own picks, which need no explanation.
+  const healNote = useRef<{
+    pick: string;
+    degraded: 'removed' | 'disconnected' | null;
+    effortDegraded: boolean;
+  } | null>(null);
+  useEffect(() => {
+    if (!status) return;
+    const pickKey = `${provider}/${modelId}|${effort}`;
+    const prev = healNote.current;
+    healNote.current = {
+      pick: pickKey,
+      degraded: pills.modelDegraded,
+      effortDegraded: pills.effortDegraded,
+    };
+    // The stored pick itself changed: the user's own action, already
+    // visible in the pills. Only catalog-side transitions get a toast.
+    if (prev && prev.pick !== pickKey) return;
+    if (pills.modelDegraded && pills.modelDegraded !== prev?.degraded) {
+      if (pills.modelDegraded === 'disconnected') {
+        const name =
+          status.catalog.find((entry) => entry.id === provider)?.label ||
+          provider ||
+          'That provider';
+        toast(`${name} disconnected — using ${pills.modelLabel} until it returns`);
+      } else {
+        toast(
+          `${modelId || 'That model'} is no longer on your Mac — using ${pills.modelLabel}`,
+        );
+      }
+    } else if (!pills.modelDegraded && prev?.degraded && provider && modelId) {
+      toast(`${pills.modelLabel} is available again — pick resumed`);
+    }
+    if (pills.effortDegraded && !prev?.effortDegraded && effort) {
+      toast(
+        `Reasoning “${effort}” is no longer offered — using ${pills.effortLabel}`,
+      );
+    }
+  }, [status, pills, provider, modelId, effort]);
 
   const permissionMenu = status?.permissionMenu?.length
     ? status.permissionMenu
@@ -1028,6 +1057,7 @@ export default function App() {
         openThread({ id });
       }}
       pills={pills}
+      catalog={status?.catalog}
       draft={draft}
       setDraft={setDraft}
       attachments={attachments}
@@ -1044,6 +1074,7 @@ function ThreadScreen({
   onInspectSubagent,
   onOpenRecovered,
   pills,
+  catalog,
   draft,
   setDraft,
   attachments,
@@ -1065,6 +1096,8 @@ function ThreadScreen({
     effortLabel: string;
     effortId: string;
   };
+  /** The live catalog, so a stale session model falls back instead of running. */
+  catalog: CatalogProvider[] | undefined;
   draft: string;
   setDraft: (value: string) => void;
   attachments: ReturnType<typeof useAttachments>;
@@ -1151,7 +1184,7 @@ function ThreadScreen({
     }
   }, [thread.reconnectedAt]);
 
-  const effective = resolveThreadModel(optimisticModel, pills);
+  const effective = resolveThreadModel(optimisticModel, pills, catalog);
 
   const updateSessionModel = async (next: {
     provider: string;

@@ -23,6 +23,16 @@ export interface PillState {
   modelLabel: string;
   effortId: string;
   effortLabel: string;
+  /**
+   * Why the stored model pick is not the one running, when it isn't.
+   * `removed` = the Mac no longer lists it; `disconnected` = its provider
+   * has no credentials right now. Either way the pills show the daemon
+   * default instead, and the stored pick resumes on its own if it ever
+   * becomes valid again -- self-healing in both directions, with no wipe.
+   */
+  modelDegraded: 'removed' | 'disconnected' | null;
+  /** The stored effort pick is not on the Mac's menu; the default runs. */
+  effortDegraded: boolean;
 }
 
 export interface LocalPick {
@@ -46,33 +56,81 @@ export function catalogLabel(
   return '';
 }
 
+/**
+ * Where a stored pick stands against the live catalog.
+ *
+ * `ok` covers "nothing stored" as well as a good pick: with no pick there
+ * is nothing to degrade. Anything else means the pick must not run -- the
+ * pills fall back to the daemon default while the stored pick waits for
+ * the Mac to offer it again.
+ */
+export function pickStanding(
+  catalog: CatalogProvider[] | undefined,
+  provider: string,
+  modelId: string,
+): 'ok' | 'removed' | 'disconnected' {
+  if (!provider || !modelId) return 'ok';
+  const entry = catalog?.find((p) => p.id === provider);
+  if (!entry || !entry.models.some((m) => m.id === modelId)) return 'removed';
+  if (entry.connected === false) return 'disconnected';
+  return 'ok';
+}
+
 export function resolvePills(
   status: StatusResponse | null,
   pick: LocalPick,
 ): PillState {
   const defaults = status?.defaults;
 
+  // A pick the live catalog cannot honor stops running but stays stored:
+  // deleting it on a transient status glitch would be un-healable, while
+  // falling back resumes the pick the moment the Mac offers it again.
+  // Before the first status there is nothing to validate against, so the
+  // stored pick runs unmarked rather than flickering through a fallback.
   const hasModelPick = Boolean(pick.modelId);
-  const provider = pick.provider || defaults?.provider || '';
-  const modelId = pick.modelId || defaults?.modelId || '';
+  const standing =
+    status && hasModelPick
+      ? pickStanding(status.catalog, pick.provider, pick.modelId)
+      : 'ok';
+  const usePick = hasModelPick && (!status || standing === 'ok');
+  const provider = usePick ? pick.provider : defaults?.provider || '';
+  const modelId = usePick ? pick.modelId : defaults?.modelId || '';
 
   // With a pick, the label must describe the PICKED model: the catalog's
   // name for it, else its bare id. Falling back to the daemon's label here
   // is what made the pill lie.
-  const modelLabel = hasModelPick
+  const modelLabel = usePick
     ? catalogLabel(status?.catalog, provider, modelId) || modelId || 'Model'
     : catalogLabel(status?.catalog, provider, modelId) ||
       defaults?.modelLabel ||
       modelId ||
       'Model';
+  const modelDegraded =
+    hasModelPick && status && standing !== 'ok' ? standing : null;
 
-  const effortId = pick.effort || defaults?.effort || 'high';
+  // Same treatment for reasoning: a level the Mac's menu does not carry
+  // falls back to the daemon's instead of sending an id nothing honors
+  // (which also used to render as a blank pill).
+  const menu = status?.effortMenu;
+  const effortValid =
+    !pick.effort || !menu || menu.length === 0 || menu.some((e) => e.id === pick.effort);
+  const useEffortPick = Boolean(pick.effort) && effortValid;
+  const effortId = useEffortPick ? pick.effort : defaults?.effort || 'high';
   const effortLabel =
     status?.effortMenu?.find((e) => e.id === effortId)?.label ||
-    (pick.effort ? '' : defaults?.effortLabel) ||
+    (!useEffortPick ? defaults?.effortLabel : '') ||
     effortId;
+  const effortDegraded = Boolean(pick.effort) && status != null && !effortValid;
 
-  return { provider, modelId, modelLabel, effortId, effortLabel };
+  return {
+    provider,
+    modelId,
+    modelLabel,
+    effortId,
+    effortLabel,
+    modelDegraded,
+    effortDegraded,
+  };
 }
 
 /**

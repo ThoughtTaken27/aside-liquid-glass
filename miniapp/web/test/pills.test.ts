@@ -7,7 +7,11 @@
  * never the daemon's, which is what the label fallback used to do.
  */
 import { describe, expect, it } from 'vitest';
-import { catalogLabel, resolvePills } from '../src/utils/pills';
+import {
+  catalogLabel,
+  pickStanding,
+  resolvePills,
+} from '../src/utils/pills';
 import type { StatusResponse } from '../src/types';
 
 const CATALOG = [
@@ -108,30 +112,70 @@ describe('an explicit local pick overrides', () => {
   });
 
   /**
-   * The bug this file exists for. The label used to start at the daemon
-   * default's label and was only replaced on a catalog hit -- so picking a
-   * model the catalog does not list showed "Fable 5" while running
-   * something else entirely.
+   * A stored pick the live catalog cannot honor stops running: the pills
+   * fall back to the daemon default and say why, while the stored pick
+   * waits for the Mac to offer it again. Sending an id nothing honors --
+   * the old behavior -- is worse than a fallback the user did not ask for.
    */
-  it('names the picked model even when the catalog does not list it', () => {
+  it('falls back when the picked model is no longer listed', () => {
     const pills = resolvePills(status(), {
       provider: 'claude-code',
       modelId: 'claude-opus-9-unreleased',
       effort: '',
     });
-    expect(pills.modelId).toBe('claude-opus-9-unreleased');
-    expect(pills.modelLabel).toBe('claude-opus-9-unreleased');
-    expect(pills.modelLabel).not.toBe('Fable 5');
+    expect(pills.modelId).toBe('claude-fable-5');
+    expect(pills.modelLabel).toBe('Fable 5');
+    expect(pills.modelDegraded).toBe('removed');
   });
 
-  it('names the picked model when its provider is unknown', () => {
+  it('falls back when the picked provider is unknown', () => {
     const pills = resolvePills(status(), {
       provider: 'some-new-provider',
       modelId: 'mystery-1',
       effort: '',
     });
-    expect(pills.modelLabel).toBe('mystery-1');
-    expect(pills.provider).toBe('some-new-provider');
+    expect(pills.provider).toBe('claude-code');
+    expect(pills.modelId).toBe('claude-fable-5');
+    expect(pills.modelDegraded).toBe('removed');
+  });
+
+  it('falls back while the picked provider is disconnected', () => {
+    const pills = resolvePills(status(), {
+      provider: 'openai-codex',
+      modelId: 'gpt-5.5',
+      effort: '',
+    });
+    expect(pills.modelId).toBe('claude-fable-5');
+    expect(pills.modelLabel).toBe('Fable 5');
+    expect(pills.modelDegraded).toBe('disconnected');
+  });
+
+  it('resumes the pick when the provider reconnects', () => {
+    const reconnected = status({
+      catalog: CATALOG.map((entry) =>
+        entry.id === 'openai-codex' ? { ...entry, connected: true } : entry,
+      ),
+    } as Partial<StatusResponse>);
+    const pills = resolvePills(reconnected, {
+      provider: 'openai-codex',
+      modelId: 'gpt-5.5',
+      effort: '',
+    });
+    expect(pills.modelId).toBe('gpt-5.5');
+    expect(pills.modelLabel).toBe('GPT-5.5');
+    expect(pills.modelDegraded).toBeNull();
+  });
+
+  it('honors the stored pick before the first status arrives', () => {
+    const pills = resolvePills(null, {
+      provider: 'claude-code',
+      modelId: 'claude-sonnet-5',
+      effort: 'low',
+    });
+    expect(pills.modelId).toBe('claude-sonnet-5');
+    expect(pills.modelLabel).toBe('claude-sonnet-5');
+    expect(pills.modelDegraded).toBeNull();
+    expect(pills.effortDegraded).toBe(false);
   });
 
   it('takes the model pick and the daemon effort independently', () => {
@@ -156,16 +200,35 @@ describe('an explicit local pick overrides', () => {
     expect(pills.effortLabel).toBe('Extra High');
   });
 
-  /** An effort the menu does not carry still labels itself, not the daemon's. */
-  it('does not label an unknown effort with the daemon’s', () => {
+  /**
+   * An effort the menu does not carry falls back to the daemon's: sending
+   * an id nothing honors is worse than running the default, and it used to
+   * render as a blank pill.
+   */
+  it('falls back to the daemon effort when the stored level leaves the menu', () => {
     const pills = resolvePills(status(), {
       provider: '',
       modelId: '',
       effort: 'ultrabrowse',
     });
-    expect(pills.effortId).toBe('ultrabrowse');
-    expect(pills.effortLabel).toBe('ultrabrowse');
-    expect(pills.effortLabel).not.toBe('High');
+    expect(pills.effortId).toBe('high');
+    expect(pills.effortLabel).toBe('High');
+    expect(pills.effortDegraded).toBe(true);
+  });
+});
+
+describe('pickStanding', () => {
+  it('distinguishes removed from disconnected', () => {
+    expect(pickStanding(CATALOG, 'claude-code', 'claude-fable-5')).toBe('ok');
+    expect(pickStanding(CATALOG, 'claude-code', 'gone')).toBe('removed');
+    expect(pickStanding(CATALOG, 'nobody', 'gone')).toBe('removed');
+    expect(pickStanding(CATALOG, 'openai-codex', 'gpt-5.5')).toBe(
+      'disconnected',
+    );
+  });
+
+  it('treats no stored pick as nothing to degrade', () => {
+    expect(pickStanding(CATALOG, '', '')).toBe('ok');
   });
 });
 

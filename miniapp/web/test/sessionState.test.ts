@@ -102,3 +102,39 @@ it('updates recovery when a live delta arrives and clears it after the answer', 
 it('does not substitute a phone effort override for an unset laptop effort', () => {
   expect(resolveThreadModel({provider:'test',modelId:'current',label:'Current',effort:null,effortLabel:null}, {provider:'old',modelId:'old',modelLabel:'Old',effortId:'max',effortLabel:'Max'}).effortId).toBe('');
 });
+
+describe('stale session models heal against the live catalog', () => {
+  const fallback = { provider: 'MIMO', modelId: 'mimo-v2', modelLabel: 'MiMo V2', effortId: 'medium', effortLabel: 'Medium' };
+  const catalog = [
+    { id: 'OCX', label: 'OCX', connected: true, models: [{ id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', contextWindow: 1 }] },
+    { id: 'off', label: 'Off', connected: false, models: [{ id: 'off-1', label: 'Off 1', contextWindow: 1 }] },
+  ];
+
+  it('keeps a session model the catalog still lists', () => {
+    const out = resolveThreadModel(
+      { provider: 'OCX', modelId: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', effort: 'high', effortLabel: 'High' },
+      fallback, catalog as never);
+    expect(out.modelId).toBe('gpt-5.6-luna');
+  });
+
+  it('falls back when the session model was removed on the Mac', () => {
+    const out = resolveThreadModel(
+      { provider: 'OCX', modelId: 'deleted-model', label: 'Deleted', effort: 'high', effortLabel: 'High' },
+      fallback, catalog as never);
+    expect(out).toEqual(fallback);
+  });
+
+  it('falls back while the session provider is disconnected', () => {
+    const out = resolveThreadModel(
+      { provider: 'off', modelId: 'off-1', label: 'Off 1', effort: 'high', effortLabel: 'High' },
+      fallback, catalog as never);
+    expect(out).toEqual(fallback);
+  });
+
+  it('trusts the daemon when no catalog is available yet', () => {
+    const out = resolveThreadModel(
+      { provider: 'OCX', modelId: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', effort: 'high', effortLabel: 'High' },
+      fallback);
+    expect(out.modelId).toBe('gpt-5.6-luna');
+  });
+});

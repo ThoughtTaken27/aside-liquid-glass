@@ -1,4 +1,9 @@
-import type { ThreadItem, ThreadModel, ThreadResponse } from '../types';
+import type {
+  CatalogProvider,
+  ThreadItem,
+  ThreadModel,
+  ThreadResponse,
+} from '../types';
 
 export interface SessionStateEvent {
   type: 'session_state';
@@ -29,8 +34,20 @@ export interface ModelPills {
 export function resolveThreadModel(
   model: ThreadModel | null,
   fallback: ModelPills,
+  catalog?: CatalogProvider[],
 ): ModelPills {
   if (!model) return fallback;
+  // A session whose model the Mac has since dropped (or whose provider
+  // lost its credentials) falls back to the phone pills -- which are
+  // themselves catalog-validated -- instead of showing and sending a
+  // model id nothing will honor.
+  if (catalog) {
+    const entry = catalog.find((p) => p.id === model.provider);
+    const usable =
+      entry?.connected !== false &&
+      entry?.models.some((m) => m.id === model.modelId) === true;
+    if (!usable) return fallback;
+  }
   return {
     provider: model.provider,
     modelId: model.modelId,

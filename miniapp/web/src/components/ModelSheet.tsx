@@ -16,6 +16,7 @@
 import { useMemo, useState } from 'react';
 import { Sheet } from './Sheet';
 import { SlideToConfirm } from './SlideToConfirm';
+import { toast } from './Toasts';
 import {
   Check,
   ChevronRight,
@@ -166,7 +167,16 @@ export function ModelSheet({
   // wants to set both in one visit (model, then reasoning) without
   // reopening it, so the sheet now only closes on an explicit dismissal:
   // backdrop tap, the X button, or Escape.
+  // A disconnected provider's models stay visible -- hiding a working
+  // model is worse than showing one that needs connecting -- but picking
+  // one is refused with directions: the Mac has no credentials for it, so
+  // the pick could never run.
   const choose = (provider: string, modelId: string) => {
+    const entry = catalog.find((p) => p.id === provider);
+    if (entry?.connected === false) {
+      toast(`Connect ${entry.label} on your Mac to use this model`);
+      return;
+    }
     onPickModel(provider, modelId);
   };
 
@@ -351,12 +361,22 @@ export function ModelSheet({
       >
 
         {drilled ? (
-          <div
-            className="sheet-group surface-group"
-            data-surface-group="list"
-            data-separator="inset"
-          >
-            {drilled.models.map((model) => (
+          <>
+            {drilled.connected === false ? (
+              <p
+                className="sheet-note surface-meta"
+                data-surface-meta="note"
+              >
+                Not connected — connect {drilled.label} on your Mac to use
+                these models.
+              </p>
+            ) : null}
+            <div
+              className="sheet-group surface-group"
+              data-surface-group="list"
+              data-separator="inset"
+            >
+              {drilled.models.map((model) => (
               <Row
                 key={model.id}
                 title={model.label}
@@ -375,7 +395,8 @@ export function ModelSheet({
             {drilled.models.length === 0 ? (
               <p className="sheet-empty">No models configured</p>
             ) : null}
-          </div>
+            </div>
+          </>
         ) : (
           <>
             <label className="sheet-search">
@@ -399,7 +420,7 @@ export function ModelSheet({
                   <Row
                     key={`${match.provider.id}/${match.id}`}
                     title={match.label}
-                    subtitle={`${match.provider.label} · ${formatContext(match.ctx)}`}
+                    subtitle={`${match.provider.label} · ${formatContext(match.ctx)}${match.provider.connected === false ? ' · Not connected' : ''}`}
                     leading={<ProviderMark id={match.provider.id} size={17} />}
                     selected={
                       match.provider.id === currentProvider &&
@@ -430,7 +451,7 @@ export function ModelSheet({
                     title={provider.label}
                     subtitle={`${provider.models.length} model${
                       provider.models.length === 1 ? '' : 's'
-                    }`}
+                    }${provider.connected === false ? ' · Not connected' : ''}`}
                     leading={<ProviderMark id={provider.id} size={17} />}
                     selected={provider.id === currentProvider}
                     trailing={<ChevronRight size={16} />}

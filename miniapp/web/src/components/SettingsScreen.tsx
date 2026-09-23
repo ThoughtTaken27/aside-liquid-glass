@@ -323,7 +323,10 @@ export function SettingsScreen({
     ...(status?.catalog ?? []).flatMap((provider) =>
       provider.models.map((model) => ({
         id: `${provider.id}/${model.id}`,
-        label: `${provider.label} · ${model.label}`,
+        label:
+          provider.connected === false
+            ? `${provider.label} · ${model.label} · Not connected`
+            : `${provider.label} · ${model.label}`,
         leading: <ProviderMark id={provider.id} size={14} />,
       })),
     ),
