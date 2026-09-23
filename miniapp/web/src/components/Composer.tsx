@@ -423,6 +423,7 @@ export function Composer({
         ref={textarea}
         className="composer-input"
         data-composer-control="input"
+        aria-label={mode === 'search' ? 'Search the web' : 'Message Aside'}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}

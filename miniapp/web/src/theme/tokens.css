@@ -392,7 +392,7 @@
   /* Instrumentation ink for elapsed time and token count. One step below
      process text because these are measurements, not another status. */
   --meter-ink: oklch(18% 0.007 92 / 0.52);
-  --meter-ink-dim: oklch(18% 0.007 92 / 0.34);
+  --meter-ink-dim: oklch(18% 0.007 92 / 0.58);
   /* The live heading stays readable clay throughout its single sweep;
      only a modest crest moves toward the full orange. */
   --status-trough: color-mix(in oklab, var(--brand-text) 78%, var(--meter-ink));
@@ -620,7 +620,7 @@
   /* Held a touch higher than the light pair: the same alpha over a dark
      ground reads dimmer, and 0.34 white on near-black is a smudge. */
   --meter-ink: oklch(97% 0.004 92 / 0.5);
-  --meter-ink-dim: oklch(97% 0.004 92 / 0.36);
+  --meter-ink-dim: oklch(97% 0.004 92 / 0.6);
   /* On the dark page transparency deepens the same clay without washing
      it toward white, so the heading remains warm at both ends. */
   --status-trough: color-mix(in oklab, var(--brand-text) 72%, transparent);

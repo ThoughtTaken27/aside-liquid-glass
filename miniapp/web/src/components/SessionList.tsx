@@ -179,11 +179,15 @@ export function SessionList({
       data-density="quiet"
     >
       <div className="list-toolbar context-controls" data-role="context-controls">
-        <div className="segmented" role="tablist">
+        {/*
+          A view switch, not tabs: there is no tabpanel here, and a tablist
+          promises arrow-key navigation this control does not implement.
+          A group of toggle buttons describes what it actually is.
+        */}
+        <div className="segmented" role="group" aria-label="History view">
           <button
             type="button"
-            role="tab"
-            aria-selected={view === 'list'}
+            aria-pressed={view === 'list'}
             className={view === 'list' ? 'is-active' : ''}
             onClick={() => choose('list')}
           >
@@ -192,8 +196,7 @@ export function SessionList({
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={view === 'card'}
+            aria-pressed={view === 'card'}
             className={view === 'card' ? 'is-active' : ''}
             onClick={() => choose('card')}
           >
@@ -232,6 +235,7 @@ export function SessionList({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search chats"
+          aria-label="Search chats"
         />
       ) : null}
 

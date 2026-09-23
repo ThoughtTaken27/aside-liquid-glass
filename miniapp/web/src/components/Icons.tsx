@@ -143,6 +143,11 @@ export function StepGlyph({
 
 /** The small indeterminate ring the sidepanel shows while a turn runs. */
 export function Spinner({ size = 14 }: { size?: number }) {
+  // Decorative everywhere it is used: every instance sits beside text that
+  // already says what is happening ("Loading…", "Working…") or inside a
+  // live region that announces state changes itself. (An `aria-label` on an
+  // `<svg>` without a role is ignored by screen readers anyway, so the
+  // previous `aria-label="working"` announced nothing anywhere.)
   return (
     <svg
       className="spinner"
@@ -150,7 +155,8 @@ export function Spinner({ size = 14 }: { size?: number }) {
       height={size}
       viewBox="0 0 16 16"
       fill="none"
-      aria-label="working"
+      aria-hidden
+      focusable="false"
     >
       <circle
         cx="8"

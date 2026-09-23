@@ -35,8 +35,13 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
   const html = highlightToHtml(code, lang, dark);
 
   if (!html) {
+    // `tabIndex={0}`: both frames scroll horizontally (`overflow-x: auto`
+    // in components.css), and an unfocusable overflow region is
+    // unreachable by keyboard -- wide code would be unreadable, not just
+    // unscrollable. The focus ring comes from the shared `:focus-visible`
+    // system, same as every other scroll region.
     return (
-      <pre className="md-pre">
+      <pre className="md-pre" tabIndex={0}>
         <code className="md-code">{code}</code>
       </pre>
     );
@@ -47,5 +52,5 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
   // components.css) so the surrounding card chrome -- border, padding,
   // font -- stays this app's own tokens, and only the per-token colours
   // (which come from the theme JSON, not from a component) are Shiki's.
-  return <div className="md-pre-shiki" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className="md-pre-shiki" tabIndex={0} dangerouslySetInnerHTML={{ __html: html }} />;
 }

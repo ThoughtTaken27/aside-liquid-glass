@@ -35,9 +35,80 @@ export function Sheet({
   onClose: () => void;
   children: ReactNode;
 }) {
-  const close = () => {
-    haptic('soft');
+  const sectionRef = useRef<HTMLElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const [leaving, setLeaving] = useState(false);
+  const exitDone = useRef(false);
+
+  const finishClose = () => {
+    if (exitDone.current) return;
+    exitDone.current = true;
     onClose();
+  };
+
+  /*
+   * Dismissal plays the entrance in reverse instead of unmounting.
+   *
+   * A sheet that slides up on open but vanishes on close breaks spatial
+   * consistency: the eye never learns where it went. The exit mirrors the
+   * enter path per client -- Telegram sheets only travelled 72/84px in,
+   * so they retreat the same distance out; standalone sheets travelled
+   * their full height, so they leave the same way. A drag release is the
+   * exception: the finger was already throwing the sheet down, so the
+   * exit continues downward off screen (from the release point, so there
+   * is no seam between the drag and the animation) rather than retreating.
+   *
+   * WAAPI rather than CSS classes because the start value is dynamic (the
+   * drag offset) and WAAPI interpolates from it with compositor
+   * performance. The safety timeout covers a backgrounded tab (WAAPI
+   * pauses while hidden) and any animation that never resolves; the done
+   * guard keeps every path calling `onClose` exactly once.
+   */
+  const close = (fromY = 0) => {
+    if (leaving) return;
+    haptic('soft');
+    const section = sectionRef.current;
+    const reduce = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    if (reduce || !section || typeof section.animate !== 'function') {
+      finishClose();
+      return;
+    }
+    setLeaving(true);
+    const standalone =
+      document.documentElement.dataset.client === 'standalone';
+    const flung = side === 'bottom' && (standalone || fromY > 24);
+    // `--ease-exit` in tokens.css, quoted here because WAAPI takes a
+    // string: an accelerate-out curve, decisive on the way out.
+    const EASE_EXIT = 'cubic-bezier(0.4, 0, 1, 1)';
+    const travel =
+      side === 'bottom'
+        ? flung
+          ? 'translate3d(0, calc(100% + 24px), 0)'
+          : 'translate3d(0, 72px, 0)'
+        : 'translate3d(84px, 0, 0)';
+    const sheetAnim = section.animate(
+      [
+        {
+          transform: `translate3d(0, ${side === 'bottom' ? fromY : 0}px, 0)`,
+          opacity: 1,
+        },
+        // A full runaway travels without fading (like the standalone
+        // entrance it mirrors); a retreat fades as it goes, like the
+        // partial entrance it reverses.
+        { transform: travel, opacity: flung ? 1 : 0 },
+      ],
+      { duration: flung ? 220 : 190, easing: EASE_EXIT, fill: 'forwards' },
+    );
+    sheetAnim.onfinish = finishClose;
+    sheetAnim.oncancel = finishClose;
+    backdropRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: 160,
+      easing: 'ease-out',
+      fill: 'forwards',
+    });
+    window.setTimeout(finishClose, 400);
   };
 
   useEffect(() => {
@@ -101,13 +172,16 @@ export function Sheet({
   const onPointerMove = (event: React.PointerEvent) => {
     if (!drag.current || drag.current.id !== event.pointerId) return;
     /*
-     * Downward only.
+     * Upward meets friction, not a wall.
      *
-     * Letting the sheet follow a finger UP would lift it off the bottom of
-     * the screen and expose a strip of backdrop underneath, which no sheet
-     * on any platform does. Clamping at zero keeps it seated.
+     * This used to clamp at zero, so pressing up against a seated sheet
+     * hit a hard stop that read as frozen. iOS sheets resist instead:
+     * the card follows at 0.3x past the boundary, which says "there is
+     * nothing more here" without going dead. Release always springs back
+     * (a negative offset can never pass the dismiss thresholds below).
      */
-    setDy(Math.max(0, event.clientY - drag.current.y0));
+    const raw = event.clientY - drag.current.y0;
+    setDy(raw >= 0 ? raw : raw * 0.3);
   };
 
   const endDrag = (event: React.PointerEvent) => {
@@ -133,7 +207,9 @@ export function Sheet({
      * gesture that was going somewhere can qualify on speed.
      */
     if (travelled > 96 || (travelled > 24 && travelled / elapsed > 0.55)) {
-      close();
+      // The release point becomes the exit's start value, so the throw
+      // continues from under the finger with no seam.
+      close(travelled);
     }
   };
 
@@ -141,7 +217,12 @@ export function Sheet({
 
   return (
     <div className="sheet-layer" data-surface="sheet-layer">
-      <div className="sheet-backdrop" data-surface="backdrop" onClick={close} />
+      <div
+        className="sheet-backdrop"
+        data-surface="backdrop"
+        ref={backdropRef}
+        onClick={() => close()}
+      />
       <section
         className={`sheet surface-sheet sheet-${side}${dragging ? ' is-dragging' : ''}`}
         data-surface="sheet"
@@ -149,7 +230,17 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        style={dy ? { transform: `translate3d(0, ${dy}px, 0)` } : undefined}
+        ref={sectionRef}
+        style={
+          // The exit animation owns the transform once it starts; the only
+          // thing React still does is take the sheet out of the pointer
+          // path while it leaves.
+          leaving
+            ? { pointerEvents: 'none' }
+            : dy
+              ? { transform: `translate3d(0, ${dy}px, 0)` }
+              : undefined
+        }
       >
         <header
           className="sheet-head surface-header"
@@ -184,7 +275,9 @@ export function Sheet({
               <button
                 type="button"
                 className="icon-button"
-                onClick={close}
+                // Wrapped: `close` takes a release offset, and a bare
+                // handler reference would hand it the click event.
+                onClick={() => close()}
                 aria-label="Close"
               >
                 <X size={18} strokeWidth={1.75} />

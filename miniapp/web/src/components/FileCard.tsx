@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Check, CopyIcon } from './Icons';
+import { copyText } from '../utils/clipboard';
+import { haptic } from '../telegram';
 import type { FileEdit } from '../types';
 
 /**
@@ -67,7 +69,14 @@ function CopyButton({ text }: { text: string }) {
       className="icon-button file-card-copy"
       aria-label="Copy file contents"
       onClick={() => {
-        void navigator.clipboard?.writeText(text).then(() => {
+        // `copyText`, not the raw clipboard API: older Android WebViews do
+        // not expose `navigator.clipboard` at all, and the previous code
+        // silently did nothing there (and threw an unhandled rejection
+        // when the write was denied). The checkmark only shows on a copy
+        // that actually happened.
+        void copyText(text).then((ok) => {
+          haptic(ok ? 'success' : 'error');
+          if (!ok) return;
           setCopied(true);
           window.setTimeout(() => setCopied(false), 1200);
         });

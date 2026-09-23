@@ -36,6 +36,15 @@ const RUBBER = 0.32;
 const AXIS_LOCK = 10;
 /** Past this, releasing snaps open rather than closed. */
 const OPEN_THRESHOLD = ACTION_WIDTH * 0.45;
+/**
+ * Release speed (px/ms) that decides by direction instead of position.
+ * A fast flick left opens from anywhere; a fast flick right closes an
+ * open row. Below this, the threshold decides -- same distance-or-speed
+ * shape as the sheet's dismiss, scaled to an 88px row.
+ */
+const FLICK_VELOCITY = 0.4;
+/** Real travel required before speed can decide (tap jitter guard). */
+const FLICK_FLOOR = 24;
 
 /**
  * The currently open row's closer.
@@ -71,6 +80,13 @@ export function SwipeToDelete({
   const startOffset = useRef(0);
   const axis = useRef<'undecided' | 'x' | 'y'>('undecided');
   const detentPassed = useRef(false);
+  /** The tracked finger; a second finger landing mid-drag is ignored. */
+  const touchId = useRef<number | null>(null);
+  /** Last two x-axis samples, for release-velocity direction. */
+  const lastX = useRef(0);
+  const lastT = useRef(0);
+  const prevX = useRef(0);
+  const prevT = useRef(0);
 
   const close = () => {
     setOffset(0);
@@ -89,12 +105,21 @@ export function SwipeToDelete({
   if (!enabled) return <>{children}</>;
 
   const onTouchStart = (event: React.TouchEvent) => {
+    // A second finger landing while one is already down is not a new
+    // gesture -- without this, `touches[0]` can switch fingers mid-drag
+    // and teleport the row to the new finger's position.
+    if (touchId.current !== null) return;
     const touch = event.touches[0];
+    touchId.current = touch.identifier;
     startX.current = touch.clientX;
     startY.current = touch.clientY;
     startOffset.current = offset;
     axis.current = 'undecided';
     detentPassed.current = offset >= OPEN_THRESHOLD;
+    lastX.current = touch.clientX;
+    lastT.current = performance.now();
+    prevX.current = touch.clientX;
+    prevT.current = lastT.current;
     // Another row is open and this is a different one: close it, and let
     // this touch be the dismissal rather than the start of a new swipe.
     if (closeOpenRow && closeOpenRow !== close) {
@@ -104,7 +129,18 @@ export function SwipeToDelete({
   };
 
   const onTouchMove = (event: React.TouchEvent) => {
-    const touch = event.touches[0];
+    // Only the tracked finger steers. A second finger's moves arrive in
+    // the same handler, and reading `touches[0]` blindly would jump the
+    // row between the two fingers.
+    let touch: { clientX: number; clientY: number } | undefined;
+    for (let i = 0; i < event.changedTouches.length; i += 1) {
+      const candidate = event.changedTouches[i];
+      if (candidate.identifier === touchId.current) {
+        touch = candidate;
+        break;
+      }
+    }
+    if (!touch) return;
     const dx = touch.clientX - startX.current;
     const dy = touch.clientY - startY.current;
 
@@ -132,13 +168,51 @@ export function SwipeToDelete({
       haptic('select');
     }
 
+    const now = performance.now();
+    prevX.current = lastX.current;
+    prevT.current = lastT.current;
+    lastX.current = touch.clientX;
+    lastT.current = now;
+
     setOffset(next);
   };
 
-  const onTouchEnd = () => {
+  const onTouchEnd = (event: React.TouchEvent) => {
+    // Only the tracked finger's release ends the gesture; the other
+    // finger lifting first must not snap the row mid-drag.
+    let ours = false;
+    for (let i = 0; i < event.changedTouches.length; i += 1) {
+      if (event.changedTouches[i].identifier === touchId.current) {
+        ours = true;
+        break;
+      }
+    }
+    if (!ours) return;
+    touchId.current = null;
     setDragging(false);
     if (axis.current !== 'x') return;
-    if (offset >= OPEN_THRESHOLD) {
+    /*
+     * Direction decides a flick; position decides a drag.
+     *
+     * A fast throw left opens the row even from short of the threshold,
+     * and a fast throw right closes an open one -- momentum, not release
+     * point. The guards matter more than the rule: the floor rejects tap
+     * jitter (a few px in a few ms reads as very fast), the stale check
+     * rejects a finger that already stopped, and the 16ms clamp keeps a
+     * single noisy sample from spiking the velocity.
+     */
+    const travelled = Math.abs(lastX.current - startX.current);
+    const dt = Math.max(lastT.current - prevT.current, 16);
+    const velocity = (lastX.current - prevX.current) / dt;
+    const stale = performance.now() - lastT.current > 90;
+    const flick = !stale && travelled > FLICK_FLOOR ? velocity : 0;
+    const openIt =
+      flick < -FLICK_VELOCITY
+        ? true
+        : flick > FLICK_VELOCITY
+          ? false
+          : offset >= OPEN_THRESHOLD;
+    if (openIt) {
       setOffset(ACTION_WIDTH);
       closeOpenRow = close;
     } else {

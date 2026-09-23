@@ -101,13 +101,26 @@ export function PressReveal({
       close();
     };
     const onScroll = () => close();
+    // The keyboard path: Escape closes the revealed row (the toggle button
+    // below is what opens it without a pointer) and returns focus to that
+    // toggle, so focus does not fall back to the top of the page.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const toggle = hostRef.current?.querySelector<HTMLButtonElement>(
+        '.press-reveal-toggle',
+      );
+      close();
+      toggle?.focus();
+    };
 
     document.addEventListener('pointerdown', onOutside, true);
     document.addEventListener('touchstart', onOutside, true);
+    document.addEventListener('keydown', onKey);
     window.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('pointerdown', onOutside, true);
       document.removeEventListener('touchstart', onOutside, true);
+      document.removeEventListener('keydown', onKey);
       window.removeEventListener('scroll', onScroll, true);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,6 +180,29 @@ export function PressReveal({
         setOpen(true);
       }}
     >
+      {/*
+        The keyboard equivalent of the hold: a toggle button that is
+        visually hidden until it takes keyboard focus (see
+        `.press-reveal-toggle` in components.css), when it draws as a small
+        pill above the turn. The wrapper itself cannot be the toggle --
+        answers contain links and citation buttons, which must not be
+        descendants of a button.
+      */}
+      <button
+        type="button"
+        className="visually-hidden press-reveal-toggle"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) {
+            if (closeOpen && closeOpen !== close) closeOpen();
+            closeOpen = close;
+            haptic('medium');
+          }
+          setOpen((prev) => !prev);
+        }}
+      >
+        {open ? 'Hide message actions' : 'Show message actions'}
+      </button>
       {children}
       {open ? <MessageActions text={text} align={align} /> : null}
     </div>

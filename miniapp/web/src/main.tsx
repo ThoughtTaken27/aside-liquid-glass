@@ -8,6 +8,7 @@ import './theme/components.css';
 import App from './App';
 import { ImageLightbox } from './components/ImageLightbox';
 import { isStandaloneEntry, registerServiceWorker } from './standalone';
+import { performanceClass } from './telegram';
 import { warmMarkdown } from './components/MarkdownAsync';
 
 declare global {
@@ -28,6 +29,15 @@ async function bootstrap() {
     isStandaloneEntry() || location.pathname === '/dev.html'
       ? 'standalone'
       : 'telegram';
+
+  /*
+   * The cheap-Android signal (a UA suffix Telegram appends; HIGH everywhere
+   * it is absent). `data-perf="low"` lets the stylesheet shrink sustained
+   * backdrop-blur radii and freeze decorative paint loops -- see the
+   * low-power block in components.css.
+   */
+  document.documentElement.dataset.perf =
+    performanceClass() === 'LOW' ? 'low' : 'high';
 
   // Installability, and only from the standalone entry point. See standalone.ts.
   registerServiceWorker();

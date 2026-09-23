@@ -56,13 +56,19 @@ describe('the bottom sheet drags to dismiss', () => {
     expect(sheet.className).toContain('is-dragging');
   });
 
-  it('refuses to be lifted off the bottom of the screen', () => {
-    // Following a finger UP would expose a strip of backdrop underneath,
-    // which no sheet on any platform does.
-    const { container } = renderSheet();
+  it('resists upward drag with friction instead of a hard stop', () => {
+    // An 80px pull up moves the sheet a damped 24px -- enough to feel
+    // alive under the finger, far from lifting off its seat. Release
+    // always springs back: upward travel can never dismiss.
+    const { container, onClose } = renderSheet();
     const head = container.querySelector<HTMLElement>('.sheet-head')!;
     fireEvent.pointerDown(head, { clientY: 100, pointerId: 1, button: 0 });
     fireEvent.pointerMove(head, { clientY: 20, pointerId: 1 });
+    expect(container.querySelector<HTMLElement>('.sheet')!.style.transform).toBe(
+      'translate3d(0, -24px, 0)',
+    );
+    fireEvent.pointerUp(head, { clientY: 20, pointerId: 1 });
+    expect(onClose).not.toHaveBeenCalled();
     expect(container.querySelector<HTMLElement>('.sheet')!.style.transform).toBe('');
   });
 
@@ -91,6 +97,16 @@ describe('the bottom sheet drags to dismiss', () => {
   it('dismisses on a long drag however slow', () => {
     const { container, onClose } = renderSheet();
     drag(container.querySelector<HTMLElement>('.sheet-head')!, 140, 2000);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onClose exactly once when two dismissals race', () => {
+    // A backdrop tap and Escape landing together: the second close is a
+    // no-op, so the parent never tears down twice and the exit animation,
+    // where WAAPI exists, never starts twice.
+    const { container, onClose } = renderSheet();
+    fireEvent.click(container.querySelector('.sheet-backdrop')!);
+    fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

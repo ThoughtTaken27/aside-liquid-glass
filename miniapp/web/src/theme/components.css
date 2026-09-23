@@ -1307,7 +1307,6 @@
   line-height: 1.55;
   letter-spacing: normal;
   word-break: break-word;
-  animation: turn-in 0.34s var(--ease-emphasized) both;
 }
 
 .dark .user-bubble {
@@ -1394,6 +1393,20 @@
  */
 .answer {
   font-size: var(--text-base);
+}
+
+/*
+ * A turn arriving -- and ONLY a turn arriving.
+ *
+ * `turn-in` used to sit on the bubble/answer/card themselves, which meant
+ * it replayed every time virtualization remounted a row: scrolling a long
+ * thread re-animated old turns as they cycled through the overscan window.
+ * `Thread.tsx` seeds the id set on first paint and marks later arrivals
+ * `.is-fresh`, so the entrance plays exactly once per turn, when it is new.
+ */
+.thread-row.is-fresh .user-bubble,
+.thread-row.is-fresh .answer,
+.thread-row.is-fresh .question-card {
   animation: turn-in 0.34s var(--ease-emphasized) both;
 }
 
@@ -2377,8 +2390,20 @@
 }
 
 /* Rise toward the anchor from whichever side the popover opened on. */
+/*
+ * The open animation scales from the edge facing the trigger, so the
+ * popover grows out of the pill that opened it rather than from its own
+ * centre. Placement centres the popover on the anchor horizontally
+ * (`clampHorizontally` in placement.ts), so 50% is the anchor's x except
+ * in the edge-clamped case -- and a few px off is invisible at 0.98.
+ */
+.popover.is-above {
+  transform-origin: 50% 100%;
+}
+
 .popover.is-below {
   animation-name: popover-in-below;
+  transform-origin: 50% 0;
 }
 
 @supports not (backdrop-filter: blur(1px)) {
@@ -3489,6 +3514,9 @@
  */
 .sheet.is-dragging {
   transition: none;
+  /* Motion is imminent for exactly this long: the compositor promotes the
+     sheet for the drag and drops the layer on release. */
+  will-change: transform;
 }
 
 @supports not (backdrop-filter: blur(1px)) {
@@ -3979,7 +4007,13 @@
 .subagent-open {
   flex: none;
   display: inline-flex;
-  padding: 2px;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+  /* The target grows; the row does not. The negative margins pay back the
+     extra box so the head keeps the height its text sets. */
+  margin: -8px -6px -8px 0;
   color: var(--surface-tertiary-foreground);
 }
 
@@ -5636,8 +5670,13 @@
  *
  * `--ease-emphasized` overshoots slightly and settles: things that ENTER
  * use it, because arriving with a little momentum reads as physical.
- * `--ease-exit` is a pure decelerate with no overshoot: things that LEAVE
- * should not bounce on the way out, which looks indecisive.
+ * `--ease-exit` accelerates away with no overshoot: things that LEAVE
+ * should depart decisively, fastest at the moment of release -- the way
+ * a thrown sheet behaves. (An earlier comment called this a decelerate;
+ * cubic-bezier(0.4, 0, 1, 1) starts gentle and ends fast, which is the
+ * opposite. The curve was always right; the word was wrong.)
+ * The sheet and lightbox exits run it through WAAPI -- see `Sheet.tsx` --
+ * quoting the value there because WAAPI takes a string.
  *
  * The durations are short on purpose. Premium motion is not slow motion --
  * anything past ~350ms on a phone is something the user is waiting for.
@@ -5775,7 +5814,6 @@
   box-shadow:
     0 1px 2px oklch(14.5% 0 0 / 0.03),
     0 12px 32px -14px oklch(14.5% 0 0 / 0.14);
-  animation: turn-in var(--duration-slow) var(--ease-emphasized) both;
   overflow: hidden;
 }
 
@@ -6112,6 +6150,61 @@
   -webkit-touch-callout: default;
   -webkit-user-select: text;
   user-select: text;
+}
+
+/*
+ * The keyboard equivalent of the hold gesture (PressReveal.tsx).
+ *
+ * The toggle is `visually-hidden` until it takes keyboard focus, when it
+ * draws as a small pill at the head of the turn -- the skip-link pattern,
+ * so sighted keyboard users see exactly what they tabbed to. Pointer
+ * users never see it: `:focus-visible` does not fire on touch, and the
+ * button is 1px until then.
+ */
+.press-reveal-toggle:focus-visible {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0 0 6px;
+  padding: 7px 14px;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  display: inline-flex;
+  align-items: center;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-primary);
+  color: var(--secondary-foreground);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  outline: 3px solid color-mix(in oklab, var(--brand) 42%, transparent);
+  outline-offset: 2px;
+}
+
+/*
+ * Low-power mode: `data-perf="low"` (telegram.ts `performanceClass()`).
+ *
+ * Only the sustained costs are cut. Backdrop-blur radii shrink, because a
+ * 20px blur over the dock and scrims is a full-screen filter pass on every
+ * scroll frame and blur cost grows with radius -- halving it roughly
+ * quarters the work. The paint-loop shimmer (background-position repaints
+ * every frame for 4.2s at a time) and the idle hero breathe freeze.
+ * Small compositor-only pulses (opacity/transform on dots) stay: they cost
+ * nothing and still signal liveness.
+ */
+:root[data-perf='low'],
+:root[data-client='standalone'][data-perf='low'] {
+  --glass-filter: blur(10px) saturate(1.05);
+  --glass-filter-compact: blur(8px) saturate(1.05);
+  --glass-filter-history: blur(10px) saturate(0.95);
+  --glass-filter-composer: blur(10px) saturate(1);
+  --blur-xl: 12px;
+}
+
+:root[data-perf='low'] .stream-footer.is-thinking .activity-line > [role='status'],
+:root[data-perf='low'] .rest-mark {
+  animation: none;
 }
 
 /* The held message dips very slightly while its actions are open, so it is
@@ -7254,6 +7347,7 @@
 .icon-button:focus-visible,
 .pill:focus-visible,
 .question-option:focus-visible,
+.jump-latest:focus-visible,
 .segmented button:focus-visible {
   outline: none;
   box-shadow:
@@ -7611,7 +7705,17 @@
   .question-reply button,
   .chip-remove,
   .watch-mode-head,
-  .swipe-delete-action,
+  .swipe-action,
+  .subagent-spawn,
+  .subagent-open,
+  .session-row,
+  .session-card,
+  .show-more,
+  .lightbox-close,
+  .md-pre-shiki,
+  .md pre,
+  .thread-scroll,
+  .home-scroll,
   .browser-escape
 ):focus-visible {
   outline: 3px solid color-mix(in oklab, var(--brand) 42%, transparent);
@@ -7705,9 +7809,18 @@
   .page-peek-image,
   .voice-button,
   .voice-meter-fill,
-  .mode-switch-indicator,
-  .swipe-delete-track {
+  .mode-switch-indicator {
     transition: none;
+  }
+
+  /*
+   * The swipe row's snap transition is inline (it switches between `none`
+   * while the finger is down and the spring on release), so only
+   * `!important` reaches it. Without this the row still glides under
+   * reduced motion.
+   */
+  .swipe-surface {
+    transition: none !important;
   }
 }
 
@@ -8310,13 +8423,15 @@
   cursor: pointer;
   transition:
     opacity 200ms var(--ease-out),
-    transform 260ms var(--ease-spring, cubic-bezier(0.34, 1.4, 0.64, 1));
+    transform 260ms var(--ease-spring, cubic-bezier(0.34, 1.4, 0.64, 1)),
+    visibility 260ms;
 }
 
 .thread-footer[data-at-end='false'] .jump-latest {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;
+  visibility: visible;
 }
 
 .thread-footer[data-at-end='true'] .jump-latest,
@@ -8325,6 +8440,10 @@
   /* Down and slightly small: it leaves toward the end it is pointing at. */
   transform: translateY(8px) scale(0.82);
   pointer-events: none;
+  /* ...and out of the tab order and the a11y tree, so the keyboard never
+     lands on a button that is not on screen. Paired with `visibility` in
+     the transition above, so the fade-out still plays before it flips. */
+  visibility: hidden;
 }
 
 .jump-latest:active {

@@ -10,7 +10,7 @@
  * screenshot presented as live is a correctness bug, not a cosmetic one.
  */
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, ChevronLeft, Spinner } from './Icons';
+import { ChevronLeft, Download, RotateCw, Spinner } from './Icons';
 import { api } from '../api';
 import { downloadBlob, haptic } from '../telegram';
 import { relativeTime } from '../utils/time';
@@ -135,6 +135,12 @@ export function PagePeek({
           {capturedAt ? `Captured ${relativeTime(capturedAt)}` : ''}
         </span>
         <span className="page-peek-actions" data-surface-group="actions">
+          {/*
+            Refresh wears a refresh glyph, not the external-link arrow that
+            used to sit here promising a navigation. Save is an icon button
+            like its neighbour -- the word "Save" in a 34px icon box
+            overflowed it -- with the download glyph this action means.
+          */}
           <button
             type="button"
             className="icon-button"
@@ -142,9 +148,9 @@ export function PagePeek({
               haptic('light');
               refresh();
             }}
-            aria-label="Refresh"
+            aria-label="Refresh capture"
           >
-            {loading ? <Spinner size={15} /> : <ArrowUpRight size={16} />}
+            {loading ? <Spinner size={15} /> : <RotateCw size={16} strokeWidth={1.75} />}
           </button>
           {src ? (
             <button
@@ -154,9 +160,9 @@ export function PagePeek({
                 haptic('light');
                 save();
               }}
-              aria-label="Save"
+              aria-label="Save screenshot"
             >
-              Save
+              <Download size={16} strokeWidth={1.75} />
             </button>
           ) : null}
         </span>

@@ -94,6 +94,7 @@ export function FileViewer({
           type="button"
           className="show-more file-raw-toggle surface-row"
           data-surface-row="format-toggle"
+          aria-pressed={raw}
           onClick={() => setRaw((prev) => !prev)}
         >
           {raw ? 'Rendered' : 'Raw'}
@@ -116,6 +117,7 @@ export function FileViewer({
           data-surface-content="image"
           src={loaded.url}
           alt={file.name}
+          decoding="async"
         />
       ) : null}
       {loaded.state === 'text' ? (

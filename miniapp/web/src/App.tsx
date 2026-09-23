@@ -833,7 +833,12 @@ export default function App() {
           of reach and the history genuinely scrolls up from underneath it,
           which is the whole point of the layout.
         */}
-        <main className="home-scroll" ref={homeScroll} onScroll={updateHomeScrim}>
+        {/*
+          `tabIndex={0}` makes the home timeline arrow-key scrollable, the
+          same treatment as `.thread-scroll` and code blocks. A `<main>`
+          announces itself as a landmark when focused, so no role is needed.
+        */}
+        <main className="home-scroll" ref={homeScroll} tabIndex={0} onScroll={updateHomeScrim}>
           <section className="home-rest">
             {/*
               Browser, not Settings.
@@ -1507,6 +1512,9 @@ function ThreadScreen({
       <div
         className="thread-scroll"
         ref={scroller}
+        role="region"
+        aria-label="Messages"
+        tabIndex={0}
         onScroll={onScroll}
         onTouchStart={releaseLanding}
         onWheel={releaseLanding}
@@ -1564,12 +1572,17 @@ function ThreadScreen({
             scroll handler already writes on this footer, so returning to
             the end of a long transcript costs no React state and no
             re-render per scroll frame. */}
+        {/*
+          Keyboard-reachable: the hidden state (`data-at-end`, in
+          components.css) now also sets `visibility: hidden`, so the
+          button leaves the tab order when it is not on screen instead of
+          needing `tabIndex={-1}` to stay out of it.
+        */}
         <button
           type="button"
           className="jump-latest"
           onClick={jumpToLatest}
           aria-label="Jump to latest"
-          tabIndex={-1}
         >
           <ChevronDown size={17} strokeWidth={2.25} />
         </button>

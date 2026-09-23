@@ -86,6 +86,7 @@ export function ImageLightbox() {
   const [animated, setAnimated] = useState(false);
 
   const stage = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   /** Pinch state, captured when the second finger lands. */
   const pinch = useRef<{ distance: number; scale: number; x: number; y: number } | null>(
@@ -96,16 +97,55 @@ export function ImageLightbox() {
   const moved = useRef(0);
   const release = useRef<(() => void) | null>(null);
 
+  const rootRef = useRef<HTMLDivElement>(null);
+  const exitDone = useRef(false);
+
   const close = useCallback(() => {
-    release.current?.();
-    release.current = null;
-    setRequest(null);
-    setTransform(IDENTITY);
-    setDismiss(0);
-    pointers.current.clear();
-    pinch.current = null;
-    pan.current = null;
-  }, []);
+    if (exitDone.current) return;
+    const reset = () => {
+      release.current?.();
+      release.current = null;
+      setRequest(null);
+      setTransform(IDENTITY);
+      setDismiss(0);
+      pointers.current.clear();
+      pinch.current = null;
+      pan.current = null;
+    };
+    const root = rootRef.current;
+    const reduce = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    if (reduce || !root || typeof root.animate !== 'function') {
+      exitDone.current = true;
+      reset();
+      return;
+    }
+    /*
+     * The viewer fades rather than blinking out -- the same opacity the
+     * entrance animates in. The start value is the LIVE drag-dismiss
+     * opacity, so a throw that crosses the threshold keeps fading from
+     * exactly where the finger left it instead of jumping back to full
+     * opacity for the first frame of the exit.
+     */
+    exitDone.current = true;
+    const start = 1 - Math.min(1, dismiss / (DISMISS_PX * 2)) * 0.85;
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      reset();
+    };
+    const anim = root.animate([{ opacity: start }, { opacity: 0 }], {
+      duration: 140,
+      easing: 'ease-out',
+      fill: 'forwards',
+    });
+    anim.onfinish = done;
+    anim.oncancel = done;
+    // A backgrounded tab pauses WAAPI; never strand the viewer open.
+    window.setTimeout(done, 300);
+  }, [dismiss]);
 
   useEffect(() => {
     const onOpen = (event: Event) => {
@@ -117,6 +157,7 @@ export function ImageLightbox() {
       release.current?.();
       release.current = detail.onClose ?? null;
       setAnimated(false);
+      exitDone.current = false;
       setRequest(detail);
       haptic('light');
     };
@@ -129,17 +170,31 @@ export function ImageLightbox() {
   }, []);
 
   // Escape closes, and the page behind must not scroll while this is up.
+  // Focus moves to the close button on open and is restored to whatever
+  // had it on close; Tab is held on the close button because it is the
+  // only focusable control in the dialog, so letting focus leave would
+  // strand keyboard users behind the backdrop.
   useEffect(() => {
     if (!request) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
+      if (event.key === 'Escape') {
+        close();
+        return;
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        closeRef.current?.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const restore = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = previous;
+      restore?.focus?.();
     };
   }, [request, close]);
 
@@ -298,10 +353,12 @@ export function ImageLightbox() {
       role="dialog"
       aria-modal="true"
       aria-label={request.alt || 'Image'}
+      ref={rootRef}
       style={{ opacity: 1 - progress * 0.85 }}
     >
       <button
         type="button"
+        ref={closeRef}
         className="lightbox-close"
         aria-label="Close image"
         onClick={close}
@@ -321,6 +378,7 @@ export function ImageLightbox() {
           className="lightbox-image"
           src={request.src}
           alt={request.alt || ''}
+          decoding="async"
           draggable={false}
           style={{
             transform: `translate3d(${transform.x}px, ${transform.y + dismiss}px, 0) scale(${transform.scale})`,

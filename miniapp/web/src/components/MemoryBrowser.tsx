@@ -46,6 +46,7 @@ function TreeList({
                 type="button"
                 className="memory-tree-dir surface-row"
                 data-surface-row="directory"
+                aria-expanded={!collapsed.has(node.relPath)}
                 onClick={() => {
                   haptic('light');
                   setCollapsed((prev) => {

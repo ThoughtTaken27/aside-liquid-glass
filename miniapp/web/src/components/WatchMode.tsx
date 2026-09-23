@@ -163,7 +163,7 @@ export function WatchModeCard({
       data-card-kind="watch"
       data-card-state={collapsed ? 'collapsed' : 'expanded'}
     >
-      <button type="button" className="watch-mode-head" onClick={toggle}>
+      <button type="button" className="watch-mode-head" onClick={toggle} aria-expanded={!collapsed}>
         <span className="watch-mode-live" aria-hidden />
         <span>Watching the browser</span>
         <span className="watch-mode-toggle">{collapsed ? 'Show' : 'Hide'}</span>

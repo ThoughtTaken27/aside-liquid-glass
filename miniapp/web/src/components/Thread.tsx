@@ -389,6 +389,21 @@ export function Thread(props: ThreadProps) {
   const { items } = props;
   const containerRef = useRef<HTMLDivElement>(null);
 
+  /*
+   * Ids present on the first non-empty render. Entrance motion (`turn-in`,
+   * gated on `.is-fresh` in components.css) runs only for turns that
+   * arrive AFTER this set was seeded: virtual rows are keyed by id and
+   * remount as they scroll through the overscan window, so an ungated
+   * entrance replays every time an old turn scrolls back into view --
+   * shimmering on scroll and restarting animations during momentum.
+   * The transcript is append-only (no backfill), so "not in the seed set"
+   * means "genuinely new" for the life of this mount.
+   */
+  const seenIds = useRef<Set<string> | null>(null);
+  if (items.length > 0 && seenIds.current === null) {
+    seenIds.current = new Set(items.map((item) => item.id));
+  }
+
   /**
    * Item heights vary enormously -- a one-line answer next to a work fold
    * with a whole tool-call timeline -- so this is dynamic measurement, not
@@ -428,13 +443,14 @@ export function Thread(props: ThreadProps) {
       >
         {virtualItems.map((virtualRow) => {
           const item = items[virtualRow.index];
+          const fresh = seenIds.current !== null && !seenIds.current.has(item.id);
           return (
             <div
               key={virtualRow.key}
               ref={virtualizer.measureElement}
               data-index={virtualRow.index}
               data-thread-item={item.kind}
-              className={threadRowClassName(items, virtualRow.index)}
+              className={`${threadRowClassName(items, virtualRow.index)}${fresh ? ' is-fresh' : ''}`}
               style={{
                 position: 'absolute',
                 top: 0,

@@ -45,6 +45,7 @@ export function SubagentCard({
       <button
         type="button"
         className="subagent-spawn"
+        aria-expanded={open}
         onClick={() => {
           haptic('light');
           setOpen((prev) => !prev);

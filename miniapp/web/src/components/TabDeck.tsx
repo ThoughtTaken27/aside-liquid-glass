@@ -184,7 +184,9 @@ export function TabDeck({ onClose }: { onClose: () => void }) {
           value={urlInput}
           onChange={(event) => setUrlInput(event.target.value)}
           placeholder="Open a URL"
+          aria-label="Open a URL"
           inputMode="url"
+          enterKeyHint="go"
           autoCapitalize="off"
           autoCorrect="off"
         />
@@ -232,7 +234,13 @@ export function TabDeck({ onClose }: { onClose: () => void }) {
                 }}
               >
                 {tab.faviconUrl ? (
-                  <img className="tab-deck-favicon" src={tab.faviconUrl} alt="" />
+                  <img
+                    className="tab-deck-favicon"
+                    src={tab.faviconUrl}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
                   <Globe size={14} strokeWidth={1.75} />
                 )}
@@ -257,7 +265,7 @@ export function TabDeck({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 className="icon-button"
-                aria-label="Close tab"
+                aria-label={`Close "${tab.title || hostname(tab.url)}"`}
                 onClick={() => void closeTab(tab)}
               >
                 <X size={15} strokeWidth={1.75} />
