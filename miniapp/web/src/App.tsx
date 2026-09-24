@@ -164,6 +164,13 @@ interface SkeletonSession {
   unread: boolean;
 }
 
+/** Equal for rendering purposes: everything but the ever-ticking uptime. */
+function sameStatus(a: StatusResponse, b: StatusResponse): boolean {
+  return (
+    JSON.stringify({ ...a, uptimeMs: 0 }) === JSON.stringify({ ...b, uptimeMs: 0 })
+  );
+}
+
 const SKELETON_KEY = 'sessionSkeleton';
 const BIOMETRICS_KEY = 'biometricsEnabled';
 
@@ -220,6 +227,9 @@ export default function App() {
    */
   const [stack, setStack] = useState<ThreadScreenState[]>([]);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+  // Current list for the poll's no-change check (includes optimistic edits).
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [picker, setPicker] = useState<PickerState>({ kind: 'none' });
@@ -531,6 +541,14 @@ export default function App() {
   const loadSessions = useCallback(async () => {
     try {
       const res = await api.sessions();
+      /*
+       * The home list polls every 8s and the answer is usually identical.
+       * Handing React a fresh-but-equal array re-rendered the whole glass
+       * home screen on every tick, which read as a periodic stutter. Keep
+       * the current array when nothing changed; comparing against current
+       * state (not the last server copy) keeps optimistic deletes honest.
+       */
+      if (JSON.stringify(sessionsRef.current) === JSON.stringify(res.sessions)) return;
       setSessions(res.sessions);
       // Cosmetic only -- trimmed to what the skeleton actually draws, and
       // small enough to stay well under CloudStorage's 4096-char value cap.
@@ -591,7 +609,12 @@ export default function App() {
   useEffect(() => {
     if (auth.phase !== 'ready') return undefined;
     return startVisiblePolling(async () => {
-      setStatus(await api.status());
+      const next = await api.status();
+      // `uptimeMs` ticks on every call and nothing renders it; ignoring it
+      // lets an unchanged catalog skip a full re-render every 8 seconds.
+      setStatus((prev) =>
+        prev && sameStatus(prev, next) ? prev : next,
+      );
     }, 8_000);
   }, [auth.phase]);
 

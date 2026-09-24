@@ -46,7 +46,7 @@ function stubHandle(
 describe('isPublicOrigin', () => {
   it.each([
     'https://mac.tailnet.ts.net',
-    'https://aside-mac.ngrok-free.dev',
+    'https://example-mac.ngrok-free.dev',
     'https://example.com:8443',
     'https://a-b.c9-d.example.co.uk',
   ])('accepts %s', (value) => {
@@ -74,8 +74,8 @@ describe('isPublicOrigin', () => {
 describe('toPublicOrigin', () => {
   it('normalizes scheme and trailing slashes away', () => {
     expect(toPublicOrigin('https://mac.tailnet.ts.net/')).toBe('https://mac.tailnet.ts.net');
-    expect(toPublicOrigin('http://aside-mac.ngrok-free.dev//')).toBe(
-      'https://aside-mac.ngrok-free.dev',
+    expect(toPublicOrigin('http://example-mac.ngrok-free.dev//')).toBe(
+      'https://example-mac.ngrok-free.dev',
     );
     expect(toPublicOrigin('mac.tailnet.ts.net')).toBe('https://mac.tailnet.ts.net');
   });
@@ -91,19 +91,19 @@ describe('toPublicOrigin', () => {
 describe('relay registry', () => {
   it('orders funnel before ngrok and skips relays without a URL', () => {
     const registry = createRelayRegistry();
-    registry.register(stubHandle('ngrok', 'https://aside-mac.ngrok-free.dev'));
+    registry.register(stubHandle('ngrok', 'https://example-mac.ngrok-free.dev'));
     registry.register(stubHandle('funnel', null));
     expect(registry.orderedUrls()).toEqual([
-      { kind: 'ngrok', url: 'https://aside-mac.ngrok-free.dev' },
+      { kind: 'ngrok', url: 'https://example-mac.ngrok-free.dev' },
     ]);
     expect(registry.primary()).toEqual({
       kind: 'ngrok',
-      url: 'https://aside-mac.ngrok-free.dev',
+      url: 'https://example-mac.ngrok-free.dev',
     });
     registry.register(stubHandle('funnel', 'https://mac.tailnet.ts.net'));
     expect(registry.orderedUrls()).toEqual([
       { kind: 'funnel', url: 'https://mac.tailnet.ts.net' },
-      { kind: 'ngrok', url: 'https://aside-mac.ngrok-free.dev' },
+      { kind: 'ngrok', url: 'https://example-mac.ngrok-free.dev' },
     ]);
     expect(registry.primary()).toEqual({
       kind: 'funnel',
@@ -138,11 +138,11 @@ describe('relay registry', () => {
   it('waitForUrl resolves when a relay verifies mid-wait, else null', async () => {
     const registry = createRelayRegistry();
     setTimeout(() => {
-      registry.register(stubHandle('ngrok', 'https://aside-mac.ngrok-free.dev'));
+      registry.register(stubHandle('ngrok', 'https://example-mac.ngrok-free.dev'));
     }, 300);
     await expect(registry.waitForUrl(2000)).resolves.toEqual({
       kind: 'ngrok',
-      url: 'https://aside-mac.ngrok-free.dev',
+      url: 'https://example-mac.ngrok-free.dev',
     });
     const empty = createRelayRegistry();
     await expect(empty.waitForUrl(300)).resolves.toBeNull();
@@ -267,6 +267,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: '/nonexistent/tailscale',
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         exec: async () => {
           throw new Error('must not run');
@@ -283,6 +284,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 60_000,
         verifyEndpoint: passingProbe,
@@ -313,6 +315,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 60_000,
         verifyEndpoint: passingProbe,
@@ -338,6 +341,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => null,
         checkIntervalMs: 60_000,
         verifyEndpoint: async () => {
@@ -366,6 +370,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => dns,
         checkIntervalMs: 60_000,
         verifyEndpoint: passingProbe,
@@ -391,6 +396,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 60_000,
         exec: async (_binary, args) => {
@@ -426,6 +432,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 60_000,
         verifyEndpoint: async (): Promise<PublicProbeResult> => ({
@@ -456,6 +463,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 60_000,
         verifyEndpoint: async () => {
@@ -483,6 +491,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 20,
         verifyEndpoint: async (): Promise<PublicProbeResult> => ({
@@ -522,6 +531,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 20,
         verifyEndpoint: async (): Promise<PublicProbeResult> => ({
@@ -556,6 +566,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 20,
         verifyEndpoint: async (): Promise<PublicProbeResult> => {
@@ -589,6 +600,7 @@ describe('funnel supervisor', () => {
       await startFunnel({
         port: 8790,
         tailscaleCli: process.execPath,
+        hostDiscovery: false,
         readTailnetHost: () => 'mac.tailnet.ts.net',
         checkIntervalMs: 60_000,
         verifyEndpoint: async (): Promise<PublicProbeResult> => ({
@@ -631,15 +643,15 @@ describe('ngrok agent parsing', () => {
   it('picks the https public URL', () => {
     expect(
       publicUrlFromAgentApi({
-        tunnels: [{ public_url: 'https://aside-mac.ngrok-free.dev', proto: 'https' }],
+        tunnels: [{ public_url: 'https://example-mac.ngrok-free.dev', proto: 'https' }],
       }),
-    ).toBe('https://aside-mac.ngrok-free.dev');
+    ).toBe('https://example-mac.ngrok-free.dev');
   });
 
   it('ignores non-https and malformed entries', () => {
     expect(
       publicUrlFromAgentApi({
-        tunnels: [{ public_url: 'http://aside-mac.ngrok-free.dev' }, { nope: true }],
+        tunnels: [{ public_url: 'http://example-mac.ngrok-free.dev' }, { nope: true }],
       }),
     ).toBeNull();
   });
@@ -652,11 +664,11 @@ describe('ngrok agent parsing', () => {
   );
 
   it('pins the static domain and the loopback target', () => {
-    expect(ngrokArgs(8790, 'https://aside-mac.ngrok-free.dev/')).toEqual([
+    expect(ngrokArgs(8790, 'https://example-mac.ngrok-free.dev/')).toEqual([
       'http',
       'http://127.0.0.1:8790',
       '--url',
-      'aside-mac.ngrok-free.dev',
+      'example-mac.ngrok-free.dev',
     ]);
   });
 
@@ -734,7 +746,7 @@ describe('ngrok supervisor', () => {
   it('stays disabled without an authtoken, and says which knob is missing', async () => {
     const handle = await startNgrok({
       port: 8790,
-      domain: 'aside-mac.ngrok-free.dev',
+      domain: 'example-mac.ngrok-free.dev',
       authtoken: '   ',
       spawnChild: () => {
         throw new Error('must not spawn');
@@ -751,7 +763,7 @@ describe('ngrok supervisor', () => {
     const handle = track(
       await startNgrok({
         port: 8790,
-        domain: 'aside-mac.ngrok-free.dev',
+        domain: 'example-mac.ngrok-free.dev',
         authtoken: 'sekret-token',
         checkIntervalMs: 60_000,
         spawnChild: (bin, args, env) => {
@@ -763,7 +775,7 @@ describe('ngrok supervisor', () => {
           return child as never;
         },
         readAgentApi: async () => ({
-          tunnels: [{ public_url: 'https://aside-mac.ngrok-free.dev' }],
+          tunnels: [{ public_url: 'https://example-mac.ngrok-free.dev' }],
         }),
       }),
     );
@@ -772,11 +784,11 @@ describe('ngrok supervisor', () => {
       'http',
       'http://127.0.0.1:8790',
       '--url',
-      'aside-mac.ngrok-free.dev',
+      'example-mac.ngrok-free.dev',
     ]);
     expect(handle.snapshot()).toMatchObject({
       kind: 'ngrok',
-      url: 'https://aside-mac.ngrok-free.dev',
+      url: 'https://example-mac.ngrok-free.dev',
       healthy: true,
     });
   });
@@ -786,7 +798,7 @@ describe('ngrok supervisor', () => {
     const handle = track(
       await startNgrok({
         port: 8790,
-        domain: 'aside-mac.ngrok-free.dev',
+        domain: 'example-mac.ngrok-free.dev',
         authtoken: 'sekret-token',
         checkIntervalMs: 60_000,
         startupTimeoutMs: 1200,
@@ -809,7 +821,7 @@ describe('ngrok supervisor', () => {
     const handle = track(
       await startNgrok({
         port: 8790,
-        domain: 'aside-mac.ngrok-free.dev',
+        domain: 'example-mac.ngrok-free.dev',
         authtoken: 'sekret-token',
         checkIntervalMs: 60_000,
         spawnChild: () => {

@@ -2,7 +2,7 @@
 
 Follow this checklist in order and verify each success condition.
 
-Ask the user only for actions an agent cannot complete safely: signing in to Aside or Tailscale, entering an administrator password, handling the phone, or approving a security-relevant change.
+Ask the user only for actions an agent cannot complete safely: signing in to Aside, Cloudflare, or Tailscale, entering an administrator password, handling the phone, or approving a security-relevant change.
 
 Do not expose the default pairing port `8791`, copy credentials into the repository, disable device security, or publish an APK.
 
@@ -11,8 +11,8 @@ Do not expose the default pairing port `8791`, copy credentials into the reposit
 The setup is complete when:
 
 - `npm run doctor` exits with no failures.
-- The Mac answers `/api/health` locally and `/app` over Tailscale HTTPS.
-- Tailscale Serve proxies the default app port `8790` only.
+- The Mac answers `/api/health` locally and `/app` over the chosen front door (Cloudflare Worker or Tailscale HTTPS).
+- If Tailscale is used, Tailscale Serve proxies the default app port `8790` only.
 - The phone opens the session list and receives a reply.
 - A fresh pairing link is spent once and cannot be replayed.
 
@@ -44,7 +44,20 @@ This uses `npm ci`, builds both workspaces, and runs the doctor.
 
 Do not work around a failed install by recursively removing quarantine flags. Report the exact failure and use the package manager's documented recovery path.
 
-## 3. Configure Tailscale
+## 3a. Permanent address (default choice)
+
+Use this unless the user asks for Tailscale. It needs no app on the phone and works behind VPNs and restrictive Wi-Fi.
+
+```bash
+cd ~/aside-liquid-glass/miniapp
+npm run frontdoor
+```
+
+The user must complete the Cloudflare browser sign-in once. The script deploys the Worker, installs `com.aside.mobile` and `com.aside.frontdoor` as login services, and prints the phone address.
+
+**Check:** `curl -s https://<printed-address>/api/health` returns `"ok":true`, and `~/Library/Logs/com.aside.frontdoor.log` shows `published=200`. Then skip to step 5.
+
+## 3. Configure Tailscale (alternative)
 
 ```bash
 brew install --cask tailscale

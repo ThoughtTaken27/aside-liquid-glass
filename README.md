@@ -2,13 +2,18 @@
 
 Use your Mac's [Aside](https://aside.so) agent from a phone, wrapped in a liquid-glass chat UI.
 
-Aside Liquid Glass provides chat, live browser viewing, local browser-history search, voice input, file uploads, and completion notifications through a private Tailscale connection.
+Aside Liquid Glass provides chat, live browser viewing, local browser-history search, voice input, file uploads, and completion notifications.
+
+The phone reaches the Mac one of two ways:
+
+- **Permanent address (recommended):** a free Cloudflare front door. One command, no app on the phone, works on school/work Wi-Fi and with VPNs on either device. See [Permanent address](#permanent-address-recommended).
+- **Tailscale:** private tailnet only. Both devices need Tailscale. See [Connect through Tailscale](#connect-through-tailscale).
 
 Android can run as a native Capacitor app with an embedded GeckoView browser; iPhone and Android can also install the same interface as a home-screen web app.
 
 ## Security model
 
-- The app server binds to `127.0.0.1`; Tailscale Serve is the only remote entry point.
+- The app server binds to `127.0.0.1`; the only remote entry point is the front door you choose (Cloudflare or Tailscale Serve). No port is opened on the Mac.
 - The pairing page uses a separate loopback-only listener on the default pairing port `8791` and must never be proxied.
 - Pairing codes are random, single-use, expire after ten minutes, and are never embedded in an APK.
 - Session credentials travel in an HttpOnly cookie, an Authorization header, or the WebSocket's first auth frame, never in resource or WebSocket URLs.
@@ -24,7 +29,8 @@ See [Security](#security) before exposing the service beyond a personal tailnet.
 - macOS with Aside installed and signed in
 - Node.js **22.5 or newer**
 - Git
-- Tailscale, signed in to the same tailnet as the phone
+- For the permanent address: a free Cloudflare account (no domain or card needed)
+- Or, for the Tailscale option: Tailscale, signed in to the same tailnet as the phone
 
 Install Homebrew from its [official instructions](https://brew.sh/) if needed, then install Node:
 
@@ -35,8 +41,8 @@ node --version
 
 **Phone**
 
-- Tailscale connected to the same account
 - Android 8.0+ or iOS 16.4+
+- Tailscale only if you choose the Tailscale option
 
 The Android APK additionally needs JDK 21 and Android SDK 36; the web app does not.
 
@@ -52,7 +58,54 @@ npm run setup
 
 Runtime and Tailscale warnings are expected until the next steps are complete; dependency, build, and configuration failures are not.
 
+## Permanent address (recommended)
+
+```bash
+cd ~/aside-liquid-glass/miniapp
+npm run frontdoor
+```
+
+That one command:
+
+1. Installs `cloudflared` with Homebrew if it is missing.
+2. Opens a browser once so you can sign in to (or create) a free Cloudflare account.
+3. Deploys a small Worker to `https://aside-frontdoor.<your-subdomain>.workers.dev`. This URL never changes.
+4. Starts the app server and a tunnel supervisor as login services, so both come back after a crash or reboot.
+5. Prints your phone address when it answers.
+
+Then [pair a phone](#pair-a-phone) and add the page to your home screen.
+
+**How it works**
+
+```text
+phone ──https──> aside-frontdoor.<you>.workers.dev   (Cloudflare Worker, fixed)
+                        │  forwards to
+                        ▼
+                 Cloudflare quick tunnel             (free, address rotates)
+                        │  outbound-only from the Mac
+                        ▼
+                 this Mac, 127.0.0.1:8790
+```
+
+- The supervisor (`com.aside.frontdoor`) keeps the tunnel up and tells the Worker its current address, signed with a random secret stored in `~/.aside-mobile/front-door/secret` (mode 600).
+- When the Mac's network changes (VPN on/off, new Wi-Fi, wake from sleep), it builds a new tunnel, checks it, switches the Worker over, and only then drops the old one. Expect about 20-30 seconds of "Mac offline" at worst.
+- Every 5 minutes it re-checks that the app server is still pointed at the front door and repairs the launchd job if something rewrote it.
+- The Worker adds no trust: pairing and sessions are enforced by the Mac. A stranger who finds the URL sees only the pairing screen.
+
+**Notes**
+
+- Pick a different Worker name with `FRONTDOOR_NAME=my-aside npm run frontdoor`.
+- If deploy complains about a workers.dev subdomain, open Cloudflare's dashboard > **Workers & Pages** once to claim one, then rerun.
+- If the Mac sleeps, the phone shows "Mac offline" until it wakes.
+- Cloudflare describes quick tunnels as intended for testing. If they ever stop working for you, switch to a named tunnel on your own domain (`MINIAPP_TUNNEL_NAME`, see `server/src/config.ts`).
+- Logs: `~/Library/Logs/com.aside.frontdoor.log` and `~/Library/Logs/com.aside.mobile.log`.
+- Remove: `npm run frontdoor -- off`, then `npm run launchd` to restore default tunnel settings.
+
+Per-machine extras: an executable `~/.aside-mobile/front-door/local-guard` runs after the built-in check with the same exit codes (0 fine, 10 restart server, 11 reload job), for pins that are specific to your Mac.
+
 ## Connect through Tailscale
+
+Skip this section if you set up the permanent address.
 
 Install and open Tailscale on the Mac and phone:
 
@@ -196,6 +249,7 @@ GitHub Actions runs install, typecheck, tests, and builds on Node 22 and 24.
 AGENTS.md                 agent-oriented setup procedure
 build-android.sh          local Android build and archive
 miniapp/
+  frontdoor/               permanent address: Worker, tunnel supervisor, installer
   scripts/                doctor and launchd installer
   server/                 Fastify API and loopback pairing listener
   web/                    React/Vite UI and Capacitor Android project
@@ -255,6 +309,8 @@ No Anthropic credential belongs in this repository; the server talks to the auth
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
+| Phone shows "Mac offline" | Mac asleep, or the tunnel is switching after a network change | Wake the Mac; otherwise wait 30 seconds and check `~/Library/Logs/com.aside.frontdoor.log` |
+| Page hangs on the phone but works on other devices | Browser kept a dead connection from an earlier failure | Clear site data for the address (or try a private tab), then reopen |
 | Pair page says Tailscale is not ready | Tailscale CLI cannot report a MagicDNS name | Start/sign in to Tailscale or set `ASIDE_TAILNET_HOST`, then restart |
 | Pairing rejected | Link expired or was already spent | Reload the Mac pairing page and use the new link within ten minutes |
 | Phone cannot reach the Mac | Mac asleep, server stopped, or Tailscale disconnected | Wake the Mac, start the server, and check `tailscale serve status` |

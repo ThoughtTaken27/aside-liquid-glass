@@ -102,11 +102,11 @@ describe('resolveStandaloneAuth with a pairing key', () => {
     window.location.hash = `#pair=${CODE}`;
     stubFetch((url) =>
       url.endsWith('/api/pair')
-        ? json(200, { token: 'fresh-token', name: 'Parth', expiresIn: 7776000 })
+        ? json(200, { token: 'fresh-token', name: 'Owner', expiresIn: 7776000 })
         : json(404, {}),
     );
     const result = await resolveStandaloneAuth();
-    expect(result).toEqual({ ok: true, token: 'fresh-token', paired: true, name: 'Parth' });
+    expect(result).toEqual({ ok: true, token: 'fresh-token', paired: true, name: 'Owner' });
     expect(localStorage.getItem('aside.standalone.token')).toBe('fresh-token');
     expect(window.location.hash).toBe('');
   });
@@ -117,6 +117,31 @@ describe('resolveStandaloneAuth with a pairing key', () => {
     const result = await resolveStandaloneAuth();
     expect(result).toEqual({ ok: false, reason: 'pair_rejected' });
     expect(window.location.hash).toBe('');
+  });
+
+  it('re-opening an already-spent link on a paired phone just signs in', async () => {
+    const held = tokenWithExpiry(3600);
+    localStorage.setItem('aside.standalone.token', held);
+    window.location.hash = `#pair=${CODE}`;
+    stubFetch((url) =>
+      url.includes('/api/pair')
+        ? json(401, { error: 'pair_failed' })
+        : json(200, { token: held }),
+    );
+    const result = await resolveStandaloneAuth();
+    expect(result).toMatchObject({ ok: true, token: held, paired: false });
+    expect(window.location.hash).toBe('');
+  });
+
+  it('a spent link with only the session cookie left recovers via /api/session', async () => {
+    window.location.hash = `#pair=${CODE}`;
+    stubFetch((url) =>
+      url.includes('/api/pair')
+        ? json(401, { error: 'pair_failed' })
+        : json(200, { token: 'cookie-token', name: 'Owner' }),
+    );
+    const result = await resolveStandaloneAuth();
+    expect(result).toMatchObject({ ok: true, token: 'cookie-token', paired: false });
   });
 
   it('maps a dead fetch to unreachable when the phone is online', async () => {

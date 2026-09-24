@@ -18,7 +18,8 @@
     "initdata": "node scripts/dev-initdata.mjs",
     "setup": "npm ci && npm run build && npm run doctor -- --setup",
     "doctor": "node scripts/doctor.mjs",
-    "launchd": "node scripts/install-launchd.mjs"
+    "launchd": "node scripts/install-launchd.mjs",
+    "frontdoor": "bash frontdoor/install.sh"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

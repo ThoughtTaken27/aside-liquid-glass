@@ -2469,8 +2469,19 @@ export async function buildServer(
     // whole boot. The peek serves the last value and refreshes behind the
     // response, so the daemon's answer is still what shows -- one request
     // later at worst.
-    const daemonDefault = peekDefaultModel(facade);
+    //
+    // Disk FIRST since 2026-09-23. settings.json is rewritten the moment the
+    // owner changes model or thinking level on the Mac, so reading it per
+    // request makes the phone follow within one 8s poll, while the peek
+    // could lag up to 30s behind. The peek also spawned a ~139MB helper
+    // every 30s while the phone was open, which on an 8GB Mac in swap was
+    // itself a source of stalls. The daemon is now asked only when the
+    // disk copy has no default at all.
     const desktop = readDesktopState(config.sessionsDir);
+    const diskDefault = desktop.defaultModel?.provider && desktop.defaultModel?.modelId
+      ? desktop.defaultModel
+      : null;
+    const daemonDefault = diskDefault ?? peekDefaultModel(facade);
     const fallback = desktop.defaultModel;
 
     /*

@@ -72,6 +72,12 @@ export interface FunnelOptions {
    * the phone's path to the advertised origin; tests inject a verdict.
    */
   verifyEndpoint?: (origin: string) => Promise<PublicProbeResult>;
+  /**
+   * Set false to use ONLY `tailscaleCli`, with no auto-discovered binaries
+   * or daemon sockets. Tests use this so the Tailscale install on the
+   * machine running them cannot change what they observe.
+   */
+  hostDiscovery?: boolean;
 }
 
 interface CliAttempt {
@@ -267,7 +273,11 @@ export async function startFunnel(opts: FunnelOptions): Promise<FunnelHandle> {
   const readDns = opts.readTailnetHost ?? tailnetHost;
   const intervalMs = opts.checkIntervalMs ?? CHECK_INTERVAL_MS;
 
-  const attempts = tailscaleAttempts(opts.tailscaleCli);
+  const attempts = opts.hostDiscovery === false
+    ? (opts.tailscaleCli && fs.existsSync(opts.tailscaleCli)
+        ? [{ binary: opts.tailscaleCli, socketArgs: [] }]
+        : [])
+    : tailscaleAttempts(opts.tailscaleCli);
   if (attempts.length === 0) {
     return disabledFunnel(
       'Tailscale CLI not found (TAILSCALE_CLI, the macOS app, or Homebrew)',

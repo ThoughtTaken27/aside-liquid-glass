@@ -224,10 +224,25 @@ export async function resolveStandaloneAuth(): Promise<StandaloneAuth> {
         // is down and the message below is honest.
         await failoverToHealthyRelay().catch(() => false);
       }
-      // A 401 is a wrong key. Anything else means the Mac did not answer,
-      // which is a different problem with a different fix, so it gets a
-      // different message rather than "pairing failed".
-      return { ok: false, reason: status === 401 ? 'pair_rejected' : 'unreachable' };
+      // A 401 is a wrong or already-spent key. The commonest case is simply
+      // re-opening the link that already paired this phone, so fall back to
+      // the credential this device already holds before calling it rejected.
+      if (status === 401) {
+        const held = readStoredToken();
+        if (held && secondsLeft(held) > 60) {
+          void recoverSession().catch(() => undefined);
+          return { ok: true, token: held, paired: false, name: readStoredName() };
+        }
+        try {
+          const res = await recoverSession();
+          return { ok: true, token: res.token, paired: false, name: res.name };
+        } catch {
+          return { ok: false, reason: 'pair_rejected' };
+        }
+      }
+      // Anything else means the Mac did not answer, which is a different
+      // problem with a different fix, so it gets a different message.
+      return { ok: false, reason: 'unreachable' };
     }
   }
 

@@ -43,3 +43,23 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
   configurable: true,
   value: () => canvasContext,
 });
+
+// Node 25+ ships its own `localStorage`/`sessionStorage` globals. Without
+// `--localstorage-file` they are undefined, and because they already exist on
+// the global object the jsdom environment does not replace them. Point both
+// back at jsdom's real Storage so tests behave the same on every Node version.
+const jsdomWindow = (globalThis as { jsdom?: { window: Window } }).jsdom?.window;
+for (const name of ['localStorage', 'sessionStorage'] as const) {
+  let current: Storage | undefined;
+  try {
+    current = (globalThis as Record<string, unknown>)[name] as Storage | undefined;
+  } catch {
+    current = undefined;
+  }
+  if (!current && jsdomWindow) {
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      get: () => jsdomWindow[name],
+    });
+  }
+}
