@@ -64,24 +64,55 @@ export interface Recording {
 }
 
 export interface RecorderHandle {
-  /** Resolves once the final chunk has been flushed. */
+  /**
+   * Finish the take. Resolves once the final chunk has been flushed.
+   *
+   * Keeps listening for a short tail first: people tap "done" on the last
+   * syllable, and a clip cut mid-word is exactly where Whisper drops or
+   * mangles the final word.
+   */
   stop(): Promise<Recording>;
   /** Abandon the take and release the mic without producing a blob. */
   cancel(): void;
-  /** Current input level, 0..1, for the waveform. */
+  /** Current input level, 0..1, for the waveform and the glow. */
   level(): number;
-  /**
-   * The live mic stream, for the voice glow.
-   *
-   * The glow analyses it (level plus low/mid/high bands) and never
-   * retains it: its track stops with the recording, and handing the
-   * stream to a second analyser does not disturb the MediaRecorder.
-   */
-  stream: MediaStream;
+  /** Called once if the mic dies on its own (another app took it, etc.). */
+  onEnded(listener: () => void): void;
+}
+
+/** Recording continues this long after "stop" so the last word survives. */
+export const STOP_TAIL_MS = 180;
+/** If the recorder never reports that it stopped, stop waiting after this. */
+const STOP_GRACE_MS = 2_500;
+
+/**
+ * An AudioContext created inside the tap itself.
+ *
+ * Mobile Chrome starts a context "suspended" unless it is made during a user
+ * gesture, and a suspended context meters permanent silence. By the time
+ * getUserMedia resolves (after a permission prompt, say) the gesture is
+ * gone, so the context is made first, synchronously, and the stream is
+ * attached to it later.
+ */
+function makeMeterContext(): AudioContext | null {
+  try {
+    const Ctor =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return null;
+    const ctx = new Ctor();
+    void ctx.resume?.().catch(() => {});
+    return ctx;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Start recording.
+ *
+ * Call this synchronously from the tap handler (the first await inside it
+ * is the permission prompt), so the meter context counts as user-initiated.
  *
  * Throws a typed `VoiceError` rather than the browser's raw DOMException so
  * the UI can say something useful. "Permission denied" and "no microphone
@@ -93,9 +124,16 @@ export async function startRecording(): Promise<RecorderHandle> {
     // getUserMedia is gated on a secure context. Over plain http on a LAN
     // address the API is simply absent, which is worth distinguishing from
     // an old browser because the fix is "use the https address".
-    if (!window.isSecureContext) throw new VoiceError('insecure_context');
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      throw new VoiceError('insecure_context');
+    }
     throw new VoiceError('unsupported');
   }
+
+  const audioCtx = makeMeterContext();
+  const closeCtx = () => {
+    audioCtx?.close().catch(() => {});
+  };
 
   let stream: MediaStream;
   try {
@@ -111,11 +149,16 @@ export async function startRecording(): Promise<RecorderHandle> {
       },
     });
   } catch (err) {
+    closeCtx();
     const name = (err as DOMException)?.name;
     if (name === 'NotAllowedError' || name === 'SecurityError') {
       throw new VoiceError('permission_denied');
     }
     if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      throw new VoiceError('no_microphone');
+    }
+    if (name === 'NotReadableError' || name === 'AbortError') {
+      // Android: another app (a call, the recorder, an assistant) holds it.
       throw new VoiceError('no_microphone');
     }
     throw new VoiceError('failed', String((err as Error)?.message || err));
@@ -124,9 +167,15 @@ export async function startRecording(): Promise<RecorderHandle> {
   const mimeType = pickMimeType();
   let recorder: MediaRecorder;
   try {
-    recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    recorder = new MediaRecorder(stream, {
+      ...(mimeType ? { mimeType } : {}),
+      // Speech, mono. Plenty for Whisper, and a small upload over a phone
+      // connection is most of what "fast" means after you let go.
+      audioBitsPerSecond: 48_000,
+    });
   } catch {
     stream.getTracks().forEach((t) => t.stop());
+    closeCtx();
     throw new VoiceError('unsupported');
   }
 
@@ -135,27 +184,22 @@ export async function startRecording(): Promise<RecorderHandle> {
     if (event.data && event.data.size > 0) chunks.push(event.data);
   };
 
-  // Level metering. Wrapped in try/catch because an AudioContext is a real
-  // resource that can fail to allocate, and losing the waveform is not a
-  // reason to lose the recording.
-  let audioCtx: AudioContext | null = null;
+  // Level metering. Losing the waveform is never a reason to lose the take.
   let analyser: AnalyserNode | null = null;
   let buffer: Uint8Array<ArrayBuffer> | null = null;
-  try {
-    const Ctor =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext;
-    audioCtx = new Ctor();
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.6;
-    audioCtx.createMediaStreamSource(stream).connect(analyser);
-    // Backed by an explicit ArrayBuffer: getByteFrequencyData's signature
-    // rejects the SharedArrayBuffer-capable default under strict lib types.
-    buffer = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
-  } catch {
-    analyser = null;
+  if (audioCtx) {
+    try {
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.6;
+      audioCtx.createMediaStreamSource(stream).connect(analyser);
+      // Backed by an explicit ArrayBuffer: getByteFrequencyData's signature
+      // rejects the SharedArrayBuffer-capable default under strict lib types.
+      buffer = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+      if (audioCtx.state === 'suspended') void audioCtx.resume().catch(() => {});
+    } catch {
+      analyser = null;
+    }
   }
 
   const startedAt = Date.now();
@@ -163,13 +207,23 @@ export async function startRecording(): Promise<RecorderHandle> {
   // enough that the chunk list stays short for a message-length recording.
   recorder.start(250);
 
+  let released = false;
   const teardown = () => {
+    if (released) return;
+    released = true;
     stream.getTracks().forEach((t) => t.stop());
-    audioCtx?.close().catch(() => {});
+    closeCtx();
   };
 
+  const ended: Array<() => void> = [];
+  for (const track of stream.getAudioTracks()) {
+    track.addEventListener('ended', () => {
+      if (released) return;
+      ended.splice(0).forEach((fn) => fn());
+    });
+  }
+
   return {
-    stream,
     level() {
       if (!analyser || !buffer) return 0;
       analyser.getByteFrequencyData(buffer);
@@ -180,7 +234,13 @@ export async function startRecording(): Promise<RecorderHandle> {
       return Math.min(1, (sum / buffer.length / 255) ** 0.6 * 1.8);
     },
 
+    onEnded(listener) {
+      ended.push(listener);
+    },
+
     cancel() {
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
       try {
         if (recorder.state !== 'inactive') recorder.stop();
       } catch {
@@ -192,28 +252,40 @@ export async function startRecording(): Promise<RecorderHandle> {
 
     stop() {
       return new Promise<Recording>((resolve, reject) => {
-        if (recorder.state === 'inactive') {
-          teardown();
-          reject(new VoiceError('failed', 'recorder already stopped'));
-          return;
-        }
-        recorder.onstop = () => {
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(grace);
           teardown();
           resolve({
-            blob: new Blob(chunks, { type: mimeType || 'audio/webm' }),
+            blob: new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' }),
             ms: Date.now() - startedAt,
           });
         };
+        // Some Android builds never fire `stop` when the track died first.
+        // Whatever was captured is still worth transcribing.
+        const grace = window.setTimeout(done, STOP_TAIL_MS + STOP_GRACE_MS);
+        if (recorder.state === 'inactive') {
+          done();
+          return;
+        }
+        recorder.onstop = done;
         recorder.onerror = () => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(grace);
           teardown();
           reject(new VoiceError('failed', 'recorder error'));
         };
-        try {
-          recorder.stop();
-        } catch (err) {
-          teardown();
-          reject(new VoiceError('failed', String(err)));
-        }
+        window.setTimeout(() => {
+          try {
+            if (recorder.state !== 'inactive') recorder.stop();
+            else done();
+          } catch {
+            done();
+          }
+        }, STOP_TAIL_MS);
       });
     },
   };
@@ -235,5 +307,8 @@ export function voiceErrorMessage(code: VoiceFailure): string {
   }
 }
 
-/** Below this, the user tapped rather than held. Not a recording. */
-export const MIN_RECORDING_MS = 350;
+/** Shorter than this is a slip, not a message. */
+export const MIN_RECORDING_MS = 400;
+
+/** A take stops itself here: a forgotten recorder should not run all day. */
+export const MAX_RECORDING_MS = 3 * 60_000;

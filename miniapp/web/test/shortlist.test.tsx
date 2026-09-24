@@ -113,39 +113,18 @@ describe('activity island', () => {
     tokens: 500,
   };
 
-  it('expands on tap and stops from the expanded state', async () => {
+  it('expands on tap to show the thinking summary, with no second stop button', async () => {
     const { ActivityIsland } = await import(
       '../src/components/ActivityIsland'
     );
-    const onStop = vi.fn();
-    render(
-      <ActivityIsland
-        activity={activity}
-        stoppable
-        stopping={false}
-        onStop={onStop}
-      />,
-    );
-    expect(screen.queryByRole('button', { name: 'Stop this turn' })).toBeNull();
+    const { container } = render(<ActivityIsland activity={activity} />);
+    expect(container.querySelector('.activity-island-heading')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Expand turn status' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Stop this turn' }));
-    expect(onStop).toHaveBeenCalledTimes(1);
-  });
-
-  it('hides the stop when this server does not own the turn', async () => {
-    const { ActivityIsland } = await import(
-      '../src/components/ActivityIsland'
-    );
-    render(
-      <ActivityIsland
-        activity={activity}
-        stoppable={false}
-        stopping={false}
-        onStop={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Expand turn status' }));
-    expect(screen.queryByRole('button', { name: 'Stop this turn' })).toBeNull();
+    expect(container.querySelector('.activity-island-heading')?.textContent).toBeTruthy();
+    // The composer's stop sits right under the island; it is the only one.
+    expect(screen.queryByRole('button', { name: /stop/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse turn status' }));
+    expect(container.querySelector('.activity-island-heading')).toBeNull();
   });
 });
 

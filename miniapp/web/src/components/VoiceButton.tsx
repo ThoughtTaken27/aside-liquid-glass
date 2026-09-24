@@ -1,21 +1,35 @@
 /**
- * Push-to-talk for the composer.
+ * Dictation for the composer.
  *
- * Hold the button, speak, let go. The clip goes to the Mac, a local Whisper
- * decodes it, and the text is appended to whatever is already in the box
- * rather than replacing it, so dictation composes with typing instead of
- * fighting it.
+ * Two ways to use one button, because people do both without thinking:
  *
- * Hold rather than tap-to-toggle: the failure mode of a toggle is a recorder
- * you forgot to stop, which on a phone in a pocket is a long silent clip and
- * a confusing wait. Holding makes the end of the recording physical. A tap
- * shorter than MIN_RECORDING_MS is treated as a mis-tap and discarded
- * silently rather than sent off to be transcribed as nothing.
+ *  - Tap to start, tap again to finish.
+ *  - Press and hold, speak, let go (walkie-talkie).
+ *
+ * The press that started the take decides which: released within HOLD_MS of
+ * the mic actually opening, it was a tap and the take keeps running; held
+ * past that, letting go finishes it. A separate cancel control, Escape, or a
+ * tap during transcription throws the take away. Nothing here can leave the
+ * button in a state where the next tap is ignored.
+ *
+ * State lives in refs, not in effect dependencies. The previous version tore
+ * the recorder down from an unmount effect that depended on an inline
+ * callback, so the composer's own re-render (triggered by reporting the
+ * stream) "unmounted" it: the mic was released, the button stayed in
+ * "recording", and every later tap was ignored.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { api } from '../api';
 import { haptic } from '../telegram';
 import {
+  MAX_RECORDING_MS,
   MIN_RECORDING_MS,
   type RecorderHandle,
   VoiceError,
@@ -24,196 +38,368 @@ import {
   voiceErrorMessage,
 } from '../voice';
 
+/** A voice level source for the composer glow; sampled per frame. */
+export type VoiceLevel = () => number;
+
 interface VoiceButtonProps {
   /** Append transcribed text to the composer. */
   onTranscript: (text: string) => void;
   disabled?: boolean;
   /** Surfaced by the composer as a one-line hint under the input. */
-  onError?: (message: string) => void;
+  onError?: (message: string | null) => void;
   /**
-   * Recording state for the voice glow.
-   *
-   * The stream is live only between begin and stop; `busy` covers the
-   * transcription after it, while the glow holds its processing beam.
-   * Both go quiet together when the take resolves for any reason.
+   * Recording state for the voice glow: a level getter while listening,
+   * `busy` while transcribing, both quiet when the take resolves.
    */
-  onVoiceActivity?: (stream: MediaStream | null, busy: boolean) => void;
+  onVoiceActivity?: (level: VoiceLevel | null, busy: boolean) => void;
 }
 
-type Phase = 'idle' | 'recording' | 'transcribing';
+export type VoicePhase = 'idle' | 'starting' | 'recording' | 'transcribing';
 
+/** A press this long after the mic opened is a hold, not a tap. */
+export const HOLD_MS = 450;
+/** Give up on the Mac after this, plus a little per second of audio. */
+const TRANSCRIBE_TIMEOUT_MS = 25_000;
 const BAR_COUNT = 5;
+/** ~30 fps is plenty for five bars and half the work of 60. */
+const METER_INTERVAL_MS = 33;
 
-export function VoiceButton({
-  onTranscript,
-  disabled,
-  onError,
-  onVoiceActivity,
-}: VoiceButtonProps) {
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [levels, setLevels] = useState<number[]>(() => new Array(BAR_COUNT).fill(0.15));
+export function VoiceButton({ onTranscript, disabled, onError, onVoiceActivity }: VoiceButtonProps) {
+  const [phase, setPhaseState] = useState<VoicePhase>('idle');
+  const phaseRef = useRef<VoicePhase>('idle');
   const handle = useRef<RecorderHandle | null>(null);
-  const frame = useRef<number>(0);
+  /** Bumped on every start and cancel; stale async work checks it and bails. */
+  const take = useRef(0);
+  const openedAt = useRef(0);
+  const press = useRef<{ at: number; kind: 'start' | 'stop' | 'cancel' } | null>(null);
+  const stopQueued = useRef(false);
+  const abort = useRef<AbortController | null>(null);
+  const maxTimer = useRef(0);
+  const meterFrame = useRef(0);
+  const bars = useRef<Array<HTMLSpanElement | null>>([]);
+  const history = useRef<number[]>(new Array(BAR_COUNT).fill(0.15));
+
+  // Latest callbacks, read at call time. Never effect dependencies.
+  const cb = useRef({ onTranscript, onError, onVoiceActivity });
+  cb.current = { onTranscript, onError, onVoiceActivity };
+
   const supported = isVoiceSupported();
 
-  // A recorder outliving its component would hold the mic open, which on
-  // Android shows a permanent recording indicator in the status bar.
-  // The glow is stood down with it: it analyses a dead stream as
-  // silence, but there is no reason to leave it holding one.
-  useEffect(
-    () => () => {
-      cancelAnimationFrame(frame.current);
-      handle.current?.cancel();
-      handle.current = null;
-      onVoiceActivity?.(null, false);
-    },
-    [onVoiceActivity],
-  );
-
-  const pump = useCallback(() => {
-    const h = handle.current;
-    if (!h) return;
-    const value = h.level();
-    setLevels((prev) => {
-      const next = prev.slice(1);
-      next.push(Math.max(0.12, value));
-      return next;
-    });
-    frame.current = requestAnimationFrame(pump);
+  const setPhase = useCallback((next: VoicePhase) => {
+    phaseRef.current = next;
+    setPhaseState(next);
   }, []);
 
-  const begin = useCallback(async () => {
-    if (phase !== 'idle' || disabled || !supported) return;
-    // Before the mic even opens: the model load and the recording then run
-    // concurrently instead of one after the other.
-    api.warmTranscriber();
-    try {
-      handle.current = await startRecording();
-      onVoiceActivity?.(handle.current.stream, false);
-      setPhase('recording');
-      haptic('medium');
-      frame.current = requestAnimationFrame(pump);
-    } catch (err) {
-      handle.current = null;
-      const code = err instanceof VoiceError ? err.code : 'failed';
-      onError?.(voiceErrorMessage(code));
-      haptic('error');
-    }
-  }, [disabled, onError, onVoiceActivity, phase, pump, supported]);
+  const stopMeter = useCallback(() => {
+    cancelAnimationFrame(meterFrame.current);
+    meterFrame.current = 0;
+    history.current = new Array(BAR_COUNT).fill(0.15);
+  }, []);
+
+  // Five bars driven straight on the DOM: no React render per frame.
+  const startMeter = useCallback(() => {
+    let last = 0;
+    const tick = (now: number) => {
+      meterFrame.current = requestAnimationFrame(tick);
+      if (now - last < METER_INTERVAL_MS) return;
+      last = now;
+      const h = handle.current;
+      if (!h) return;
+      const next = history.current;
+      next.shift();
+      next.push(Math.max(0.12, h.level()));
+      for (let i = 0; i < BAR_COUNT; i += 1) {
+        const el = bars.current[i];
+        if (el) el.style.transform = `scaleY(${next[i].toFixed(3)})`;
+      }
+    };
+    meterFrame.current = requestAnimationFrame(tick);
+  }, []);
+
+  const clearTimers = useCallback(() => {
+    window.clearTimeout(maxTimer.current);
+    maxTimer.current = 0;
+  }, []);
+
+  /** Drop everything about the current take. Safe to call in any state. */
+  const reset = useCallback(() => {
+    take.current += 1;
+    stopQueued.current = false;
+    clearTimers();
+    stopMeter();
+    handle.current?.cancel();
+    handle.current = null;
+    abort.current?.abort();
+    abort.current = null;
+    cb.current.onVoiceActivity?.(null, false);
+    setPhase('idle');
+  }, [clearTimers, setPhase, stopMeter]);
+
+  const cancel = useCallback(() => {
+    if (phaseRef.current === 'idle') return;
+    reset();
+    haptic('light');
+  }, [reset]);
 
   const finish = useCallback(async () => {
+    if (phaseRef.current === 'starting') {
+      // The mic is still opening; finish as soon as it does.
+      stopQueued.current = true;
+      return;
+    }
     const h = handle.current;
-    if (!h || phase !== 'recording') return;
+    if (phaseRef.current !== 'recording' || !h) return;
+    const mine = take.current;
     handle.current = null;
-    cancelAnimationFrame(frame.current);
-    setLevels(new Array(BAR_COUNT).fill(0.15));
+    clearTimers();
+    stopMeter();
+    setPhase('transcribing');
+    cb.current.onVoiceActivity?.(null, true);
+    haptic('light');
 
     let recording;
     try {
       recording = await h.stop();
     } catch {
-      setPhase('idle');
-      onVoiceActivity?.(null, false);
-      onError?.('Recording failed.');
+      if (take.current !== mine) return;
+      reset();
+      cb.current.onError?.('Recording failed. Tap the mic to try again.');
       return;
     }
+    if (take.current !== mine) return;
 
     if (recording.ms < MIN_RECORDING_MS || recording.blob.size < 1024) {
-      // A mis-tap, not a message. Say nothing.
-      setPhase('idle');
-      onVoiceActivity?.(null, false);
+      reset();
+      cb.current.onError?.("Didn't catch that. Tap the mic and speak.");
       return;
     }
 
-    onVoiceActivity?.(null, true);
-    setPhase('transcribing');
-    haptic('light');
+    const controller = new AbortController();
+    abort.current = controller;
+    let timedOut = false;
+    const timer = window.setTimeout(
+      () => {
+        timedOut = true;
+        controller.abort();
+      },
+      TRANSCRIBE_TIMEOUT_MS + recording.ms / 4,
+    );
     try {
-      const text = await api.transcribe(recording.blob);
+      const text = await api.transcribe(recording.blob, controller.signal);
+      if (take.current !== mine) return;
       if (text) {
-        onTranscript(text);
+        cb.current.onError?.(null);
+        cb.current.onTranscript(text);
         haptic('success');
       } else {
-        // Decoded cleanly and found no words. Silence, or a pocket.
-        onError?.('Nothing heard.');
+        cb.current.onError?.('Nothing heard. Try again a little closer to the mic.');
       }
     } catch (err) {
+      if (take.current !== mine) return; // cancelled by the user: say nothing
       const reason = (err as { reason?: string }).reason;
-      onError?.(
-        reason === 'model_missing'
-          ? 'Speech model missing on the Mac.'
-          : reason === 'timeout'
-            ? 'Transcription timed out.'
+      cb.current.onError?.(
+        timedOut || reason === 'timeout'
+          ? 'Transcription timed out. Is your Mac awake?'
+          : reason === 'model_missing'
+            ? 'Speech model missing on the Mac.'
             : reason === 'whisper_missing' || reason === 'ffmpeg_missing'
               ? 'Transcription tools missing on the Mac.'
-              : "Couldn't transcribe that.",
+              : "Couldn't transcribe that. Tap the mic to try again.",
       );
       haptic('error');
     } finally {
-      setPhase('idle');
-      onVoiceActivity?.(null, false);
+      window.clearTimeout(timer);
+      if (take.current === mine) {
+        abort.current = null;
+        cb.current.onVoiceActivity?.(null, false);
+        setPhase('idle');
+      }
     }
-  }, [onError, onTranscript, onVoiceActivity, phase]);
+  }, [clearTimers, reset, setPhase, stopMeter]);
+
+  const begin = useCallback(() => {
+    if (phaseRef.current !== 'idle') return;
+    const mine = ++take.current;
+    stopQueued.current = false;
+    setPhase('starting');
+    cb.current.onError?.(null);
+    // The model loads on the Mac while the mic opens and you speak.
+    api.warmTranscriber();
+    // Called synchronously inside the tap: see startRecording.
+    startRecording().then(
+      (h) => {
+        if (take.current !== mine) {
+          h.cancel();
+          return;
+        }
+        handle.current = h;
+        openedAt.current = performance.now();
+        setPhase('recording');
+        haptic('medium');
+        cb.current.onVoiceActivity?.(() => h.level(), false);
+        startMeter();
+        h.onEnded(() => {
+          if (handle.current === h) void finish();
+        });
+        maxTimer.current = window.setTimeout(() => {
+          if (handle.current === h) void finish();
+        }, MAX_RECORDING_MS);
+        if (stopQueued.current) void finish();
+      },
+      (err) => {
+        if (take.current !== mine) return;
+        reset();
+        const code = err instanceof VoiceError ? err.code : 'failed';
+        cb.current.onError?.(voiceErrorMessage(code));
+        haptic('error');
+      },
+    );
+  }, [finish, reset, setPhase, startMeter]);
+
+  // Unmount only. Nothing may hold the mic open after the composer is gone.
+  useEffect(() => () => reset(), [reset]);
+
+  // Escape cancels; backgrounding the app finishes what you said so far.
+  useEffect(() => {
+    if (phase === 'idle') return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancel();
+    };
+    const onHide = () => {
+      if (document.visibilityState !== 'hidden') return;
+      if (phaseRef.current === 'recording') void finish();
+      else if (phaseRef.current === 'starting') reset();
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, [cancel, finish, phase, reset]);
 
   if (!supported) return null;
 
-  const recording = phase === 'recording';
+  const onDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    // Keeps focus (and the keyboard) where it is.
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* not capturable (synthetic event); release still reaches us */
+    }
+    const current = phaseRef.current;
+    if (current === 'idle') {
+      if (disabled) return;
+      press.current = { at: performance.now(), kind: 'start' };
+      begin();
+    } else if (current === 'transcribing') {
+      press.current = { at: performance.now(), kind: 'cancel' };
+    } else {
+      press.current = { at: performance.now(), kind: 'stop' };
+    }
+  };
+
+  const onUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const p = press.current;
+    press.current = null;
+    if (!p) return;
+    if (p.kind === 'cancel') {
+      cancel();
+    } else if (p.kind === 'stop') {
+      void finish();
+    } else if (
+      // Held past HOLD_MS with the mic open for most of it: walkie-talkie.
+      phaseRef.current === 'recording' &&
+      performance.now() - p.at >= HOLD_MS &&
+      performance.now() - openedAt.current >= HOLD_MS / 2
+    ) {
+      void finish();
+    }
+    // Otherwise it was a tap: keep listening until the next tap.
+  };
+
+  // Keyboard and assistive tech: Enter/Space toggles.
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    const current = phaseRef.current;
+    if (current === 'idle') {
+      if (!disabled) begin();
+    } else if (current === 'transcribing') cancel();
+    else void finish();
+  };
+
+  const listening = phase === 'recording' || phase === 'starting';
   const busy = phase === 'transcribing';
+  const active = phase !== 'idle';
 
   return (
-    <button
-      type="button"
-      className={`round-button ghost voice-button composer-primary-control${
-        recording ? ' is-recording' : ''
-      }${busy ? ' is-busy' : ''}`}
-      data-composer-control="voice"
-      data-composer-group="primary"
-      data-composer-primary="true"
-      data-composer-control-state={phase}
-      aria-label={recording ? 'Release to transcribe' : 'Hold to speak'}
-      aria-pressed={recording}
-      disabled={disabled || busy}
-      // Pointer events cover touch, pen and mouse in one path, and
-      // setPointerCapture keeps the release bound to this button even if the
-      // finger drifts off it mid-sentence.
-      onPointerDown={(event) => {
-        event.preventDefault();
-        event.currentTarget.setPointerCapture?.(event.pointerId);
-        void begin();
-      }}
-      onPointerUp={(event) => {
-        event.preventDefault();
-        void finish();
-      }}
-      onPointerCancel={() => {
-        handle.current?.cancel();
-        handle.current = null;
-        cancelAnimationFrame(frame.current);
-        onVoiceActivity?.(null, false);
-        setPhase('idle');
-      }}
-      // The browser's own long-press menu on a button you are holding down is
-      // exactly the wrong gesture to trigger here.
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      {recording ? (
-        <span className="voice-wave" aria-hidden="true">
-          {levels.map((level, index) => (
-            <span
-              key={index}
-              className="voice-bar"
-              style={{ transform: `scaleY(${level.toFixed(3)})` }}
-            />
-          ))}
-        </span>
-      ) : busy ? (
-        <span className="voice-dots" aria-hidden="true">
-          <span /><span /><span />
-        </span>
-      ) : (
-        <MicGlyph />
-      )}
-    </button>
+    <>
+      {active ? (
+        <button
+          type="button"
+          className="round-button ghost voice-cancel"
+          data-composer-control="voice-cancel"
+          aria-label={busy ? 'Cancel transcription' : 'Cancel voice input'}
+          onClick={cancel}
+          onPointerDown={(event) => event.preventDefault()}
+        >
+          <XGlyph />
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className={`round-button ghost voice-button composer-primary-control${
+          listening ? ' is-recording' : ''
+        }${phase === 'starting' ? ' is-starting' : ''}${busy ? ' is-busy' : ''}`}
+        data-composer-control="voice"
+        data-composer-group="primary"
+        data-composer-primary="true"
+        data-composer-control-state={phase}
+        aria-label={
+          listening ? 'Finish and transcribe' : busy ? 'Transcribing, tap to cancel' : 'Voice input'
+        }
+        aria-pressed={listening}
+        disabled={disabled && !active}
+        onPointerDown={onDown}
+        onPointerUp={onUp}
+        // A cancelled pointer (the browser took the gesture, a permission
+        // prompt stole focus) is not a decision. The take keeps running and
+        // the next tap or the cancel button ends it.
+        onPointerCancel={() => {
+          press.current = null;
+        }}
+        onKeyDown={onKeyDown}
+        // The browser's long-press menu on a button you are holding down is
+        // exactly the wrong gesture to trigger here.
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        {phase === 'recording' ? (
+          <span className="voice-wave" aria-hidden="true">
+            {Array.from({ length: BAR_COUNT }, (_, index) => (
+              <span
+                key={index}
+                ref={(el) => {
+                  bars.current[index] = el;
+                }}
+                className="voice-bar"
+              />
+            ))}
+          </span>
+        ) : busy ? (
+          <span className="voice-dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+        ) : (
+          <MicGlyph />
+        )}
+      </button>
+    </>
   );
 }
 
@@ -234,6 +420,24 @@ function MicGlyph({ size = 17 }: { size?: number }) {
       <rect x="9" y="2" width="6" height="12" rx="3" />
       <path d="M5 11a7 7 0 0 0 14 0" />
       <path d="M12 18v3" />
+    </svg>
+  );
+}
+
+function XGlyph({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
 }

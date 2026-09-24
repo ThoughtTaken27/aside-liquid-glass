@@ -400,8 +400,11 @@ describe('POST /api/sessions/:id/permission', () => {
     expect(body.appliesFrom).toBe('next-message');
   });
 
-  /** An unreachable daemon must 502 rather than claim success. */
-  it('502s when the CLI cannot be run at all', async () => {
+  /**
+   * An unreachable daemon must fail loudly rather than claim success -- as a
+   * 500, never a 502, which the front door would read as "tunnel down".
+   */
+  it('500s when the CLI cannot be run at all', async () => {
     await app.close();
     env.cleanup();
 
@@ -427,7 +430,7 @@ describe('POST /api/sessions/:id/permission', () => {
       headers: { authorization: `Bearer ${fresh.json().token}` },
       payload: { mode: 'guard' },
     });
-    expect(res.statusCode).toBe(502);
+    expect(res.statusCode).toBe(500);
     expect(res.json().error).toBe('permission_update_failed');
   });
 });
@@ -567,5 +570,13 @@ describe('GET /api/sessions/:id/thread (jsonl source)', () => {
       headers: auth(),
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('status codes the tunnel would misread', () => {
+  it('never answers 502 or 530 itself', async () => {
+    const source = fs.readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/code\((502|530)\)/);
+    expect(source).not.toMatch(/:\s*(502|530);/);
   });
 });

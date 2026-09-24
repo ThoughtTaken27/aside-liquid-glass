@@ -84,9 +84,14 @@ describe('pull to refresh', () => {
 
 describe('activity island', () => {
   it('floats above the footer', () => {
-    const island = css('activity-island is-expanded');
-    expect(island.position).toBe('absolute');
-    expect(island.width).toBe('max-content');
+    const compact = css('activity-island');
+    expect(compact.position).toBe('absolute');
+    expect(compact.width).toBe('max-content');
+    // Expanded, it holds a steady width so the changing thinking summary
+    // wraps inside it instead of resizing the pill on every update.
+    const expanded = css('activity-island is-expanded');
+    expect(expanded.position).toBe('absolute');
+    expect(expanded.width).toContain('min(');
   });
 });
 

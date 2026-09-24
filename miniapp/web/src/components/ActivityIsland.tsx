@@ -16,9 +16,10 @@
  * and hides itself at the tail (via the footer's `data-at-end`, in CSS,
  * costing no re-render) where the full footer already says everything.
  *
- * Compact: orb, elapsed clock, expander. Expanded: the paced heading, the
- * quiet measurements, and the stop control -- the same three things as
- * the tail footer, so the two never disagree about what is happening.
+ * Compact: orb, elapsed clock, expander. Expanded: the paced heading (the
+ * thinking summary) and the quiet measurements. No stop control: the
+ * composer's own stop sits directly underneath, and two stop buttons a
+ * thumb apart is one too many.
  */
 import { useState } from 'react';
 import { ActivityOrb } from './ActivityOrb';
@@ -29,9 +30,8 @@ import {
 import { activityHeading, type WorkKind } from '../utils/activityPhase';
 import { workedFor } from '../utils/time';
 import { useSteadyText } from '../hooks/useSteadyText';
-import { ChevronUp, StopSquare } from './Icons';
+import { ChevronUp } from './Icons';
 import { haptic } from '../telegram';
-import { Spinner } from './Icons';
 
 export interface IslandActivity {
   label: string;
@@ -42,18 +42,7 @@ export interface IslandActivity {
   tokens?: number;
 }
 
-export function ActivityIsland({
-  activity,
-  stoppable,
-  stopping,
-  onStop,
-}: {
-  activity: IslandActivity;
-  /** False when this server does not own the turn; the stop stays hidden. */
-  stoppable: boolean;
-  stopping: boolean;
-  onStop: () => void;
-}) {
+export function ActivityIsland({ activity }: { activity: IslandActivity }) {
   const [expanded, setExpanded] = useState(false);
   const elapsed = useActivityElapsed(activity.startedAt ?? null, true);
   const heading = useSteadyText(
@@ -109,22 +98,6 @@ export function ActivityIsland({
       {expanded ? (
         <div className="activity-island-detail">
           <ActivityMeta elapsedMs={elapsed} tokens={activity.tokens ?? 0} />
-          {stoppable ? (
-            <button
-              type="button"
-              className="activity-island-stop"
-              disabled={stopping}
-              aria-label="Stop this turn"
-              onClick={() => {
-                if (stopping) return;
-                haptic('medium');
-                onStop();
-              }}
-            >
-              {stopping ? <Spinner size={13} /> : <StopSquare size={13} />}
-              <span>{stopping ? 'Stopping' : 'Stop'}</span>
-            </button>
-          ) : null}
         </div>
       ) : null}
     </div>

@@ -27,7 +27,7 @@ import {
   StopSquare,
   X,
 } from './Icons';
-import { VoiceButton } from './VoiceButton';
+import { VoiceButton, type VoiceLevel } from './VoiceButton';
 import { VoiceGlow } from './VoiceGlow';
 import { haptic } from '../telegram';
 import { playSound } from '../utils/sounds';
@@ -287,9 +287,9 @@ export function Composer({
    */
   const [notice, setNotice] = useState<string | null>(null);
   // The voice glow is driven from here, not from VoiceButton: the beam
-  // wraps the whole composer box, so the button reports its stream up
+  // wraps the whole composer box, so the button reports its level up
   // and this component owns the wrapper.
-  const [voiceStream, setVoiceStream] = useState<MediaStream | null>(null);
+  const [voiceLevel, setVoiceLevel] = useState<VoiceLevel | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
 
   // Grow with the content instead of scrolling inside a fixed box, which
@@ -397,7 +397,7 @@ export function Composer({
   }, [mode]);
 
   return (
-    <VoiceGlow stream={voiceStream} processing={streaming || voiceBusy}>
+    <VoiceGlow level={voiceLevel} processing={streaming || voiceBusy}>
     <div
       className={`composer composer-${variant}${mode === 'search' ? ' composer-search' : ''}`}
       data-composer-surface="frosted"
@@ -583,8 +583,9 @@ export function Composer({
         <VoiceButton
           disabled={blocked}
           onError={setNotice}
-          onVoiceActivity={(stream, busy) => {
-            setVoiceStream(stream);
+          onVoiceActivity={(level, busy) => {
+            // A function in state must go through the updater form.
+            setVoiceLevel(() => level);
             setVoiceBusy(busy);
           }}
           onTranscript={(text) => {

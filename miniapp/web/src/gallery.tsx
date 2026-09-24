@@ -547,7 +547,7 @@ function PolishPreview() {
               The beam that travels the composer while a turn runs.
             </p>
             <div style={{ width: '100%' }}>
-              <VoiceGlow stream={null} processing>
+              <VoiceGlow level={null} processing>
                 <div className="composer composer-reply">
                   <div className="composer-input" role="textbox">
                     <span style={{ opacity: 0.45 }}>Working…</span>
@@ -569,9 +569,6 @@ function PolishPreview() {
             startedAt: Date.now() - 42000,
             tokens,
           }}
-          stoppable
-          stopping={false}
-          onStop={() => toast('Stop tapped (gallery does nothing)')}
         />
       </footer>
       <ToastHost />

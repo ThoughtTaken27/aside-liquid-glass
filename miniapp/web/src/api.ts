@@ -244,10 +244,18 @@ export const api = {
       credentials: 'same-origin',
     });
     const text = await res.text();
-    const body = text ? JSON.parse(text) : {};
+    let body: { text?: string; error?: string; reason?: string } = {};
+    try {
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      // The front door's "Mac offline" page, or a proxy error: not JSON.
+      throw new ApiError(res.status || 502, res.ok ? 'bad_response' : 'unreachable');
+    }
     if (!res.ok) {
       if (res.status === 401) handleUnauthorized();
-      throw new ApiError(res.status, body.reason || body.error || res.statusText);
+      // `error` is the machine code (model_missing, timeout, ...); `reason`
+      // is the human detail. The caller branches on the code.
+      throw new ApiError(res.status, body.error || body.reason || res.statusText);
     }
     return String(body.text || '');
   },

@@ -1783,12 +1783,7 @@ function ThreadScreen({
           <ChevronDown size={17} strokeWidth={2.25} />
         </button>
         {activeTurn && liveActivity ? (
-          <ActivityIsland
-            activity={liveActivity}
-            stoppable={thread.stoppable}
-            stopping={thread.stopping}
-            onStop={() => void thread.stop()}
-          />
+          <ActivityIsland activity={liveActivity} />
         ) : null}
         <Composer
           variant="reply"

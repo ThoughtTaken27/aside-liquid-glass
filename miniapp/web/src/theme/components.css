@@ -6845,6 +6845,27 @@
   opacity: 0.75;
 }
 
+/* Tapped, mic still opening (or waiting on the permission prompt). The
+   colour changes on the tap itself so it never looks like nothing happened. */
+.voice-button.is-starting {
+  animation: voice-opening 900ms ease-in-out infinite;
+}
+
+@keyframes voice-opening {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Discard the take. Appears beside the mic only while a take is live. */
+.voice-cancel {
+  animation: voice-cancel-in 160ms ease-out;
+}
+
+@keyframes voice-cancel-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 /* Live level meter. Five bars, oldest to newest, so speech reads as motion
    travelling across the button rather than five bars twitching in unison. */
 .voice-wave {
@@ -6862,7 +6883,8 @@
   background: currentColor;
   transform-origin: center;
   transform: scaleY(0.15);
-  transition: transform 90ms linear;
+  transition: transform 60ms linear;
+  will-change: transform;
 }
 
 /* Transcribing. Three dots rather than a spinner: a spinner in this slot
@@ -6895,6 +6917,8 @@
   .voice-bar { transition: none; }
   .voice-dots span { animation: none; opacity: 0.6; }
   .voice-button.is-recording { transform: none; }
+  .voice-button.is-starting,
+  .voice-cancel { animation: none; }
 }
 
 .composer-voice-error {
@@ -8664,7 +8688,9 @@
  */
 .jump-latest {
   position: absolute;
-  top: -42px;
+  /* Anchored by its bottom so it floats the same 8px above the composer
+     as the activity island at any tap-target size, and the two line up. */
+  bottom: calc(100% + 8px);
   right: 16px;
   z-index: 3;
   display: grid;
@@ -8844,6 +8870,11 @@
   display: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+/* The installed app's 44px tap target widens the arrow's lane. */
+:root[data-client='standalone'] .activity-island {
+  --island-lane: 152px;
 }
 
 /* The jump control uses regular glass; text-heavy sheets use the stronger variant. */
@@ -10432,13 +10463,21 @@
  * scroll frame, and the two can never double-report, because exactly one
  * is visible at a time.
  */
+/*
+ * The island shares the band above the composer with the jump-to-latest
+ * arrow (right: 16px, 34px wide). It is centred, so it keeps the same
+ * clearance on both sides of that lane -- (16 + 34 + 18) x 2 -- and can
+ * never slide under the arrow however long the summary gets. Both float
+ * 8px above the composer, so their bottoms line up.
+ */
 .activity-island {
+  --island-lane: 136px;
   position: absolute;
   left: 50%;
-  bottom: calc(100% - 2px);
+  bottom: calc(100% + 8px);
   transform: translateX(-50%);
   width: max-content;
-  max-width: min(340px, calc(100% - 32px));
+  max-width: min(300px, calc(100% - var(--island-lane)));
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--surface-primary) 86%, transparent);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
@@ -10454,8 +10493,9 @@
 }
 
 .activity-island.is-expanded {
-  max-width: min(420px, calc(100% - 16px));
-  border-radius: var(--radius-2xl);
+  width: min(340px, calc(100% - var(--island-lane)));
+  max-width: min(340px, calc(100% - var(--island-lane)));
+  border-radius: 20px;
 }
 
 /* At the tail the footer says it all; anywhere else the island does. */
@@ -10471,9 +10511,16 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  min-height: 34px;
+  padding: 7px 12px;
   color: var(--foreground);
   font-size: var(--text-sm);
+  text-align: left;
+}
+
+.activity-island.is-expanded .activity-island-main {
+  align-items: flex-start;
+  padding: 10px 12px 4px;
 }
 
 .activity-island-text {
@@ -10499,8 +10546,23 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* The thinking summary: up to two lines, never a hard cut mid-word. */
 .activity-island-heading {
   font-weight: var(--font-weight-medium);
+  line-height: 1.35;
+}
+
+.activity-island.is-expanded .activity-island-text {
+  flex: 1;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.activity-island.is-expanded .activity-island-chevron {
+  margin-top: 2px;
 }
 
 .activity-island-chevron {
@@ -10517,36 +10579,12 @@
 .activity-island-detail {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   /* Aligned under the text: main padding + orb slot + gap. */
   padding: 0 12px 10px 36px;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
   animation: island-text-in 0.3s var(--ease-out) both;
-}
-
-.activity-island-stop {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border-radius: var(--radius-full);
-  background: var(--foreground);
-  color: var(--background);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-}
-
-.activity-island-stop:disabled {
-  opacity: 0.6;
-}
-
-.activity-island-stop {
-  transition: transform var(--duration) var(--ease-out);
-}
-
-.activity-island-stop:active {
-  transform: scale(0.97);
 }
 
 @media (prefers-reduced-motion: reduce) {

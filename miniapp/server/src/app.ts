@@ -1359,7 +1359,11 @@ export async function buildServer(
         await archiveSession(facade, id);
       } catch (error) {
         request.log.error({ err: error, id }, 'archive failed');
-        return reply.code(502).send({ error: 'archive_failed' });
+        // Never 502 from this server: Cloudflare replaces a 502 with its own
+        // "bad gateway" page, and the front door reads 502 as "the tunnel is
+        // down" -- it shows the phone "Mac offline" and replays the request.
+        // An app-level failure is a 500 with a JSON reason.
+        return reply.code(500).send({ error: 'archive_failed' });
       }
       // A deleted chat must not keep buzzing the phone about a turn it can
       // no longer be opened to read.
@@ -1994,7 +1998,7 @@ export async function buildServer(
       } catch (err) {
         request.log.error({ err }, 'new session failed');
         return reply
-          .code(502)
+          .code(500)
           .send({ error: 'session_create_failed', reason: (err as Error).message });
       }
     },
@@ -2091,7 +2095,7 @@ export async function buildServer(
         return reply.code(409).send({ error: 'not_running' });
       }
       if (!(await runner.stopRemote(id))) {
-        return reply.code(502).send({ error: 'stop_failed' });
+        return reply.code(500).send({ error: 'stop_failed' });
       }
 
       // Suppress the transcript-mtime liveness heuristic immediately. A
@@ -2243,7 +2247,7 @@ export async function buildServer(
       } catch (err) {
         request.log.error({ err }, 'recovery session failed');
         return reply
-          .code(502)
+          .code(500)
           .send({ error: 'session_create_failed', reason: (err as Error).message });
       } finally {
         recoveryFlights.delete(recoveryKey);
@@ -2363,7 +2367,7 @@ export async function buildServer(
         );
       } catch (err) {
         request.log.error({ err }, 'permission update failed');
-        return reply.code(502).send({ error: 'permission_update_failed' });
+        return reply.code(500).send({ error: 'permission_update_failed' });
       }
 
       // The write went through the daemon, so every cached read of this
@@ -2425,7 +2429,7 @@ export async function buildServer(
         );
       } catch (err) {
         request.log.error({ err }, 'session model update failed');
-        return reply.code(502).send({ error: 'model_update_failed' });
+        return reply.code(500).send({ error: 'model_update_failed' });
       }
       stateDb.invalidate(id);
       facade.invalidate(`session:${id}`);
@@ -2977,11 +2981,11 @@ export async function buildServer(
               ? 429
               : err.code === 'capture_busy'
                 ? 409
-                : 502;
+                : 500;
       return reply.code(status).send({ error: err.code, message: err.message });
     }
     app.log.warn({ err }, 'browser route failed');
-    return reply.code(502).send({ error: 'upstream' });
+    return reply.code(500).send({ error: 'upstream' });
   };
 
   app.get('/api/tabs', { preHandler: requireAuth }, async (request, reply) => {
@@ -3223,7 +3227,7 @@ export async function buildServer(
         return { text };
       } catch (err) {
         app.log.warn({ err }, 'pdf read failed');
-        return reply.code(502).send({ error: 'pdf_read_failed' });
+        return reply.code(500).send({ error: 'pdf_read_failed' });
       }
     },
   );
