@@ -5,6 +5,8 @@
  *   {type:"auth", token}                  (first frame; cookie also accepted)
  *   {type:"subscribe", sessionId}
  *   {type:"ping"}
+ *   {type:"live", sessionId, stream, quality}   agent-tab live view on/off
+ *   {type:"live_off"}
  *
  * Server -> client
  *   {type:"ready"}
@@ -15,6 +17,8 @@
  *   {type:"stream_delta", sessionId, text}
  *   {type:"turn_started", ...} / {type:"turn_finished", ...}
  *   {type:"permission_changed", sessionId, permission, ...}
+ *   {type:"live_tab", sessionId, state, tab}   which tab the agent is in
+ *   <binary>                                   one JPEG frame of that tab
  *   {type:"error", reason}
  *
  * What changed in round 3, and why:
@@ -67,6 +71,10 @@ import {
 import type { ChildSession, ThreadItem } from './thread.js';
 import type { SubagentIndex } from './subagents.js';
 import type { ActiveViewers } from './viewers.js';
+import type { LiveHandle, LiveView } from './liveview.js';
+
+/** A viewer whose socket holds more than this is skipped until it drains. */
+const LIVE_BACKLOG_BYTES = 384 * 1024;
 
 const HEARTBEAT_MS = 30_000;
 
@@ -131,6 +139,10 @@ interface Deps {
   viewers?: ActiveViewers;
   /** Fresh daemon-owned metadata for cross-device synchronization. */
   readSessionState?: (sessionId: string) => Promise<Record<string, unknown>>;
+  /** Agent-tab live view. Absent in tests that don't exercise it. */
+  liveView?: LiveView;
+  /** Called when a phone connects, so browser reads are warm by the time it asks. */
+  onClientReady?: () => void;
 }
 
 export function attachWebSocket(deps: Deps): WebSocketServer {
@@ -228,6 +240,37 @@ export function attachWebSocket(deps: Deps): WebSocketServer {
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(payload));
     };
 
+    /** At most one live view per socket; a new `live` for another chat replaces it. */
+    let live: { sessionId: string; handle: LiveHandle } | null = null;
+    const stopLive = () => {
+      live?.handle.close();
+      live = null;
+    };
+    const startLive = (id: string, stream: boolean, quality: 'card' | 'full') => {
+      if (!deps.liveView) {
+        send({ type: 'live_tab', sessionId: id, state: 'unavailable', tab: null });
+        return;
+      }
+      if (live && live.sessionId === id) {
+        live.handle.update({ stream, quality });
+        return;
+      }
+      stopLive();
+      const handle = deps.liveView.watch(
+        id,
+        {
+          frame: (jpeg) => {
+            // JPEG does not deflate; compressing it only burns CPU.
+            if (ws.readyState === ws.OPEN) ws.send(jpeg, { binary: true, compress: false });
+          },
+          meta: (event) => send(event),
+          congested: () => ws.bufferedAmount > LIVE_BACKLOG_BYTES,
+        },
+        { stream, quality },
+      );
+      live = { sessionId: id, handle };
+    };
+
     const pushSessionState = async () => {
       if (!deps.readSessionState || !sessionId || stateReading) return;
       stateReading = true;
@@ -282,6 +325,7 @@ export function attachWebSocket(deps: Deps): WebSocketServer {
         authed = true;
         clearAuthTimer();
         send({ type: 'ready' });
+        deps.onClientReady?.();
         return true;
       } catch {
         clearAuthTimer();
@@ -614,6 +658,28 @@ export function attachWebSocket(deps: Deps): WebSocketServer {
         unsubscribe();
         return;
       }
+      if (msg?.type === 'live') {
+        const target = typeof msg.targetId === 'string' ? msg.targetId : '';
+        if (target) {
+          if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(target)) {
+            send({ type: 'error', reason: 'bad_target_id' });
+            return;
+          }
+          startLive(`tab:${target}`, msg.stream === true, msg.quality === 'full' ? 'full' : 'card');
+          return;
+        }
+        const id = String(msg.sessionId || '');
+        if (!isValidSessionId(id)) {
+          send({ type: 'error', reason: 'bad_session_id' });
+          return;
+        }
+        startLive(id, msg.stream === true, msg.quality === 'full' ? 'full' : 'card');
+        return;
+      }
+      if (msg?.type === 'live_off') {
+        stopLive();
+        return;
+      }
       // A client that has fallen behind (a tab restored from the
       // background, typically) can ask for the whole thread again.
       if (msg?.type === 'resync') {
@@ -626,6 +692,7 @@ export function attachWebSocket(deps: Deps): WebSocketServer {
 
     ws.on('close', () => {
       clearAuthTimer();
+      stopLive();
       unsubscribe();
       runner.off('activity', onActivity);
       runner.off('turn_started', onTurnStarted);

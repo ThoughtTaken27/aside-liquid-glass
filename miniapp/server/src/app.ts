@@ -118,6 +118,7 @@ import { SoftConfirmStore, defaultSoftConfirmPath } from './softconfirm.js';
 import { TurnRunner } from './exec.js';
 import { WatcherRegistry } from './watcher.js';
 import { attachWebSocket } from './ws.js';
+import { LiveView, SharedRepl, openMcpRepl, parseMarked } from './liveview.js';
 import { OwnedTurns } from './ownedturns.js';
 import { ActiveViewers } from './viewers.js';
 import { Notifier, LONG_RUNNING_THRESHOLD_MS } from './notify.js';
@@ -127,6 +128,7 @@ import {
   CaptureGate,
   captureTab,
   closeTab as closeBrowserTab,
+  type BrowserTab,
   listTabs,
   openNewTab,
   snapshotTab,
@@ -2863,6 +2865,104 @@ export async function buildServer(
   // already uses -- no new transport, no new failure mode.
   const captureGate = new CaptureGate();
 
+  /**
+   * One warm browser REPL for the tab list and the live view. A tab-list
+   * read through it is a ~30ms round trip; through the facade it was a
+   * fresh ~139MB process on every 1.5s poll.
+   */
+  const browserRepl = new SharedRepl(() => openMcpRepl(config.asideCli));
+  app.addHook('onClose', async () => browserRepl.close());
+  /**
+   * Stale-while-revalidate. Aside's own `listBrowserTabs()` takes anywhere
+   * from ~90ms to ~1.4s on a loaded Mac, so the route answers at once from
+   * the last list (at most a couple of seconds old while the sheet polls)
+   * and refreshes behind it. Opening or closing a tab drops the cache so
+   * the next read waits for the truth.
+   */
+  let tabsCache: { at: number; tabs: BrowserTab[] } | null = null;
+  let tabsInFlight: Promise<BrowserTab[]> | null = null;
+  const refreshTabs = (): Promise<BrowserTab[]> => {
+    if (tabsInFlight) return tabsInFlight;
+    tabsInFlight = (async () => {
+      if (!browserRepl.warm) {
+        // Cold: starting the REPL takes seconds. Answer through a one-off
+        // facade call (well under a second) and warm up behind it.
+        browserRepl.warmUp();
+        try {
+          const tabs = await listTabs(facade);
+          tabsCache = { at: Date.now(), tabs };
+          return tabs;
+        } finally {
+          tabsInFlight = null;
+        }
+      }
+      try {
+        const out = await browserRepl.run(
+          "console.log('@@LV' + JSON.stringify(await listBrowserTabs()));",
+          8_000,
+        );
+        const rows = parseMarked<unknown>(out);
+        const tabs = Array.isArray(rows)
+          ? (rows.filter((row) => row && typeof (row as BrowserTab).targetId === 'string') as BrowserTab[])
+          : [];
+        tabsCache = { at: Date.now(), tabs };
+        return tabs;
+      } catch (err) {
+        app.log.warn({ err }, 'fast tab list failed; using facade');
+        const tabs = await listTabs(facade);
+        tabsCache = { at: Date.now(), tabs };
+        return tabs;
+      } finally {
+        tabsInFlight = null;
+      }
+    })();
+    return tabsInFlight;
+  };
+  const fastTabs = async (): Promise<BrowserTab[]> => {
+    const age = tabsCache ? Date.now() - tabsCache.at : Infinity;
+    if (tabsCache && age < 15_000) {
+      if (age > 600) void refreshTabs().catch(() => undefined);
+      return tabsCache.tabs;
+    }
+    return refreshTabs();
+  };
+  const dropTabsCache = () => {
+    tabsCache = null;
+  };
+
+  /**
+   * Site icons, fetched by the Mac for the phone.
+   *
+   * The page CSP only allows same-origin images, so a remote favicon URL in
+   * the list never rendered. Only URLs the browser itself reported for an
+   * open tab may be fetched (no open proxy), responses must be small
+   * images, and they are served sandboxed so an SVG cannot script this
+   * origin if opened directly.
+   */
+  const faviconAllowed = new Set<string>();
+  const faviconCache = new Map<string, { type: string; body: Buffer }>();
+  const FAVICON_MAX_BYTES = 128 * 1024;
+  const faviconFor = (raw: unknown): string => {
+    const url = typeof raw === 'string' ? raw : '';
+    if (url.startsWith('data:image/')) {
+      // Small inline icons ride the list; big ones (Discord's is ~10KB)
+      // are served once by hash so every 2s poll does not re-send them.
+      if (url.length <= 2_000) return url;
+      const key = crypto.createHash('sha1').update(url).digest('hex');
+      if (!faviconCache.has(`h:${key}`)) {
+        const m = /^data:(image\/[a-z0-9.+-]+)(;base64)?,(.*)$/is.exec(url);
+        if (!m) return '';
+        const body = m[2] ? Buffer.from(m[3], 'base64') : Buffer.from(decodeURIComponent(m[3]));
+        if (body.length > FAVICON_MAX_BYTES) return '';
+        faviconCache.set(`h:${key}`, { type: m[1].toLowerCase(), body });
+      }
+      return `/api/tabs/favicon?h=${key}`;
+    }
+    if (!/^https?:\/\//i.test(url)) return '';
+    faviconAllowed.add(url);
+    return `/api/tabs/favicon?u=${encodeURIComponent(url)}`;
+  };
+
   const isValidTargetId = (value: unknown): value is string =>
     typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(value);
 
@@ -2884,9 +2984,65 @@ export async function buildServer(
     return reply.code(502).send({ error: 'upstream' });
   };
 
-  app.get('/api/tabs', { preHandler: requireAuth }, async () => ({
-    tabs: await listTabs(facade),
-  }));
+  app.get('/api/tabs', { preHandler: requireAuth }, async (request, reply) => {
+    const [tabs, owners] = await Promise.all([fastTabs(), stateDb.tabOwners()]);
+    const payload = {
+      tabs: tabs.map((tab) => {
+        const owner = owners.get(tab.targetId);
+        const title = owner
+          ? isPlaceholderTitle(owner.title)
+            ? titleFromTranscript(config.sessionsDir, owner.sessionId) || owner.title
+            : owner.title
+          : '';
+        return {
+          ...tab,
+          faviconUrl: faviconFor(tab.faviconUrl),
+          ...(owner ? { agent: { sessionId: owner.sessionId, title, running: owner.running } } : {}),
+        };
+      }),
+    };
+    // The sheet polls every 2s and the list rarely changes between polls:
+    // an unchanged list goes back as a bodiless 304.
+    const body = JSON.stringify(payload);
+    const etag = `"${crypto.createHash('sha1').update(body).digest('base64url')}"`;
+    reply.header('etag', etag).header('cache-control', 'private, no-cache');
+    const sent = String(request.headers['if-none-match'] || '').replace(/^W\//, '');
+    if (sent === etag) return reply.code(304).send();
+    return reply.type('application/json').send(body);
+  });
+
+  app.get('/api/tabs/favicon', { preHandler: requireAuth }, async (request, reply) => {
+    const query = request.query as { u?: string; h?: string };
+    const hashed = /^[a-f0-9]{40}$/.test(String(query.h || '')) ? `h:${query.h}` : '';
+    const url = String(query.u || '');
+    if (!hashed && !faviconAllowed.has(url)) return reply.code(404).send({ error: 'not_found' });
+    let hit = faviconCache.get(hashed || url);
+    if (!hit && hashed) return reply.code(404).send({ error: 'not_found' });
+    if (!hit) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(4_000), redirect: 'follow' });
+        const type = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        const body = Buffer.from(await res.arrayBuffer());
+        if (!res.ok || !type.startsWith('image/') || body.length > FAVICON_MAX_BYTES) {
+          return reply.code(404).send({ error: 'not_found' });
+        }
+        hit = { type, body };
+        faviconCache.set(url, hit);
+        while (faviconCache.size > 300) {
+          const oldest = faviconCache.keys().next().value as string;
+          faviconCache.delete(oldest);
+        }
+      } catch {
+        return reply.code(404).send({ error: 'not_found' });
+      }
+    }
+    return reply
+      .header('cache-control', 'private, max-age=86400')
+      .header('x-content-type-options', 'nosniff')
+      .header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+      .type(hit.type)
+      .send(hit.body);
+  });
 
   app.post(
     '/api/tabs',
@@ -2895,6 +3051,7 @@ export async function buildServer(
       const body = (request.body || {}) as { url?: string };
       try {
         const opened = await openNewTab(facade, String(body.url || ''));
+        dropTabsCache();
         return opened;
       } catch (err) {
         return sendBrowserError(reply, err);
@@ -2912,6 +3069,7 @@ export async function buildServer(
       }
       try {
         const closed = await closeBrowserTab(facade, targetId);
+        dropTabsCache();
         return { closed };
       } catch (err) {
         return sendBrowserError(reply, err);
@@ -3070,7 +3228,21 @@ export async function buildServer(
     },
   );
 
+  const liveView = new LiveView({
+    // `tab:<targetId>` watches one tab directly (the Browser sheet);
+    // anything else is a chat, followed to whatever tab its agent uses.
+    tabs: async (key) =>
+      key.startsWith('tab:')
+        ? [{ targetId: key.slice(4), sessionId: key, owner: 'session' as const, url: '', at: 0 }]
+        : stateDb.agentTabs(key),
+    repl: browserRepl,
+    logger: { warn: (msg) => app.log.warn(msg) },
+  });
+  app.addHook('onClose', async () => liveView.close());
+
   attachWebSocket({
+    liveView,
+    onClientReady: () => browserRepl.warmUp(),
     app,
     config,
     runner,

@@ -61,24 +61,16 @@ describe('protected resource transport', () => {
     expect(vi.mocked(fetch).mock.calls[0][1]?.credentials).toBe('same-origin');
   });
 
-  it('renders a tab capture through an ephemeral object URL', async () => {
-    await expect(api.captureObjectUrl('target/one', 60)).resolves.toBe(
-      'blob:protected-frame',
-    );
-    expectProtectedFetch('/api/tabs/target%2Fone/capture.webp?q=60');
-    expect(vi.mocked(fetch).mock.calls[0][1]?.credentials).toBe('same-origin');
-  });
-
   it('does not mint an object URL and invokes recovery after a 401', async () => {
     const unauthorized = vi.fn();
     setUnauthorizedHandler(unauthorized);
     vi.mocked(fetch).mockResolvedValueOnce(response(false, 401));
-    await expect(api.captureObjectUrl('target')).rejects.toBeInstanceOf(ApiError);
+    await expect(api.localFileObjectUrl('abc', '/Users/owner/a.png')).rejects.toBeInstanceOf(ApiError);
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(unauthorized).toHaveBeenCalledTimes(1);
 
     vi.mocked(fetch).mockResolvedValueOnce(response());
-    await api.captureObjectUrl('next');
+    await api.localFileObjectUrl('abc', '/Users/owner/b.png');
     expect((vi.mocked(fetch).mock.calls[1][1]?.headers as Headers).get('authorization')).toBeNull();
   });
 });

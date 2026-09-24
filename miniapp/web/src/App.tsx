@@ -68,7 +68,7 @@ import { activityPhase } from './utils/activityPhase';
 import { TodoSection } from './components/TodoSection';
 import { ErrorCard } from './components/ErrorCard';
 import { AsideSymbol, ChevronDown, ChevronLeft, Globe, MoreVertical, Spinner } from './components/Icons';
-import { WatchModeCard } from './components/WatchMode';
+import { LiveBrowserCard } from './components/LiveBrowser';
 import type { CitationMark } from './utils/citations';
 import { api, setAuthToken, setUnauthorizedHandler } from './api';
 import {
@@ -1698,7 +1698,7 @@ function ThreadScreen({
         onTouchStart={releaseLanding}
         onWheel={releaseLanding}
       >
-        <WatchModeCard sessionId={sessionId} busy={activeTurn} items={thread.items} />
+        <LiveBrowserCard sessionId={sessionId} busy={activeTurn} />
         {thread.loading && thread.items.length === 0 ? (
           <div className="thread-skeleton" role="status" aria-label="Loading conversation">
             <span className="thread-skeleton-user" aria-hidden="true" />

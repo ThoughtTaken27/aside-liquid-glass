@@ -300,6 +300,40 @@ export class StateDb {
     }
   }
 
+  /** targetId -> owning chat for every tab an agent has touched. Empty when unreadable. */
+  async tabOwners(): Promise<Map<string, TabOwner>> {
+    const db = await this.open();
+    if (!db) return new Map();
+    try {
+      return readTabOwners(db);
+    } catch {
+      return new Map();
+    } finally {
+      try {
+        db.close();
+      } catch {
+        // as elsewhere
+      }
+    }
+  }
+
+  /** Tabs this chat's agent drives, best first. Null when unreadable. */
+  async agentTabs(sessionId: string): Promise<AgentTabCandidate[] | null> {
+    const db = await this.open();
+    if (!db) return null;
+    try {
+      return await readAgentTabs(db, sessionId);
+    } catch {
+      return null;
+    } finally {
+      try {
+        db.close();
+      } catch {
+        // as elsewhere
+      }
+    }
+  }
+
   private async open(): Promise<DbHandle | null> {
     const Database = await loadDatabase();
     if (!Database) return null;
@@ -429,6 +463,160 @@ export class StateDb {
       }
     }
   }
+}
+
+/**
+ * One tab an agent is (or was) driving, as far as the daemon's tables say.
+ *
+ * Existence is NOT checked here; the tab may have been closed since. The
+ * live view confirms against the browser before it streams anything.
+ */
+export interface AgentTabCandidate {
+  targetId: string;
+  /** The session that owns the tab: the chat itself, or one of its subagents. */
+  sessionId: string;
+  owner: 'session' | 'subagent';
+  url: string;
+  /** ms since epoch; how recently the daemon touched this tab for that session. */
+  at: number;
+}
+
+/**
+ * The tabs this chat's agent works in, best guess first.
+ *
+ * Aside records every tab a session opens or is handed in `session_tabs`,
+ * and the one it is currently driving in `sessions.active_tab_target_id`.
+ * Neither is exposed by `aside.sessions.*`, which is why this reads the
+ * table. The order is what the phone should show:
+ *
+ *  1. The active tab of a RUNNING subagent. Delegated browsing happens in
+ *     the child session, so while it runs, that is where the action is.
+ *  2. The chat's own active tab.
+ *  3. Every other tab either of them touched, most recent first.
+ *
+ * Returns [] when nothing is known and null when the database is unreadable.
+ */
+export async function readAgentTabs(
+  db: { prepare: DbHandle['prepare'] },
+  sessionId: string,
+): Promise<AgentTabCandidate[]> {
+  const sessions = db
+    .prepare(
+      `SELECT id, parent_id, status, active_tab_target_id, updated_at
+         FROM sessions
+        WHERE id = ? OR parent_id = ?`,
+    )
+    .all(sessionId, sessionId) as Array<Record<string, unknown>>;
+  if (!sessions.length) return [];
+
+  const ids = sessions.map((row) => String(row.id));
+  const placeholders = ids.map(() => '?').join(',');
+  const tabs = db
+    .prepare(
+      `SELECT session_id, target_id, url, updated_at
+         FROM session_tabs
+        WHERE session_id IN (${placeholders})
+        ORDER BY updated_at DESC
+        LIMIT 40`,
+    )
+    .all(...ids) as Array<Record<string, unknown>>;
+
+  const urlOf = new Map<string, { url: string; at: number }>();
+  for (const row of tabs) {
+    const key = String(row.target_id || '');
+    if (key && !urlOf.has(key)) {
+      urlOf.set(key, { url: String(row.url || ''), at: epochMs(row.updated_at) });
+    }
+  }
+
+  const out: AgentTabCandidate[] = [];
+  const seen = new Set<string>();
+  const push = (targetId: unknown, owner: string, fallbackAt: number) => {
+    const id = String(targetId || '').trim();
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    const known = urlOf.get(id);
+    out.push({
+      targetId: id,
+      sessionId: owner,
+      owner: owner === sessionId ? 'session' : 'subagent',
+      url: known?.url || '',
+      at: known?.at || fallbackAt,
+    });
+  };
+
+  const running = sessions
+    .filter((row) => String(row.id) !== sessionId && String(row.status) === 'running')
+    .sort((a, b) => epochMs(b.updated_at) - epochMs(a.updated_at));
+  for (const child of running) {
+    push(child.active_tab_target_id, String(child.id), epochMs(child.updated_at));
+  }
+  const self = sessions.find((row) => String(row.id) === sessionId);
+  if (self) push(self.active_tab_target_id, sessionId, epochMs(self.updated_at));
+  for (const row of tabs) push(row.target_id, String(row.session_id), epochMs(row.updated_at));
+  return out;
+}
+
+/** The title Aside gives a session created by `aside repl` / `aside mcp`. */
+export const HELPER_SESSION_TITLE = 'Aside CLI REPL';
+
+/** Which chat an open tab belongs to, for the Browser sheet. */
+export interface TabOwner {
+  /** The top-level chat (a subagent's tab is credited to its parent). */
+  sessionId: string;
+  title: string;
+  /** True while that chat, or the subagent using the tab, is running. */
+  running: boolean;
+}
+
+/**
+ * Map targetId -> owning chat, from `session_tabs` plus each running
+ * session's active tab. When two chats claim a tab, the running one wins,
+ * then the most recent.
+ */
+export function readTabOwners(db: { prepare: DbHandle['prepare'] }): Map<string, TabOwner> {
+  const rows = db
+    .prepare(
+      `SELECT st.target_id AS target_id, st.updated_at AS at,
+              s.id AS sid, s.parent_id AS parent_id, s.status AS status, s.title AS title,
+              p.title AS parent_title, p.status AS parent_status
+         FROM session_tabs st
+         JOIN sessions s ON s.id = st.session_id
+         LEFT JOIN sessions p ON p.id = s.parent_id
+       UNION ALL
+       SELECT s.active_tab_target_id, s.updated_at, s.id, s.parent_id, s.status, s.title,
+              p.title, p.status
+         FROM sessions s
+         LEFT JOIN sessions p ON p.id = s.parent_id
+        WHERE s.active_tab_target_id IS NOT NULL AND s.status = 'running'`,
+    )
+    .all() as Array<Record<string, unknown>>;
+  const out = new Map<string, TabOwner & { at: number }>();
+  for (const row of rows) {
+    const targetId = String(row.target_id || '');
+    if (!targetId) continue;
+    const parent = row.parent_id ? String(row.parent_id) : '';
+    // A REPL (including this app's own live-view helper) borrows tabs it
+    // only looks at. That is not an agent using the tab.
+    if (!parent && String(row.title ?? '').trim() === HELPER_SESSION_TITLE) continue;
+    const running =
+      String(row.status) === 'running' || (parent !== '' && String(row.parent_status) === 'running');
+    const candidate = {
+      sessionId: parent || String(row.sid),
+      title: String((parent ? row.parent_title : row.title) ?? '').trim(),
+      running,
+      at: epochMs(row.at),
+    };
+    const held = out.get(targetId);
+    if (
+      !held ||
+      (candidate.running && !held.running) ||
+      (candidate.running === held.running && candidate.at > held.at)
+    ) {
+      out.set(targetId, candidate);
+    }
+  }
+  return new Map([...out].map(([id, { at: _at, ...owner }]) => [id, owner]));
 }
 
 /**

@@ -15,7 +15,6 @@ import type {
   SearchHit,
   SessionRow,
   StatusResponse,
-  TabCapture,
   ThreadItem,
   ThreadResponse,
   ThreadStats,
@@ -44,6 +43,11 @@ export function setAuthToken(token: string): void {
   authToken = token;
 }
 
+/** The bearer for sockets opened outside this module (the live view). */
+export function currentAuthToken(): string {
+  return authToken;
+}
+
 /*
  * What to do when the server says our credential is no good.
  *
@@ -65,7 +69,7 @@ export function setUnauthorizedHandler(fn: (() => void) | null): void {
   onUnauthorized = fn;
 }
 
-function handleUnauthorized(): void {
+export function handleUnauthorized(): void {
   authToken = '';
   onUnauthorized?.();
 }
@@ -562,42 +566,6 @@ export const api = {
       method: 'DELETE',
     }),
 
-  /**
-   * The server enforces a 2s-per-tab / 1-global-concurrent capture limit
-   * and answers a violation with 429/409 (see `browser.ts`'s `CaptureGate`)
-   * -- callers polling this (Watch Mode) must treat those as "skip this
-   * tick", not as an error to surface.
-   */
-  captureTab: (targetId: string, quality = 55) =>
-    request<TabCapture>(
-      `/api/tabs/${encodeURIComponent(targetId)}/capture?q=${quality}`,
-    ),
-
-  snapshotTab: (targetId: string) =>
-    request<{ tree: string; capturedAt: number }>(
-      `/api/tabs/${encodeURIComponent(targetId)}/snapshot`,
-    ),
-
-  /**
-   * One capture frame as a same-origin object URL.
-   *
-   * Fetched with credentials rather than linked with a token: the bytes
-   * are small (one WebP frame) and the tag only sees an unguessable blob
-   * URL. PagePeek offers save/refresh without exposing a remote URL.
-   */
-  captureObjectUrl: async (targetId: string, quality = 55): Promise<string> => {
-    const headers = new Headers();
-    if (authToken) headers.set('authorization', `Bearer ${authToken}`);
-    const res = await fetch(
-      `/api/tabs/${encodeURIComponent(targetId)}/capture.webp?q=${quality}`,
-      { headers, credentials: 'same-origin' },
-    );
-    if (!res.ok) {
-      if (res.status === 401) handleUnauthorized();
-      throw new ApiError(res.status, res.statusText);
-    }
-    return URL.createObjectURL(await res.blob());
-  },
 };
 
 function artifactPath(

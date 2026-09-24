@@ -520,7 +520,10 @@ export interface BrowserTab {
   title: string;
   url: string;
   active: boolean;
+  /** Same-origin icon URL (proxied by the Mac) or a small data: URL. */
   faviconUrl?: string;
+  /** Set when an Aside chat is using this tab. */
+  agent?: { sessionId: string; title: string; running: boolean };
 }
 
 export interface TabCapture {
