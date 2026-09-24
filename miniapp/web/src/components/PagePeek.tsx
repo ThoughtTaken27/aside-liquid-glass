@@ -10,13 +10,24 @@
  * screenshot presented as live is a correctness bug, not a cosmetic one.
  */
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, ChevronLeft, Spinner } from './Icons';
+import { ChevronLeft, Download, RotateCw, Spinner } from './Icons';
 import { api } from '../api';
 import { downloadBlob, haptic } from '../telegram';
 import { relativeTime } from '../utils/time';
+import { toast } from './Toasts';
 import type { BrowserTab } from '../types';
 
 const MIN_REFRESH_MS = 2_000;
+
+function shotName(tab: BrowserTab): string {
+  let host = 'tab';
+  try {
+    host = new URL(tab.url).hostname.replace(/[^\w.-]+/g, '') || 'tab';
+  } catch {
+    host = 'tab';
+  }
+  return `${host}.webp`;
+}
 
 export function PagePeek({
   tab,
@@ -30,16 +41,28 @@ export function PagePeek({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoomed, setZoomed] = useState(false);
+  const [cooling, setCooling] = useState(false);
+  const [saving, setSaving] = useState(false);
   const lastRefresh = useRef(0);
   const lastObjectUrl = useRef<string | null>(null);
   const requestId = useRef(0);
+  const coolTimer = useRef<number | undefined>(undefined);
+
+  const armCooldown = () => {
+    setCooling(true);
+    if (coolTimer.current) window.clearTimeout(coolTimer.current);
+    coolTimer.current = window.setTimeout(() => setCooling(false), MIN_REFRESH_MS);
+  };
 
   const refresh = () => {
     const now = Date.now();
     // Mirrors the server's own 2s-per-tab floor (`CaptureGate`) so a
     // trigger-happy tap does not just draw a 429 the user has to see.
+    // The button is disabled for that window rather than swallowing the
+    // tap with no change at all.
     if (now - lastRefresh.current < MIN_REFRESH_MS) return;
     lastRefresh.current = now;
+    armCooldown();
     const pending = ++requestId.current;
     setLoading(true);
     setError(null);
@@ -68,6 +91,7 @@ export function PagePeek({
     refresh();
     return () => {
       requestId.current += 1;
+      if (coolTimer.current) window.clearTimeout(coolTimer.current);
       if (lastObjectUrl.current) URL.revokeObjectURL(lastObjectUrl.current);
       lastObjectUrl.current = null;
     };
@@ -75,10 +99,24 @@ export function PagePeek({
   }, [tab.targetId]);
 
   const save = () => {
-    if (!src) return;
+    if (!src || saving) return;
+    setSaving(true);
+    haptic('light');
     void fetch(src)
-      .then((res) => res.blob())
-      .then((blob) => downloadBlob(blob, `${tab.targetId}.webp`));
+      .then((res) => {
+        if (!res.ok) throw new Error('save');
+        return res.blob();
+      })
+      .then((blob) => {
+        downloadBlob(blob, shotName(tab));
+        haptic('success');
+        toast('Screenshot saved', { tone: 'success', duration: 2 });
+      })
+      .catch(() => {
+        haptic('error');
+        toast('Couldn’t save that screenshot', { tone: 'error' });
+      })
+      .finally(() => setSaving(false));
   };
   return (
     <div
@@ -143,21 +181,21 @@ export function PagePeek({
               haptic('light');
               refresh();
             }}
-            aria-label="Refresh"
+            disabled={loading || cooling}
+            aria-label={cooling && !loading ? 'Just refreshed' : 'Refresh'}
           >
-            {loading ? <Spinner size={15} /> : <ArrowUpRight size={16} />}
+            {loading ? <Spinner size={15} /> : <RotateCw size={16} strokeWidth={1.75} />}
           </button>
           {src ? (
             <button
               type="button"
               className="icon-button"
-              onClick={() => {
-                haptic('light');
-                save();
-              }}
-              aria-label="Save"
+              onClick={save}
+              disabled={saving}
+              aria-busy={saving}
+              aria-label="Save screenshot"
             >
-              Save
+              {saving ? <Spinner size={15} /> : <Download size={16} strokeWidth={1.75} />}
             </button>
           ) : null}
         </span>

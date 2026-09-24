@@ -25,9 +25,17 @@ export interface MessageActionsProps {
   text: string;
   /** Which side to hang the row on. */
   align?: 'start' | 'end';
+  /**
+   * Always on screen, rather than revealed by a hold.
+   *
+   * The entrance rise is for a row that just appeared under a finger.
+   * A standing control must not replay that rise every time a virtualized
+   * answer remounts, or scrolling a thread flickers.
+   */
+  standing?: boolean;
 }
 
-export function MessageActions({ text, align = 'start' }: MessageActionsProps) {
+export function MessageActions({ text, align = 'start', standing = false }: MessageActionsProps) {
   /**
    * `idle` -> `done` -> `idle`, or `idle` -> `failed` -> `idle`.
    *
@@ -60,10 +68,10 @@ export function MessageActions({ text, align = 'start' }: MessageActionsProps) {
   if (!text.trim()) return null;
 
   return (
-    <div className={`message-actions is-${align}`}>
+    <div className={`message-actions is-${align}${standing ? ' is-standing' : ''}`}>
       <button
         type="button"
-        className={`message-action ${state === 'done' ? 'is-done' : ''}`}
+        className={`message-action${state === 'done' ? ' is-done' : ''}${state === 'failed' ? ' is-failed' : ''}`}
         onClick={() => void copy()}
         aria-label={state === 'done' ? 'Copied' : 'Copy'}
       >

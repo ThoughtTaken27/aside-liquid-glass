@@ -11,7 +11,7 @@ import {
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from '../api';
-import { CodeBlock } from './CodeBlock';
+import { FencedCode } from './CodeBlock';
 import { openImage } from './ImageLightbox';
 import { normalizeLang, warmHighlighter } from '../utils/highlighter';
 import {
@@ -277,17 +277,21 @@ export const Markdown = memo(function Markdown({
   const components = useMemo(
     () => ({
       img: imageRenderer,
-      // `CodeBlock` renders its OWN `<pre>` (plain, or Shiki's), so the
-      // default `pre` wrapper is passed through unwrapped here rather
-      // than nesting a second `<pre>` around it. Inline code (no fence,
-      // no language) is untouched -- rendered exactly as before.
+      // `FencedCode` renders its own block, so a tagged fence's `pre`
+      // wrapper is unwrapped rather than nested. Inline code (no fence)
+      // is untouched.
       pre: ({ children }: { children?: React.ReactNode }) => {
         const child = isValidElement(children)
           ? children as ReactElement<{ className?: string; children?: React.ReactNode }>
           : null;
-        // A fence without a language still needs block semantics and scrolling.
+        // A fence without a language still needs the same chrome as one
+        // with a tag. Tagged fences are owned by `code` below; this branch
+        // only runs when that component was not given a language class.
         if (child && !/language-/.test(child.props.className || '')) {
-          return <pre className="md-pre"><code>{child.props.children}</code></pre>;
+          // Keep the trailing newline react-markdown hands us. Stripping it
+          // here changed the block's text, which is what a selection copies.
+          const codeText = String(child.props.children ?? '');
+          return <FencedCode code={codeText} />;
         }
         return <>{children}</>;
       },
@@ -296,14 +300,9 @@ export const Markdown = memo(function Markdown({
         const codeText = String(children ?? '').replace(/\n$/, '');
         if (!match) return <code className="md-inline-code">{children}</code>;
         const lang = normalizeLang(match[1]);
-        if (!lang) {
-          return (
-            <pre className="md-pre">
-              <code className="md-code">{codeText}</code>
-            </pre>
-          );
-        }
-        return <CodeBlock code={codeText} lang={lang} />;
+        // Unknown grammars still get the chip and the copy button.
+        // Highlighting is a convenience; being able to take the code is the job.
+        return <FencedCode code={codeText} lang={lang} label={match[1]} />;
       },
       a: ({ node: _node, href, children, ...props }: { node?: unknown; href?: string; children?: React.ReactNode } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
         const index = citationIndexFrom(String(href || ''));

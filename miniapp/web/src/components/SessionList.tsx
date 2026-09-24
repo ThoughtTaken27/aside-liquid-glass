@@ -25,6 +25,7 @@ import {
   Settings as SettingsIcon,
   Spinner,
   TrashIcon,
+  X,
 } from './Icons';
 import { haptic } from '../telegram';
 import { readLocal, writeLocal } from '../utils/storage';
@@ -287,9 +288,10 @@ export function SessionList({
 
         <button
           type="button"
-          className="icon-button"
+          className={`icon-button${searching ? ' is-on' : ''}`}
           aria-label="Search sessions"
-          title="Search (⌘K)"
+          aria-expanded={searching}
+          aria-keyshortcuts="Control+K Meta+K"
           onClick={() => {
             setSearching((prev) => !prev);
             if (searching) setQuery('');
@@ -299,23 +301,40 @@ export function SessionList({
         </button>
         <button
           type="button"
-          className="icon-button"
-          aria-label="Reverse order"
-          onClick={() => setOldestFirst((prev) => !prev)}
+          className={`icon-button${oldestFirst ? ' is-on' : ''}`}
+          aria-pressed={oldestFirst}
+          aria-label={oldestFirst ? 'Show newest first' : 'Show oldest first'}
+          onClick={() => {
+            haptic('select');
+            setOldestFirst((prev) => !prev);
+          }}
         >
           <ArrowDownUp size={17} strokeWidth={1.75} />
         </button>
       </div>
 
       {searching ? (
-        <input
-          className="list-search"
-          autoFocus
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search chats and actions"
-          aria-label="Search chats and actions"
-        />
+        <div className="list-search-wrap">
+          <input
+            className="list-search"
+            autoFocus
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search chats and actions"
+            aria-label="Search chats and actions"
+          />
+          {query ? (
+            <button
+              type="button"
+              className="list-search-clear"
+              aria-label="Clear search"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setQuery('')}
+            >
+              <X size={14} strokeWidth={1.75} />
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       {paletteVisible.length > 0 ? (

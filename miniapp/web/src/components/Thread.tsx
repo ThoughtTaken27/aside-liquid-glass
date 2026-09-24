@@ -36,15 +36,14 @@ import type {
   ThreadItem,
   WorkBlock,
 } from '../types';
-import { Check, CopyIcon, FileIcon } from './Icons';
+import { FileIcon } from './Icons';
 import { Markdown } from './MarkdownAsync';
 import { WorkFold } from './WorkFold';
 import { ErrorCard } from './ErrorCard';
 import { QuestionCard } from './QuestionCard';
 import { PressReveal } from './PressReveal';
+import { MessageActions } from './MessageActions';
 import type { CitationMark } from '../utils/citations';
-import { haptic } from '../telegram';
-import { copyText } from '../utils/clipboard';
 
 function BubbleAttachments({ files }: { files: Attachment[] }) {
   return (
@@ -307,32 +306,6 @@ export interface ThreadProps {
   scrollElementRef: RefObject<HTMLDivElement | null>;
 }
 
-function AnswerActions({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const ok = await copyText(text);
-    haptic(ok ? 'light' : 'error');
-    if (ok) {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    }
-  };
-
-  return (
-    <div className="answer-actions">
-      <button
-        type="button"
-        className={`answer-action ${copied ? 'is-copied' : ''}`}
-        onClick={copy}
-        aria-label={copied ? 'Copied' : 'Copy answer'}
-      >
-        {copied ? <Check size={14} strokeWidth={2} /> : <CopyIcon size={14} strokeWidth={1.5} />}
-      </button>
-    </div>
-  );
-}
-
 /**
  * A rendered thread item does not carry its own key/height -- `Thread`
  * used to be a flat `.map()`. Pulled out unchanged into its own function so
@@ -393,13 +366,16 @@ function renderItem(
   }
   const streaming = item.kind === 'streaming';
   return (
-    <PressReveal
-      className="turn turn-answer"
-      text={item.text}
-      // No hold on a streaming block. The text is still arriving, so a copy
-      // taken now is a truncated answer.
-      enabled={!streaming}
-    >
+    /*
+     * Answers are selectable. They used to sit inside the hold-to-reveal
+     * wrapper, which turned selection off for the whole turn so a long
+     * press would not race the system callout -- and then a second, always
+     * visible copy icon was added underneath, so the hold and the icon
+     * both copied the same text. One control, with a label, and the
+     * paragraph can be selected like any other reading surface. User
+     * bubbles still reveal on hold: they have no standing button.
+     */
+    <div className="turn turn-answer">
       <div
         className="answer"
         data-content-surface="assistant-answer"
@@ -412,9 +388,9 @@ function renderItem(
           sessionId={props.sessionId}
           onOpenCitation={props.onOpenCitation}
         />
-        {!streaming ? <AnswerActions text={item.text} /> : null}
+        {!streaming ? <MessageActions text={item.text} standing /> : null}
       </div>
-    </PressReveal>
+    </div>
   );
 }
 

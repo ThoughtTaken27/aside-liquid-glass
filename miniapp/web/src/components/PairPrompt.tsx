@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '../api';
+import { readClipboard } from '../utils/clipboard';
 import {
   PHONE_OFFLINE_MESSAGE,
   pairUnreachableMessage,
@@ -51,8 +52,27 @@ export function PairPrompt({
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
 
   const key = extractPairingKey(value);
+
+  const paste = async () => {
+    const text = await readClipboard();
+    if (!text) {
+      haptic('warning');
+      setError('Couldn’t read the clipboard. Long-press the field and paste.');
+      return;
+    }
+    setValue(text);
+    field.current?.focus();
+    if (!extractPairingKey(text)) {
+      haptic('warning');
+      setError('That doesn’t look like a pairing link. Copy a fresh one from your Mac.');
+      return;
+    }
+    setError(null);
+    haptic('light');
+  };
 
   const submit = async () => {
     if (!key || busy) return;
@@ -90,30 +110,41 @@ export function PairPrompt({
         void submit();
       }}
     >
-      <input
-        className="pair-prompt-input surface-row"
-        data-surface-row="input"
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setError(null);
-        }}
-        placeholder="Paste the pairing link"
-        /*
-         * Every one of these is off for a reason. iOS will happily
-         * capitalise, autocorrect and spell-check a hex string into
-         * something that no longer matches, and the failure would surface
-         * as a flat rejection with no hint that the text was altered.
-         */
-        autoCapitalize="off"
-        autoCorrect="off"
-        spellCheck={false}
-        autoComplete="off"
-        inputMode="url"
-        enterKeyHint="go"
-        disabled={busy}
-        aria-label="Pairing link or key"
-      />
+      <div className="pair-prompt-field">
+        <input
+          ref={field}
+          className="pair-prompt-input surface-row"
+          data-surface-row="input"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(null);
+          }}
+          placeholder="Paste the pairing link"
+          /*
+           * Every one of these is off for a reason. iOS will happily
+           * capitalise, autocorrect and spell-check a hex string into
+           * something that no longer matches, and the failure would surface
+           * as a flat rejection with no hint that the text was altered.
+           */
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          autoComplete="off"
+          inputMode="url"
+          enterKeyHint="go"
+          disabled={busy}
+          aria-label="Pairing link or key"
+        />
+        <button
+          type="button"
+          className="pair-prompt-paste"
+          onClick={() => void paste()}
+          disabled={busy}
+        >
+          Paste
+        </button>
+      </div>
       <button
         type="submit"
         className="pair-prompt-go surface-row"

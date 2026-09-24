@@ -123,6 +123,8 @@ interface TelegramWebApp {
   ) => void;
   showAlert?: (message: string, cb?: () => void) => void;
   showConfirm?: (message: string, cb?: (ok: boolean) => void) => void;
+  /** Bot API 6.4+. Callback form; absent outside Telegram. */
+  readTextFromClipboard?: (cb: (text: string | null) => void) => void;
 
   // --- lifecycle -----------------------------------------------------------
   enableClosingConfirmation?: () => void;

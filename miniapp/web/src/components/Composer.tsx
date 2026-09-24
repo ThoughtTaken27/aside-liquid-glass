@@ -349,6 +349,13 @@ export function Composer({
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey) return;
+    /*
+     * An IME (Japanese, Chinese, Korean) confirms a composition with Enter.
+     * That keystroke is still "Enter", and sending on it commits the
+     * candidate AND the message. `keyCode` 229 is the legacy signal some
+     * webviews still emit when `isComposing` is late.
+     */
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     // On a touch device the return key is a NEWLINE, always. The arrow
     // button is the only way to send.
     //

@@ -19,6 +19,7 @@
  */
 import { useEffect, useState } from 'react';
 import { AsideSymbol, Check, ChevronLeft, ProviderMark, Spinner } from './Icons';
+import { ToastHost, toast } from './Toasts';
 import { MemoryBrowser } from './MemoryBrowser';
 import { RoutinesList } from './RoutinesList';
 import { api } from '../api';
@@ -310,6 +311,7 @@ export function SettingsScreen({
     api.saveSettings(patch).then(
       (res) => setSettings(res.settings),
       () => {
+        toast('Couldn’t save that setting', { tone: 'error' });
         api.settings().then(
           (res) => setSettings(res.settings),
           () => {},
@@ -380,6 +382,7 @@ export function SettingsScreen({
         </span>
       </header>
 
+      <ToastHost />
       <div className="settings-scroll surface-content" data-surface-content>
         {error ? <p className="list-empty">{error}</p> : null}
         {!settings && !error ? (

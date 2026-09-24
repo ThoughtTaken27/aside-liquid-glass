@@ -22,6 +22,37 @@
  * focusing an element outside the viewport scrolls the page to reach it,
  * which yanks the thread out from under the reader mid-tap.
  */
+/**
+ * Read the clipboard during a user gesture.
+ *
+ * Pairing is the one place a person is holding a link they just copied on
+ * another device. `readText` has to be called inside the tap -- a later
+ * tick is denied -- and Telegram's own reader is the fallback for webviews
+ * that expose a callback instead of the async API. A null means "we could
+ * not read it", not "the clipboard was empty"; the caller says so.
+ */
+export function readClipboard(): Promise<string | null> {
+  const read = navigator.clipboard?.readText?.();
+  if (read) {
+    return read
+      .then((text) => (text && text.trim() ? text : null))
+      .catch(() => readTelegramClipboard());
+  }
+  return readTelegramClipboard();
+}
+
+function readTelegramClipboard(): Promise<string | null> {
+  const read = window.Telegram?.WebApp?.readTextFromClipboard;
+  if (!read) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      read((text) => resolve(text && text.trim() ? text : null));
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 export async function copyText(text: string): Promise<boolean> {
   if (!text) return false;
 

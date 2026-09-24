@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, CopyIcon } from './Icons';
 import type { FileEdit } from '../types';
+import { haptic } from '../telegram';
+import { copyText } from '../utils/clipboard';
+import { toast } from './Toasts';
 
 /**
  * The diff card behind a `Writing …` / `Edited …` row.
@@ -61,15 +64,27 @@ export function FileCard({ file }: { file: FileEdit }) {
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current);
+    };
+  }, []);
   return (
     <button
       type="button"
       className="icon-button file-card-copy"
-      aria-label="Copy file contents"
+      aria-label={copied ? 'Copied' : 'Copy file contents'}
       onClick={() => {
-        void navigator.clipboard?.writeText(text).then(() => {
+        void copyText(text).then((ok) => {
+          haptic(ok ? 'light' : 'error');
+          if (!ok) {
+            toast('Couldn’t copy that file', { tone: 'error' });
+            return;
+          }
           setCopied(true);
-          window.setTimeout(() => setCopied(false), 1200);
+          if (timer.current) window.clearTimeout(timer.current);
+          timer.current = window.setTimeout(() => setCopied(false), 1600);
         });
       }}
     >

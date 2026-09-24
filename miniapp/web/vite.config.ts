@@ -169,6 +169,9 @@ export default defineConfig({
     // bind v4 explicitly: the default resolves to ::1 on this Mac, which
     // makes http://127.0.0.1:5273 refuse connections
     host: '127.0.0.1',
+    // The preview proxy presents a foreign Host. Vite 6 rejects that by
+    // default; this dev server has no secret in the HTML, so allow it.
+    allowedHosts: true,
     port: 5273,
     proxy: {
       '/api': { target: API_TARGET, changeOrigin: true },

@@ -13,6 +13,7 @@ import { PagePeek } from './PagePeek';
 import { ArrowUp, Globe, Spinner, X } from './Icons';
 import { api } from '../api';
 import { haptic, showConfirm } from '../telegram';
+import { toast } from './Toasts';
 import type { BrowserTab } from '../types';
 
 function hostname(url: string): string {
@@ -137,6 +138,7 @@ export function TabDeck({ onClose }: { onClose: () => void }) {
       load();
     } catch {
       haptic('error');
+      toast('Couldn’t open that address', { tone: 'error' });
     } finally {
       setOpening(false);
     }
@@ -150,6 +152,8 @@ export function TabDeck({ onClose }: { onClose: () => void }) {
     try {
       await api.closeTab(tab.targetId);
     } catch {
+      haptic('error');
+      toast('Couldn’t close that tab', { tone: 'error' });
       load(); // put the truth back if the close didn't actually happen
     }
   };
