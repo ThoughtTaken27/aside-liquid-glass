@@ -201,7 +201,11 @@ describe('sending with attachments', () => {
     const recorder = path.join(env.root, 'recorder.sh');
     fs.writeFileSync(
       recorder,
-      `#!/bin/sh\nfor a in "$@"; do printf '%s\\n' "$a"; done >> ${JSON.stringify(argvLog)}\nprintf '\\n--\\n' >> ${JSON.stringify(argvLog)}\n`,
+      // One write per invocation, closed by a sentinel no real argument can
+      // be. The old recorder appended each argument separately and ended with
+      // '--', which `aside exec` also passes as a real argument, so a reader
+      // could stop halfway through a slow machine's write.
+      `#!/bin/sh\n{ for a in "$@"; do printf '%s\\n' "$a"; done; printf '@@argv-end@@\\n'; } >> ${JSON.stringify(argvLog)}\n`,
       { mode: 0o755 },
     );
 
@@ -246,7 +250,7 @@ describe('sending with attachments', () => {
     for (let i = 0; i < 40; i += 1) {
       if (fs.existsSync(argvLog)) {
         const lines = fs.readFileSync(argvLog, 'utf8').split('\n');
-        if (lines.includes('--')) return lines;
+        if (lines.includes('@@argv-end@@')) return lines;
       }
       await new Promise((r) => setTimeout(r, 50));
     }
