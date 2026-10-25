@@ -1,0 +1,35 @@
+ext {
+    /*
+     * 26 because GeckoView requires it.
+     *
+     * The alternative the manifest merger offers is
+     * `tools:overrideLibrary`, which forces the link and, in its own
+     * words, may lead to runtime failures -- it does not make the engine
+     * work on API 24, it just stops the build from saying so. Raising the
+     * floor is the honest fix and costs nothing here: API 26 is Android
+     * 8.0 from 2017, and this app cannot function at all without a Mac
+     * running Aside on the same tailnet.
+     */
+    minSdkVersion = 26
+    compileSdkVersion = 36
+    targetSdkVersion = 36
+    androidxActivityVersion = '1.11.0'
+    androidxAppCompatVersion = '1.7.1'
+    androidxCoordinatorLayoutVersion = '1.3.0'
+    androidxCoreVersion = '1.17.0'
+    androidxFragmentVersion = '1.8.9'
+    coreSplashScreenVersion = '1.2.0'
+    androidxWebkitVersion = '1.14.0'
+    // Custom Tabs. Pinned to the version @capacitor/browser already
+    // resolves so the app module and the plugin cannot end up on two
+    // different copies of the same classes.
+    androidxBrowserVersion = '1.9.0'
+    // Mozilla's Firefox engine, embedded as the in-app browser. Exact
+    // build, not a range: Mozilla publishes a new timestamped version
+    // every few days and a floating pin would change engine underneath us.
+    geckoviewVersion = '153.0.20260810162159'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.3.0'
+    androidxEspressoCoreVersion = '3.7.0'
+    cordovaAndroidVersion = '14.0.1'
+}

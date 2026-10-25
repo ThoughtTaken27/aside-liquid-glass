@@ -1,0 +1,1229 @@
+/*
+ * Craft layer: motion, material and geometry for the standalone phone app.
+ *
+ * Loaded after fits.css. It changes how things move, sit and catch light,
+ * never the palette: every colour here is a theme token or a mix of one.
+ *
+ * Motion vocabulary (apple-design + emil-design-eng, values in
+ * skills/user/ui-polish/references/extracted-values.md):
+ *   --m-ease-out    cubic-bezier(0.23, 1, 0.32, 1)  enters, presses releasing
+ *   --m-ease-nav    cubic-bezier(0.32, 0.72, 0, 1)  pushes, sheets, drawers
+ *                   (iOS navigation; reads as a critically damped spring)
+ *   --m-ease-io     cubic-bezier(0.77, 0, 0.175, 1) on-screen moves
+ *   press 120ms, small swaps 180ms, pages 380ms (pop 320ms), sheets 420ms.
+ * Only transform and opacity animate, except the keyboard glide and a
+ * sheet's height across a page change, which are layout by nature.
+ */
+:root[data-client='standalone'] {
+  --m-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --m-ease-nav: cubic-bezier(0.32, 0.72, 0, 1);
+  --m-ease-io: cubic-bezier(0.77, 0, 0.175, 1);
+  --m-press: 120ms;
+  --m-swap: 180ms;
+  --m-page: 280ms;
+  --m-pop: 240ms;
+}
+
+/* ==========================================================================
+ * Sheet pages (Sheet `pageKey`): push from the right, pop to the right.
+ * The outgoing page recedes 28% and dims, as a navigation stack does.
+ * ======================================================================= */
+.sheet-body:has(> .sheet-page) {
+  position: relative;
+  overflow-x: hidden;
+}
+
+.sheet-page {
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+  min-width: 0;
+}
+
+.sheet-page.is-leaving {
+  position: absolute;
+  inset: 0 0 auto;
+  padding: inherit;
+  pointer-events: none;
+}
+
+.sheet-page[data-page-dir='1']:not(.is-leaving) {
+  animation: page-in-right var(--m-page) var(--m-ease-nav) both;
+}
+.sheet-page.is-leaving[data-page-dir='1'] {
+  animation: page-out-left var(--m-page) var(--m-ease-nav) both;
+}
+.sheet-page[data-page-dir='-1']:not(.is-leaving) {
+  animation: page-in-left var(--m-pop) var(--m-ease-nav) both;
+}
+.sheet-page.is-leaving[data-page-dir='-1'] {
+  animation: page-out-right var(--m-pop) var(--m-ease-nav) both;
+}
+.sheet-page[data-page-dir='0']:not(.is-leaving) {
+  animation: page-fade-in var(--m-swap) var(--m-ease-out) both;
+}
+.sheet-page.is-leaving[data-page-dir='0'] {
+  animation: page-fade-out 140ms ease-out both;
+}
+
+/* The title travels with its page, a shorter distance, so the head reads
+   as one bar whose label changes rather than a second sliding layer. */
+.sheet-titles[data-page-dir='1'] {
+  animation: title-in-right var(--m-page) var(--m-ease-nav) both;
+}
+.sheet-titles[data-page-dir='-1'] {
+  animation: title-in-left var(--m-pop) var(--m-ease-nav) both;
+}
+.sheet-back {
+  animation: page-fade-in 220ms var(--m-ease-out) both;
+}
+
+@keyframes page-in-right {
+  from { transform: translate3d(100%, 0, 0); }
+}
+@keyframes page-out-left {
+  to { transform: translate3d(-28%, 0, 0); opacity: 0; }
+}
+@keyframes page-in-left {
+  from { transform: translate3d(-28%, 0, 0); opacity: 0; }
+}
+@keyframes page-out-right {
+  to { transform: translate3d(100%, 0, 0); }
+}
+@keyframes page-fade-in {
+  from { opacity: 0; }
+}
+@keyframes page-fade-out {
+  to { opacity: 0; }
+}
+@keyframes title-in-right {
+  from { transform: translate3d(36px, 0, 0); opacity: 0; }
+}
+@keyframes title-in-left {
+  from { transform: translate3d(-36px, 0, 0); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-page[data-page-dir]:not(.is-leaving),
+  .sheet-titles[data-page-dir] {
+    animation: page-fade-in 160ms ease-out both;
+  }
+  .sheet-page.is-leaving[data-page-dir] {
+    animation: page-fade-out 120ms ease-out both;
+  }
+}
+
+/* ==========================================================================
+ * Screen navigation (utils/navTransition.ts, View Transitions).
+ * push: the new screen slides in from the right over the old, which
+ * recedes 28%. pop: the old screen leaves to the right, revealing the
+ * previous one coming forward. Same path both ways (apple-design §7).
+ * ======================================================================= */
+::view-transition-group(root) {
+  animation-duration: 280ms;
+}
+html[data-nav]::view-transition-old(root),
+html[data-nav]::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  animation-fill-mode: both;
+}
+html[data-nav='push']::view-transition-old(root) {
+  animation-name: vt-recede-left;
+  animation-duration: 280ms;
+}
+html[data-nav='push']::view-transition-new(root) {
+  animation-name: vt-enter-right;
+  animation-duration: 280ms;
+  box-shadow: -18px 0 40px -12px rgb(0 0 0 / 0.18);
+}
+html[data-nav='pop']::view-transition-old(root) {
+  z-index: 2;
+  animation-name: vt-leave-right;
+  animation-duration: 240ms;
+  box-shadow: -18px 0 40px -12px rgb(0 0 0 / 0.18);
+}
+html[data-nav='pop']::view-transition-new(root) {
+  z-index: 1;
+  animation-name: vt-come-forward;
+  animation-duration: 240ms;
+}
+html[data-nav='fade']::view-transition-old(root) {
+  animation: page-fade-out 160ms ease-out both;
+}
+html[data-nav='fade']::view-transition-new(root) {
+  animation: page-fade-in 200ms var(--m-ease-out, ease-out) both;
+}
+@keyframes vt-enter-right {
+  from { transform: translate3d(100%, 0, 0); }
+}
+@keyframes vt-recede-left {
+  to { transform: translate3d(-28%, 0, 0); opacity: 0.6; }
+}
+@keyframes vt-leave-right {
+  to { transform: translate3d(100%, 0, 0); }
+}
+@keyframes vt-come-forward {
+  from { transform: translate3d(-28%, 0, 0); opacity: 0.6; }
+}
+/* Screens already arrive via the transition; their own 14px nudge would
+   double the motion. */
+:root[data-client='standalone'] .settings-screen > .settings-scroll {
+  animation: none;
+}
+
+/* ==========================================================================
+ * Press feedback: on pointer-down, instant in, eased out (apple-design §1).
+ * Discrete controls scale; list rows tint instead so lists stay still.
+ * ======================================================================= */
+:root[data-client='standalone'] :is(
+  .icon-button, .round-button, .pill, .voice-button,
+  .mode-switch-option, .segmented button, .sheet-back, .tab-deck-go-icon,
+  .question-option, .live-full-action, .copy-button, .jump-latest
+) {
+  transition-property: transform, background-color, color, opacity, box-shadow;
+  transition-duration: 160ms;
+  transition-timing-function: var(--m-ease-out);
+}
+:root[data-client='standalone'] :is(
+  .icon-button, .round-button, .pill, .voice-button,
+  .sheet-back, .question-option, .live-full-action, .jump-latest
+):active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 60ms;
+}
+:root[data-client='standalone'] :is(.mode-switch-option, .segmented button):active:not(:disabled) {
+  transform: scale(0.96);
+  transition-duration: 60ms;
+}
+:root[data-client='standalone'] :is(.session-card, .next-cue):active {
+  transform: scale(0.985);
+  transition: transform 60ms ease-out;
+}
+:root[data-client='standalone'] :is(.session-card, .next-cue) {
+  transition: transform 220ms var(--m-ease-out), background-color 160ms ease-out;
+}
+:root[data-client='standalone'] :is(
+  .sheet-row, .settings-row.is-button, .session-row, .panel-row, .tab-deck-row,
+  .memory-tree-file, .slash-row, .omnibox-row
+) {
+  transition: background-color 200ms ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+:root[data-client='standalone'] :is(
+  .sheet-row, .settings-row.is-button, .session-row, .panel-row, .tab-deck-row,
+  .memory-tree-file, .slash-row, .omnibox-row
+):active:not(:disabled):not(.is-static) {
+  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+  transition-duration: 40ms;
+}
+:root[data-client='standalone'] * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ==========================================================================
+ * Focus: no dark outline around fields (Owner: "no matter if it is square
+ * or round"). A field shows focus by its caret; the composer by its lift.
+ * Keyboard focus on buttons keeps a quiet ring for accessibility.
+ * ======================================================================= */
+:root[data-client='standalone'] :is(input, textarea, [contenteditable]):focus,
+:root[data-client='standalone'] :is(input, textarea, [contenteditable]):focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+:root[data-client='standalone'] :is(.memory-search, .sheet-search, .tab-deck-go, .question-reply, .list-search-wrap, .list-search):focus-within {
+  outline: none;
+  box-shadow: none;
+}
+:root[data-client='standalone'] .list-search:focus,
+:root[data-client='standalone'] .list-search:focus-visible {
+  outline: none;
+  border-color: transparent;
+}
+:root:root[data-client='standalone'][data-fit] .composer:focus-within,
+:root:root[data-client='standalone'][data-fit='midnight'] .composer:focus-within {
+  border-color: var(--fp-hair);
+}
+:root[data-client='standalone'] :is(button, [role='button'], a):focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ==========================================================================
+ * Glass: one recipe for floating chrome (top bar controls, composer rim).
+ * Hairline edge, a soft top light, a short contact shadow plus a long
+ * ambient one. The old stack drew a bright inner ring plus a dark bottom
+ * ring plus a border, which read as a doubled, plastic edge and, in dark,
+ * a bright crescent on the globe.
+ * ======================================================================= */
+:root:root[data-client='standalone'][data-fit] {
+  --g-edge: 0.5px solid rgb(from var(--fp-shade, #2a2420) r g b / 0.10);
+  --g-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.85),
+    0 1px 2px rgb(from var(--fp-shade, #2a2420) r g b / 0.05),
+    0 8px 22px -10px rgb(from var(--fp-shade, #2a2420) r g b / 0.18);
+}
+:root:root[data-client='standalone'][data-fit='midnight'] {
+  --g-edge: 0.5px solid rgb(255 245 230 / 0.09);
+  --g-shadow:
+    inset 0 0.5px 0 rgb(255 245 230 / 0.07),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 10px 26px -10px rgb(0 0 0 / 0.6);
+}
+:root:root[data-client='standalone'][data-fit] :is(.mode-switch, .home-topbar > .icon-button) {
+  border: var(--g-edge);
+  box-shadow: var(--g-shadow);
+}
+
+/* ==========================================================================
+ * Top bar geometry. Next (left) and Browser (right) are one 44px pair; the
+ * Chat/Web switch matches their height instead of standing 8px taller.
+ * ======================================================================= */
+:root[data-client='standalone'] .home-topbar {
+  justify-content: space-between;
+  min-height: 44px;
+  padding-top: 6px;
+}
+/* One centre line: the switch is centred on the bar's content box, and
+   the old -6px lift on the globe is gone. */
+:root[data-client='standalone'] .app-home .home-topbar > button.icon-button[aria-label] {
+  translate: none;
+}
+:root[data-client='standalone'] .home-topbar > .icon-button,
+:root[data-client='standalone'] .home-topbar > .home-next-button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+}
+:root[data-client='standalone'] .home-next-button {
+  order: -1;
+  margin-right: auto;
+  -webkit-backdrop-filter: blur(24px) saturate(1.32);
+  backdrop-filter: blur(24px) saturate(1.32);
+}
+:root:root[data-client='standalone'][data-fit] .home-next-button {
+  background: var(--fp-glass, color-mix(in srgb, var(--page) 70%, transparent));
+}
+.home-next-dot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fp-accent-ink, var(--brand));
+  box-shadow: 0 0 0 2px var(--page);
+  animation: dot-in 260ms var(--m-ease-out) both;
+}
+@keyframes dot-in {
+  from { transform: scale(0.4); opacity: 0; }
+}
+:root[data-client='standalone'] .mode-switch {
+  height: 44px;
+  min-height: 44px;
+  padding: 3px;
+  top: calc(50% + 3px);
+}
+:root[data-client='standalone'] .mode-switch .mode-switch-option,
+:root[data-client='standalone'] .mode-switch > button {
+  height: 38px;
+  min-height: 38px;
+  padding: 0 15px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  border-radius: 19px;
+}
+
+/* ==========================================================================
+ * Sheets: iOS grouped lists. Inset hairlines that start at the text (not
+ * 2px page-coloured bars across the full width), a tighter head, and a
+ * title sized as a title rather than a heading.
+ * ======================================================================= */
+:root:root[data-client='standalone'][data-fit] .sheet .sheet-group > * + * {
+  background-image: linear-gradient(
+    to right,
+    transparent 16px,
+    rgb(from var(--fp-shade, #2a2420) r g b / 0.09) 16px
+  );
+  background-size: 100% 0.5px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+}
+:root:root[data-client='standalone'][data-fit='midnight'] .sheet .sheet-group > * + * {
+  background-image: linear-gradient(to right, transparent 16px, rgb(255 245 230 / 0.08) 16px);
+}
+/* Rows that lead with a glyph tuck the hairline under the text. */
+:root:root[data-client='standalone'][data-fit] .sheet .sheet-group > :has(.sheet-row-glyph, .sheet-dots-glyph, .sheet-dot-glyph) + :has(.sheet-row-glyph, .sheet-dots-glyph, .sheet-dot-glyph) {
+  background-image: linear-gradient(
+    to right,
+    transparent 62px,
+    rgb(from var(--fp-shade, #2a2420) r g b / 0.09) 62px
+  );
+}
+:root:root[data-client='standalone'][data-fit='midnight'] .sheet .sheet-group > :has(.sheet-row-glyph, .sheet-dots-glyph, .sheet-dot-glyph) + :has(.sheet-row-glyph, .sheet-dots-glyph, .sheet-dot-glyph) {
+  background-image: linear-gradient(to right, transparent 62px, rgb(255 245 230 / 0.08) 62px);
+}
+:root[data-client='standalone'] .sheet-bottom .sheet-head {
+  padding-bottom: 4px;
+}
+:root[data-client='standalone'] .sheet-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 22px;
+}
+:root[data-client='standalone'] .sheet-row-title {
+  letter-spacing: -0.012em;
+}
+:root[data-client='standalone'] .sheet-back {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  margin-left: -6px;
+}
+:root[data-client='standalone'] .sheet-row-trailing svg,
+:root[data-client='standalone'] .sheet-row svg.lucide-chevron-right {
+  opacity: 0.5;
+}
+
+/* ==========================================================================
+ * Browser tab deck: the two groups were square, bordered boxes with the
+ * label jammed against the top edge. They are now the same rounded grouped
+ * lists as everywhere else, with the label above the card.
+ * ======================================================================= */
+:root[data-client='standalone'] .tab-deck-window {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+:root[data-client='standalone'] .tab-deck-window-head {
+  padding: 0 16px 8px;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: color-mix(in srgb, var(--foreground) 56%, transparent);
+}
+:root[data-client='standalone'] .tab-deck-window .tab-deck-row {
+  background: var(--fp-group, var(--surface-primary));
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+:root[data-client='standalone'] .tab-deck-window .tab-deck-window-head + .tab-deck-row,
+:root[data-client='standalone'] .tab-deck-window > .tab-deck-row:first-child {
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+}
+:root[data-client='standalone'] .tab-deck-window > .tab-deck-row:last-child {
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+:root[data-client='standalone'] .tab-deck-window .tab-deck-row + .tab-deck-row {
+  box-shadow: inset 72px 0 0 var(--fp-group, var(--surface-primary)), inset 0 0.5px 0 rgb(from var(--fp-shade, #2a2420) r g b / 0.09);
+}
+:root:root[data-client='standalone'][data-fit='midnight'] .tab-deck-window .tab-deck-row + .tab-deck-row {
+  box-shadow: inset 72px 0 0 var(--fp-group, var(--surface-primary)), inset 0 0.5px 0 rgb(255 245 230 / 0.08);
+}
+
+/* ==========================================================================
+ * Thread header. The right group is two 44px buttons but was sized for 70px,
+ * so it spilled 20px into the title; an empty subtitle still took 18px and
+ * pushed a lone title above the icons' centre line.
+ * ======================================================================= */
+:root[data-client='standalone'] .thread-header-left,
+:root[data-client='standalone'] .thread-header-right {
+  flex: 0 0 92px;
+  width: 92px;
+}
+:root[data-client='standalone'] .thread-header-right {
+  justify-content: flex-end;
+  gap: 4px;
+}
+:root[data-client='standalone'] .thread-subtitle:empty {
+  display: none;
+}
+:root[data-client='standalone'] .thread-titles {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+/* Sub-screens (Settings, Memory, Routines) have a back button and no right
+   group; a matching spacer keeps their title on the screen's centre. */
+:root[data-client='standalone'] .settings-screen > .thread-header > .settings-brand {
+  flex: 0 0 44px;
+  width: 44px;
+  display: flex;
+  justify-content: center;
+}
+:root[data-client='standalone'] .settings-screen > .thread-header .thread-titles {
+  justify-content: center;
+  text-align: center;
+}
+
+/* ==========================================================================
+ * Recents. One left edge (16px) for heading, toolbar and cards; time stamps
+ * in the reading face rather than tracked monospace capitals; a single
+ * hairline card edge instead of the doubled white-plus-dark rim.
+ * ======================================================================= */
+:root[data-client='standalone'] .home-history-head {
+  margin: 0 0 16px;
+  padding: 0 2px;
+}
+:root[data-client='standalone'] .list-toolbar.context-controls {
+  padding-left: 0;
+  padding-right: 0;
+}
+:root[data-client='standalone'] .session-card-time {
+  font-family: var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
+}
+:root:root[data-client='standalone'][data-fit] .session-card {
+  border: var(--g-edge);
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.7),
+    0 1px 2px rgb(from var(--fp-shade, #2a2420) r g b / 0.04),
+    0 10px 28px -14px rgb(from var(--fp-shade, #2a2420) r g b / 0.16);
+}
+:root:root[data-client='standalone'][data-fit='midnight'] .session-card {
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 245 230 / 0.06),
+    0 12px 30px -14px rgb(0 0 0 / 0.6);
+}
+:root[data-client='standalone'] .session-card-title {
+  letter-spacing: -0.018em;
+}
+
+/* ==========================================================================
+ * Settings. Notes share the row text's left edge; rows that open a page
+ * say so with a chevron.
+ * ======================================================================= */
+:root[data-client='standalone'] .settings-note {
+  padding-left: 13px;
+  padding-right: 13px;
+}
+:root[data-client='standalone'] .settings-row.is-button {
+  position: relative;
+  padding-right: 40px;
+}
+:root[data-client='standalone'] .settings-row.is-button::after {
+  content: '';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 1.75px solid currentColor;
+  border-top: 1.75px solid currentColor;
+  transform: translateY(-50%) rotate(45deg);
+  opacity: 0.38;
+}
+
+/* Memory: a grouped list of files under quiet folder labels, graphite ink
+   (the accent was being spent on every filename), real chevrons. */
+:root[data-client='standalone'] .memory-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:root[data-client='standalone'] .memory-tree-dir {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 40px;
+  padding: 14px 16px 6px;
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--foreground) 56%, transparent);
+  text-align: left;
+}
+:root[data-client='standalone'] .memory-tree-caret {
+  transition: transform 220ms var(--m-ease-out);
+}
+:root[data-client='standalone'] .memory-tree-caret[data-open] {
+  transform: rotate(90deg);
+}
+:root[data-client='standalone'] .memory-tree-dir + .memory-tree {
+  background: var(--fp-group, var(--surface-primary));
+  border-radius: 18px;
+  overflow: hidden;
+  border: var(--g-edge, 0);
+}
+:root[data-client='standalone'] .memory-tree-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px 0 16px;
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  font-size: 15px;
+  letter-spacing: -0.012em;
+  text-align: left;
+}
+:root[data-client='standalone'] .memory-tree li > .memory-tree-file.surface-row {
+  border-radius: 0;
+  min-height: 48px;
+}
+:root[data-client='standalone'] .memory-tree li + li > .memory-tree-file {
+  background: linear-gradient(to right, transparent 16px, rgb(from var(--fp-shade, #2a2420) r g b / 0.09) 16px) 0 0 / 100% 0.5px no-repeat;
+}
+:root:root[data-client='standalone'][data-fit='midnight'] .memory-tree li + li > .memory-tree-file {
+  background: linear-gradient(to right, transparent 16px, rgb(255 245 230 / 0.08) 16px) 0 0 / 100% 0.5px no-repeat;
+}
+/* Memory and Routines have no right-hand control; balance the back button
+   so their titles sit on the screen's centre. */
+:root[data-client='standalone'] :is([data-destination='memory'], [data-destination='memory-file'], [data-destination='routines']) > .thread-header::after {
+  content: '';
+  flex: 0 0 44px;
+  position: static;
+  width: 44px;
+  height: 1px;
+  background: none;
+}
+:root[data-client='standalone'] .memory-tree-chevron {
+  flex: none;
+  opacity: 0.38;
+}
+:root[data-client='standalone'] .memory-page {
+  padding-inline: 8px;
+}
+
+/* ==========================================================================
+ * Session panel.
+ * ======================================================================= */
+:root[data-client='standalone'] .mute-row {
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  width: 100%;
+}
+:root[data-client='standalone'] .panel-empty.is-blank {
+  width: 100%;
+  text-align: center;
+  justify-content: center;
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
+/* Chat/Web thumb: fits the 44px track with an even 3px inset all round,
+   glides on the navigation curve. */
+:root[data-client='standalone'] .mode-switch .mode-switch-selection {
+  top: 3px;
+  height: 38px;
+  border-radius: 19px;
+  border-width: 0.5px;
+  transition: transform 340ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+:root:root[data-client='standalone'][data-fit='midnight'] .mode-switch .mode-switch-selection {
+  border-color: rgb(255 245 230 / 0.10);
+  box-shadow: inset 0 0.5px 0 rgb(255 245 230 / 0.10), 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+/* Recents toolbar: the List/Card switch matches the 44px icon buttons and
+   the Chat/Web switch (3px inset, 38px thumb), on the cards' left edge. */
+:root[data-client='standalone'] .list-toolbar .segmented {
+  height: 44px;
+  min-height: 44px;
+  padding: 3px;
+  margin-left: 0;
+  box-sizing: border-box;
+}
+:root[data-client='standalone'] .list-toolbar .segmented button {
+  height: 38px;
+  min-height: 38px;
+  padding: 0 13px;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+:root[data-client='standalone'] .list-toolbar .icon-button {
+  border-radius: 22px;
+}
+
+/* Condensed header (transcript scrolled): the subtitle used to fade but
+   keep its 18px, leaving the lone title 10px above the icons' centre.
+   It now folds away with the fade, so the title settles onto the line. */
+:root[data-client='standalone'] .thread-header .thread-subtitle {
+  transition: opacity 180ms var(--m-ease-out), max-height 280ms cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+}
+:root[data-client='standalone'] .thread-header[data-condensed='true'] .thread-subtitle {
+  max-height: 0;
+}
+
+/* Session panel subagent list: one grouped card with hairlines from the
+   name, instead of 4px page-coloured bars between floating rows. */
+:root:root[data-client='standalone'][data-fit] .panel-list {
+  gap: 0;
+  background: var(--fp-group, var(--surface-primary));
+  border-radius: 18px;
+  overflow: hidden;
+}
+:root:root[data-client='standalone'][data-fit] .panel-list > li + li {
+  border-top: 0;
+  background: linear-gradient(to right, transparent 35px, rgb(from var(--fp-shade, #2a2420) r g b / 0.09) 35px) 0 0 / 100% 0.5px no-repeat;
+}
+:root:root[data-client='standalone'][data-fit='midnight'] .panel-list > li + li {
+  background: linear-gradient(to right, transparent 35px, rgb(255 245 230 / 0.08) 35px) 0 0 / 100% 0.5px no-repeat;
+}
+
+/* ==========================================================================
+ * Type. Faces are unchanged on purpose: Geist for the interface, the
+ * system sans for reading (his stated preference, see tokens.css). What
+ * changes is how they are set. Geist is drawn loose for display use, so
+ * tracking tightens as size grows (SF's own optical curve, roughly):
+ * 13px 0, 15px -0.01em, 17px -0.02em, 20px+ -0.025em. Titles balance
+ * their lines; reading text avoids orphans; numbers that update or line
+ * up are tabular.
+ * ======================================================================= */
+:root[data-client='standalone'] {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+:root[data-client='standalone'] :is(
+  .thread-title, .settings-row-title, .panel-row-name, .tab-deck-title,
+  .memory-tree-file, .sheet-row-title
+) {
+  letter-spacing: -0.012em;
+}
+:root[data-client='standalone'] :is(.thread-title, .sheet-title) {
+  font-weight: 600;
+  letter-spacing: -0.022em;
+}
+:root[data-client='standalone'] :is(.home-history-head h2, .settings-heading, .panel-heading, .tab-deck-window-head) {
+  text-wrap-style: balance;
+}
+:root[data-client='standalone'] :is(.session-card-title, .n3-top-title) {
+  text-wrap-style: balance;
+}
+/* The chat title is one line, always: it ends in an ellipsis inside its
+   column instead of fading under the globe. (The text-wrap shorthand
+   would switch wrapping back on, hence the longhand above.) */
+:root[data-client='standalone'] .thread-header .thread-title {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+:root[data-client='standalone'] .md :is(p, li) {
+  text-wrap: pretty;
+}
+:root[data-client='standalone'] :is(.session-card-time, .session-row-time, .panel-row-meta, .settings-row-value, .tab-deck-window-head) {
+  font-variant-numeric: tabular-nums;
+}
+:root[data-client='standalone'] .composer input[type='file'] { position: fixed; top: 0; left: 0; }
+
+/* ==========================================================================
+ * Thread motion.
+ * ======================================================================= */
+/* History arrives as one surface: a short fade and settle, once, when the
+   conversation first appears after the skeleton. New rows keep their own
+   entrance (refine.css); this is only the first paint. */
+@keyframes thread-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* Laid out but not shown while row heights, the landing and markdown
+   settle (Thread.tsx). Opacity, not visibility: it keeps the rows
+   measurable and selectable-in-waiting without a layout change. */
+:root[data-client='standalone'] .thread[data-revealed='settling'] > [data-content-surface='thread-content'] {
+  opacity: 0;
+}
+/* Opacity only: any rise here moves text the eye is already reading. */
+:root[data-client='standalone'] .thread[data-revealed='fade'] > [data-content-surface='thread-content'] {
+  animation: thread-reveal 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+/* The skeleton leaves the way the content arrives: a quick fade rather than
+   a cut, so the swap reads as the same place filling in. */
+@keyframes skeleton-in {
+  from { opacity: 0; }
+}
+:root[data-client='standalone'] .thread-skeleton {
+  animation: skeleton-in 240ms ease-out 120ms both;
+}
+
+/* A step joining a running fold settles in; finished folds and steps the
+   list remounts on scroll stay still. Opacity and a 4px rise only: the
+   fold measures its own height every frame while it grows. */
+@keyframes step-arrive {
+  from { opacity: 0; transform: translate3d(0, 4px, 0); }
+  to { opacity: 1; transform: none; }
+}
+:root[data-client='standalone'] .work.is-running:not(.is-live-tail) > :is(.fold, .work-text):last-child {
+  animation: step-arrive 180ms var(--m-ease-out, ease-out) backwards;
+}
+
+/* Where pages slide (View Transitions), the thread's own 14px entrance
+   (polish.css section 7) would run on top of the push. Switching it off only
+   while a push runs is not enough: it would start the moment the push ended. */
+:root[data-client='standalone'][data-vt] .app-thread > .thread-header,
+:root[data-client='standalone'][data-vt] .app-thread > :not(.thread-header):not(.thread-footer):not(.relay-banner) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] :is(.thread[data-revealed] > *, .thread-skeleton, .work.is-running > *) {
+    animation: none !important;
+  }
+}
+
+/* Next is anchored at Home's top-left. Enter and leave along that axis. */
+html[data-nav='push-left']::view-transition-old(root) {
+  animation: vt-recede-right 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+html[data-nav='push-left']::view-transition-new(root) {
+  animation: vt-enter-left 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+html[data-nav='pop-left']::view-transition-old(root) {
+  z-index: 2;
+  animation: vt-leave-left 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+html[data-nav='pop-left']::view-transition-new(root) {
+  z-index: 1;
+  animation: vt-forward-right 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes vt-enter-left { from { transform: translate3d(-100%, 0, 0); } }
+@keyframes vt-recede-right { to { transform: translate3d(28%, 0, 0); opacity: 0.6; } }
+@keyframes vt-leave-left { to { transform: translate3d(-100%, 0, 0); } }
+@keyframes vt-forward-right { from { transform: translate3d(28%, 0, 0); opacity: 0.6; } }
+
+/* One canvas, not a tinted/frosted second page. This deliberately outranks
+   the legacy .dark history rule and Midnight's panel sheen. */
+:root:root[data-client='standalone'][data-fit] .home-history {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Return paths must be ready, not replay entrances for every cached row. */
+:root[data-client='standalone'] :is(.session-rows .session-row, .session-cards .session-card, .rest-cue) {
+  animation: none;
+}
+:root:root[data-client='standalone'][data-fit] .rest-hero:not(.is-first) .rest-greeting {
+  animation: none;
+}
+:root[data-client='standalone'] :is(.session-row, .session-card):active {
+  transform: none;
+}
+/* A pointer released over a touch control must not leave a sticky hover. */
+@media (hover: none) {
+  :root[data-client='standalone'] :is(.icon-button, .round-button, .pill, .voice-button, .session-card, .session-row):hover:not(:active) {
+    transform: none;
+  }
+}
+/* Entry keyframes cannot keep ownership of transform during a fast close. */
+.sheet.is-leaving { animation: none; transition: none; }
+.sheet-backdrop.is-leaving { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-nav]::view-transition-old(root), html[data-nav]::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+/* Keep controls responsive while a snapshot is still settling. A fast Back
+   can interrupt the navigation instead of tapping an inert screenshot. */
+::view-transition { pointer-events: none; }
+::view-transition-old(root), ::view-transition-new(root) { pointer-events: none; }
+
+/*
+ * "/" menu inside a conversation: the plan strip and message context step
+ * aside while you pick a command, so the list and the text field you are
+ * typing into share the space above the keyboard. The list's own height is
+ * fitted in SlashMenu.tsx; this only frees the room.
+ */
+.composer[data-slash-open] .composer-above {
+  display: none;
+}
+
+/*
+ * Midnight cards are lifted, not sunk.
+ *
+ * The legacy `.dark` black glass (rgb 18 -> 9) painted Recents cards darker
+ * than the warm Midnight canvas (#131211), so the whole Recents screen read
+ * as a different, blacker background than Home. Paper does the opposite:
+ * cards sit a step lighter than the page. Midnight now matches that logic
+ * with its own warm card tone, the same one the composer uses.
+ */
+:root:root[data-client='standalone'][data-fit='midnight'] :is(.session-group, .session-card) {
+  background:
+    linear-gradient(180deg, rgb(255 248 236 / 0.045), rgb(255 248 236 / 0.015) 72%, transparent),
+    rgb(from var(--fp-card) r g b / 0.62);
+  border-color: rgb(255 248 236 / 0.08);
+}
+/* Paper's toolbar has no container; Midnight's must not grow one. */
+:root:root[data-client='standalone'][data-fit='midnight'] .list-toolbar {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/*
+ * Chat/Web switch: exact centring.
+ *
+ * The track was 44px with a 3px inset and 38px buttons, but its 0.5-1px
+ * border also sat inside that 44px, so the buttons overflowed by the
+ * border and the thumb (positioned from the padding box) sat 1-2px low:
+ * more air above it than below. The edge is now an inset ring that takes
+ * no layout space, so 3 + 38 + 3 is exactly 44 on every side. The
+ * segments are a little wider (64px) so "Chat" and "Web" have even,
+ * comfortable side bearings instead of touching the thumb's ends.
+ */
+:root:root:root[data-client='standalone'][data-fit] .mode-switch.mode-switch-context {
+  --ms-seg: 64px;
+  --ms-edge: rgb(from var(--fp-shade, #2a2420) r g b / 0.10);
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  padding: 3px;
+  gap: 0;
+  border: 0;
+  box-shadow: inset 0 0 0 0.5px var(--ms-edge), var(--g-shadow);
+  display: flex;
+  align-items: center;
+}
+:root:root:root[data-client='standalone'][data-fit='midnight'] .mode-switch.mode-switch-context {
+  --ms-edge: rgb(255 245 230 / 0.10);
+}
+:root:root:root[data-client='standalone'][data-fit] .mode-switch.mode-switch-context .mode-switch-option {
+  width: var(--ms-seg);
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 19px;
+  line-height: 1;
+}
+:root:root:root[data-client='standalone'][data-fit] .mode-switch.mode-switch-context :is(.mode-switch-selection, .mode-switch-liquid-layer) {
+  top: 3px;
+  left: 3px;
+  width: var(--ms-seg);
+  height: 38px;
+  border-radius: 19px;
+}
+:root:root:root[data-client='standalone'][data-fit] .mode-switch.mode-switch-context[data-mode='search'] :is(.mode-switch-selection, .mode-switch-liquid-layer) {
+  transform: translate3d(var(--ms-seg), 0, 0);
+}
+:root:root:root[data-client='standalone'][data-fit] .mode-switch.mode-switch-context .mode-switch-indicator {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 19px;
+}
+
+/*
+ * Home under another screen (App.tsx keeps it mounted). Out of layout,
+ * paint and hit-testing, but its rendering state, Recents scroll position
+ * included, is kept, so Back reveals it without rebuilding it.
+ */
+#root {
+  position: relative;
+}
+#root > .app-home[data-covered] {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  content-visibility: hidden;
+  pointer-events: none;
+}
+
+/* Holds the history cue's 44px while Recents loads (Rest.tsx). */
+.rest-cue.rest-cue-pending {
+  display: block;
+  visibility: hidden;
+  pointer-events: none;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+
+/*
+ * With only the menu button on the right (no live-browser globe), both
+ * header sides shrink to one 44px button. The title stays on the screen's
+ * centre and gains about 96px before it truncates.
+ */
+:root[data-client='standalone'] .thread-header:not(:has(.thread-header-right > :nth-child(2))) :is(.thread-header-left, .thread-header-right) {
+  flex-basis: 44px;
+  width: 44px;
+}
+
+
+/* ==========================================================================
+ * Round 2 (Oct 10): a still chat open, unhurried navigation.
+ *
+ * Fast to load, unhurried to move. Every path below starts from where the
+ * thing already is, and nothing moves that the reader is already reading.
+ * ======================================================================= */
+
+/* Pages: iOS's push is ~0.4s on a front-loaded curve. 280ms on the same
+   curve finished its travel in about 110ms and read as a snap. */
+::view-transition-group(root) { animation-duration: 420ms; }
+html[data-nav='push']::view-transition-old(root),
+html[data-nav='push']::view-transition-new(root) { animation-duration: 420ms; }
+html[data-nav='pop']::view-transition-old(root),
+html[data-nav='pop']::view-transition-new(root) { animation-duration: 380ms; }
+html[data-nav='push-left']::view-transition-old(root) {
+  animation: vt-recede-right 440ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+html[data-nav='push-left']::view-transition-new(root) {
+  animation: vt-enter-left 440ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+html[data-nav='pop-left']::view-transition-old(root) {
+  animation: vt-leave-left 400ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+html[data-nav='pop-left']::view-transition-new(root) {
+  animation: vt-forward-right 400ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+html[data-nav='fade']::view-transition-old(root) { animation-duration: 240ms; }
+html[data-nav='fade']::view-transition-new(root) { animation-duration: 320ms; }
+
+/* History: one long, soft fade while the skeleton fades out above it. */
+:root[data-client='standalone'] .thread[data-revealed='fade'] > [data-content-surface='thread-content'] {
+  animation: thread-reveal 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+:root[data-client='standalone'] .thread-skeleton-dock {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+:root[data-client='standalone'] .thread-skeleton-dock > .thread-skeleton {
+  position: absolute;
+  inset: 0 0 auto 0;
+}
+:root[data-client='standalone'] .thread-skeleton-dock[data-leaving] > .thread-skeleton {
+  animation: none;
+  opacity: 0;
+  transition: opacity 320ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Header: no subtitle until it is known (its height is held by a space),
+   then it fades in. No condensing during the open (App.tsx onScroll). */
+:root:root[data-client='standalone'] .thread-header .thread-subtitle[data-pending] {
+  opacity: 0;
+}
+:root:root[data-client='standalone'] .thread-header .thread-subtitle {
+  transition: opacity 280ms cubic-bezier(0.23, 1, 0.32, 1), max-height 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* The send button swaps only on a change you made, never on mount. The
+   button itself is one fixed slot: its entrance only ever ran on mount. */
+:root .composer .round-button.send,
+:root .composer .round-button.send > :not([data-swap-in]) {
+  animation: none;
+}
+
+/* Visuals: the frame holds its final height, the page fades into it. A
+   later height change (a tab inside the visual) still eases. */
+:root .md-visual iframe {
+  transition: opacity 360ms cubic-bezier(0.23, 1, 0.32, 1), height 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+:root .md-visual iframe:not([data-drawn]) {
+  opacity: 0;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .thread-skeleton-dock[data-leaving] > .thread-skeleton,
+  :root .md-visual iframe,
+  :root:root[data-client='standalone'] .thread-header .thread-subtitle {
+    transition: none;
+  }
+}
+
+/* A running chat's live tail sits outside the virtualized history. It was
+   visible (and animating) under the skeleton while the history above it was
+   still settling hidden; it now arrives with the history, as one surface. */
+:root[data-client='standalone'] .thread-scroll:has(> .thread[data-revealed='settling']) :is(.work.is-live-tail, .stream-footer) {
+  opacity: 0;
+}
+:root[data-client='standalone'] .thread-scroll:has(> .thread[data-revealed='fade']) > :is(.work.is-live-tail, .stream-footer) {
+  animation: thread-reveal 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* The running line replaces the subtitle in exactly its box (18px + 1px),
+   so the title above does not shift half a pixel when a turn starts. */
+:root[data-client='standalone'] .thread-header .header-activity {
+  height: 18px;
+  margin-top: 1px;
+  align-items: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .thread-scroll > :is(.work.is-live-tail, .stream-footer) { animation: none; }
+}
+
+/* ==========================================================================
+ * Recents toolbar, round 2: one family of controls.
+ *
+ * Before: a 44px List/Card track with a 0.5px border sitting 1px in from
+ * the cards' edge, a 37px thumb under 38px buttons that drew their own
+ * ring (two edges, 1px apart), a Midnight thumb darker than its own track,
+ * and search/sort as bare glyphs whose ink ended 17px inside the right edge.
+ *
+ * Now: every control is 40px, on one centre line, in the Chat/Web switch's
+ * material. The track starts on the cards' left edge, the sort circle ends
+ * on their right edge, the thumb is the only fill and it slides on the same
+ * curve as the pages, a little slower.
+ * ======================================================================= */
+:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar {
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  /* + the area's 10px gap = 14px to the list */
+  margin: 0 0 4px;
+  /* Its old transparent 1px border pushed both ends 1px inside the cards. */
+  border: 0;
+  align-items: center;
+  gap: 8px;
+}
+:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .segmented {
+  --seg-w: 76px;
+  height: 40px;
+  min-height: 40px;
+  margin: 0;
+  padding: 3px;
+  gap: 2px;
+  border: 0;
+  box-sizing: border-box;
+}
+:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .segmented button {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  background: none;
+  box-shadow: none;
+}
+:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .segmented button svg {
+  width: 14px;
+  height: 14px;
+}
+:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .segmented::before {
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  border-radius: 17px;
+  transition: transform 360ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .icon-button {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+}
+:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .icon-button svg {
+  width: 17px;
+  height: 17px;
+}
+/* Material: Paper */
+:root:root[data-client='standalone'][data-fit='paper'] .session-area .list-toolbar :is(.segmented, .icon-button) {
+  background: rgb(255 255 255 / 0.42);
+  background-image: none;
+  box-shadow:
+    inset 0 0 0 0.5px rgb(74 52 34 / 0.10),
+    inset 0 0.5px 0 rgb(255 255 255 / 0.85),
+    0 1px 2px rgb(74 52 34 / 0.05),
+    0 8px 22px -12px rgb(74 52 34 / 0.16);
+  -webkit-backdrop-filter: blur(24px) saturate(1.32);
+  backdrop-filter: blur(24px) saturate(1.32);
+  color: rgb(38 38 36 / 0.72);
+}
+:root:root[data-client='standalone'][data-fit='paper'] .session-area .list-toolbar .segmented::before {
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.66), 0 0 0 0.5px rgb(74 52 34 / 0.05), 0 1px 3px rgb(74 52 34 / 0.10);
+}
+:root:root[data-client='standalone'][data-fit='paper'] .session-area .list-toolbar .segmented button.is-active {
+  color: rgb(38 38 36);
+}
+/* Material: Midnight. The thumb is lighter than its track, as on Chat/Web. */
+:root:root[data-client='standalone'][data-fit='midnight'] .session-area .list-toolbar :is(.segmented, .icon-button) {
+  background: linear-gradient(145deg, rgb(255 248 236 / 0.07), rgb(255 248 236 / 0.035));
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 245 230 / 0.10),
+    inset 0 0.5px 0 rgb(255 245 230 / 0.07),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 10px 26px -12px rgb(0 0 0 / 0.55);
+  -webkit-backdrop-filter: blur(24px) saturate(1.32);
+  backdrop-filter: blur(24px) saturate(1.32);
+  color: rgb(236 233 226 / 0.66);
+}
+:root:root[data-client='standalone'][data-fit='midnight'] .session-area .list-toolbar .segmented::before {
+  background: rgb(255 255 255 / 0.13);
+  box-shadow: inset 0 0.5px 0 rgb(255 245 230 / 0.10), 0 1px 3px rgb(0 0 0 / 0.30);
+}
+:root:root[data-client='standalone'][data-fit='midnight'] .session-area .list-toolbar .segmented button.is-active {
+  color: rgb(236 233 226);
+}
+:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .icon-button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .segmented::before { transition: none; }
+}
+
+/* Scroll smoothness on phones. The header and composer scrims were masked
+   backdrop blurs: the costliest thing a phone can repaint, and they
+   repainted on every scroll frame over moving text. On touch screens they
+   become plain soft edges (gradient only), the same scroll-edge fade iOS
+   uses, and the transcript scrolls on the compositor alone.
+   `data-scroll-lite` previews this on a Mac. */
+@media (hover: none) and (pointer: coarse) {
+  :root:root:root[data-client='standalone'] .app-thread > .thread-header::before,
+  :root:root:root[data-client='standalone'] :is(.thread-footer, .home-dock)::before,
+  :root:root:root[data-client='standalone'] .n3:not(.dk) .n3-top::before {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+:root:root:root[data-client='standalone'][data-scroll-lite] .app-thread > .thread-header::before,
+:root:root:root[data-client='standalone'][data-scroll-lite] :is(.thread-footer, .home-dock)::before,
+:root:root:root[data-client='standalone'][data-scroll-lite] .n3:not(.dk) .n3-top::before {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* Readable quiet labels on phone chat surfaces, without changing the palette. */
+:root[data-client='standalone'] .app-thread :is(.thread-subtitle, .message-action, .md th) {
+  color: color-mix(in srgb, var(--foreground) 68%, var(--background));
+}
+:root[data-client='standalone'] .app-thread .message-action {
+  min-height: 44px;
+  min-width: 44px;
+}

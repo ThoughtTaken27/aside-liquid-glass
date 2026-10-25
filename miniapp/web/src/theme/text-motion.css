@@ -1,0 +1,98 @@
+/* Arc UI text-shimmer/reveal informed the choreography, rebuilt locally.
+ * https://uiarc.dev/components/text-shimmer and /text-reveal (2026-10-20).
+ * Motion is reserved for real work. Glyphs, font metrics and reading copy
+ * stay still: two inverse transforms move a soft mask over a hidden copy.
+ * The 3.2s cycle includes a rest at both edges; there is no animated paint,
+ * filter, gradient position, per-letter layout, JS frame loop or new library.
+ */
+:root[data-client='standalone'] {
+  --text-sweep-duration: 3.2s;
+  --text-enter-duration: 240ms;
+  --text-exit-duration: 160ms;
+  --text-enter-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --text-exit-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --text-highlight: var(--foreground);
+}
+:root:root[data-client='standalone'] .af-shine {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+:root:root[data-client='standalone'] .af-shine-window {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  color: var(--text-highlight);
+  opacity: 0;
+  -webkit-mask-image: linear-gradient(90deg, transparent 30%, #000 50%, transparent 70%);
+  mask-image: linear-gradient(90deg, transparent 30%, #000 50%, transparent 70%);
+  animation: text-sweep-window var(--text-sweep-duration) linear infinite;
+  animation-play-state: paused;
+  transition: opacity var(--text-exit-duration) var(--text-exit-ease);
+}
+:root:root[data-client='standalone'] .af-shine-copy {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  white-space: inherit;
+  text-overflow: inherit;
+  animation: text-sweep-copy var(--text-sweep-duration) linear infinite;
+  animation-play-state: paused;
+}
+:root:root[data-client='standalone'] .af-shine-copy::before {
+  content: attr(data-text);
+  content: attr(data-text) / '';
+}
+:root:root[data-client='standalone'] .af-shine.is-running > .af-shine-window {
+  opacity: 0.5;
+  animation-play-state: running;
+}
+:root:root[data-client='standalone'] .af-shine.is-running > .af-shine-window > .af-shine-copy {
+  animation-play-state: running;
+}
+@keyframes text-sweep-window {
+  0%, 18% { transform: translateX(-100%); }
+  82%, 100% { transform: translateX(100%); }
+}
+@keyframes text-sweep-copy {
+  0%, 18% { transform: translateX(100%); }
+  82%, 100% { transform: translateX(-100%); }
+}
+:root:root[data-client='standalone'] .af-roll {
+  display: inline-grid;
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+:root:root[data-client='standalone'] .af-roll-label {
+  grid-area: 1 / 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+:root:root[data-client='standalone'] .af-roll-label.is-out {
+  position: absolute;
+  inset: 0;
+  animation: text-status-out var(--text-exit-duration) var(--text-exit-ease) both;
+  pointer-events: none;
+  user-select: none;
+}
+@keyframes text-status-out {
+  from { opacity: 0.55; transform: none; }
+  to { opacity: 0; transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  :root:root:root[data-client='standalone'] .af-shine-window,
+  :root:root:root[data-client='standalone'] .af-roll-label.is-out { display: none; }
+  :root:root:root[data-client='standalone'] :is(.af-shine-window, .af-shine-copy, .af-roll-label) {
+    animation: none !important;
+    transition: none !important;
+  }
+}

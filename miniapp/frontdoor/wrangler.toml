@@ -1,0 +1,16 @@
+# Cloudflare Worker that gives the phone one permanent address.
+# `npm run frontdoor` deploys this; you should not need to edit it.
+# To use a different name (it becomes <name>.<your-subdomain>.workers.dev),
+# pass FRONTDOOR_NAME=... to the installer.
+name = "aside-frontdoor"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[[durable_objects.bindings]]
+name = "ORIGIN"
+class_name = "OriginStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["OriginStore"]

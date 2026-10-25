@@ -1,0 +1,1219 @@
+/*
+ * ORDER-PROOF: Vite moves this sheet into a shared chunk that loads BEFORE
+ * the app's other sheets, so every selector carries two extra :root levels
+ * and wins on specificity, not on load order. Keep the prefix on new rules.
+ *
+ * The craft system: an order-proof override layer.
+ *
+ * Distilled from measuring every affectUI and AI SDK Agents component
+ * (skills/user/component-craft). It does not restyle the app; it makes the
+ * app's existing parts obey one small system:
+ *   - one family of curves and durations (the app had 27 distinct easings),
+ *   - the tray-and-card anatomy for utility cards (the thing in the card,
+ *     what is said about it on the quieter tray),
+ *   - the quiet stopped-reply line,
+ *   - toasts whose clock is visible and stops when it stops,
+ *   - touch fixes the audit found.
+ * Aside's palette is inherited (paper/midnight `--fp-*`), never replaced.
+ */
+
+/* ---------------------------------------------------------------------- */
+/* 1. Motion tokens: one family                                            */
+/* ---------------------------------------------------------------------- */
+
+:root:root:root {
+  --craft-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --craft-ease-soft: cubic-bezier(0.25, 1, 0.5, 1);
+  --craft-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --craft-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --craft-fast: 160ms;
+  --craft-fold: 260ms;
+  --craft-enter: 380ms;
+  --craft-navigate: 440ms;
+  /* The app-wide aliases now point at the same family, so every
+     component that already uses them moves alike. */
+  --ease-out: var(--craft-ease);
+  --duration: var(--craft-fast);
+}
+
+/* ---------------------------------------------------------------------- */
+/* 2. Utilities                                                            */
+/* ---------------------------------------------------------------------- */
+
+:root:root .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Fold without measuring: 0fr to 1fr. The closed body is inert (set in
+   markup); only the inner element clips, so focus rings survive. */
+:root:root:root[data-client='standalone'] .craft-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows var(--craft-fold) var(--craft-ease), opacity 200ms ease;
+}
+:root:root:root[data-client='standalone'] .craft-fold[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+:root:root:root[data-client='standalone'] .craft-fold > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Small actions: the quiet ghost and the one primary pill. */
+:root:root:root[data-client='standalone'] :is(.craft-pill, .craft-ghost) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 520;
+  letter-spacing: -0.006em;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--craft-fast) var(--craft-ease),
+    background-color var(--craft-fast) ease,
+    color var(--craft-fast) ease;
+}
+:root:root:root[data-client='standalone'] .craft-ghost {
+  background: transparent;
+  color: var(--muted-foreground);
+}
+:root:root:root[data-client='standalone'] .craft-pill {
+  background: var(--fp-card, var(--surface-primary));
+  color: var(--foreground);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.05);
+}
+:root:root:root[data-client='standalone'] .craft-pill.is-primary {
+  background: var(--fp-ink, var(--foreground));
+  color: var(--fp-card, var(--background));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+:root:root:root[data-client='standalone'] :is(.craft-pill, .craft-ghost):active {
+  transform: scale(0.96);
+}
+:root:root:root[data-client='standalone'] .craft-ghost:active {
+  background: color-mix(in oklab, var(--foreground) 7%, transparent);
+}
+:root:root:root[data-client='standalone'] :is(.craft-pill, .craft-ghost):focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--foreground) 24%, transparent);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  :root:root:root[data-client='standalone'] .craft-ghost:hover {
+    background: color-mix(in oklab, var(--foreground) 6%, transparent);
+    color: var(--foreground);
+  }
+}
+@media (hover: none) and (pointer: coarse) {
+  /* Bigger targets on touch; the visible pill stays compact. */
+  :root:root:root[data-client='standalone'] :is(.craft-pill, .craft-ghost) {
+    height: 34px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* 3. Tray and card: the alert card                                        */
+/* ---------------------------------------------------------------------- */
+
+:root:root:root[data-client='standalone'] .alert-card.craft-tray {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px;
+  border-radius: 20px;
+  border: 0;
+  background: var(--fp-sunk, color-mix(in oklab, var(--foreground) 5%, var(--background)));
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: craft-in var(--craft-enter) var(--craft-ease) both;
+}
+:root:root:root[data-client='standalone'] .alert-card.craft-tray.is-destructive {
+  background: color-mix(in oklab, var(--destructive) 7%, var(--fp-sunk, var(--background)));
+  box-shadow: none;
+}
+:root:root:root[data-client='standalone'] .alert-card.craft-tray > .craft-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px 12px 12px;
+  border-radius: 16px;
+  background: var(--fp-card, var(--surface-primary));
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--foreground) 7%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.04);
+}
+:root:root:root[data-client='standalone'] .alert-card.craft-tray.is-destructive .alert-icon {
+  color: var(--destructive);
+}
+:root:root:root[data-client='standalone'] .alert-card.craft-tray .alert-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 540;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+:root:root:root[data-client='standalone'] .alert-card.craft-tray .alert-description {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted-foreground);
+}
+:root:root:root[data-client='standalone'] .craft-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 2px 4px 0 12px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--muted-foreground);
+}
+:root:root:root[data-client='standalone'] .craft-foot-note {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The old outlined Details pill is now a ghost on the tray. */
+:root:root:root[data-client='standalone'] .alert-card.craft-tray .alert-details {
+  align-self: auto;
+  height: 28px;
+  box-shadow: none;
+}
+:root:root:root[data-client='standalone'] .alert-card.craft-tray .alert-detail {
+  margin: 0;
+  padding: 2px 12px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------- */
+/* 4. The stopped reply: a line, not a card                                */
+/* ---------------------------------------------------------------------- */
+
+:root:root:root[data-client='standalone'] .stopped-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted-foreground);
+  animation: craft-in 320ms var(--craft-ease) both;
+}
+/* A small filled square: the stop glyph, in muted ink. */
+:root:root:root[data-client='standalone'] .stopped-mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.7;
+}
+:root:root:root[data-client='standalone'] .stopped-text {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+:root:root:root[data-client='standalone'] .stopped-line .craft-pill {
+  margin-left: 4px;
+}
+
+/* ---------------------------------------------------------------------- */
+/* 5. Toasts: the clock as a hairline                                      */
+/* ---------------------------------------------------------------------- */
+
+:root:root:root[data-client='standalone'] .toast {
+  position: relative;
+}
+:root:root:root[data-client='standalone'] .toast-timer {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 0;
+  height: 1px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.16;
+  transform-origin: left center;
+  animation-name: craft-timer;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  pointer-events: none;
+}
+:root:root:root[data-client='standalone'] .toast.is-paused .toast-timer {
+  animation-play-state: paused;
+}
+:root:root:root[data-client='standalone'] .toast.is-leaving .toast-timer {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+/* ---------------------------------------------------------------------- */
+/* 6. Touch fixes from the audit                                           */
+/* ---------------------------------------------------------------------- */
+
+@media (hover: none) and (pointer: coarse) {
+  /* Text fields under 16px make mobile browsers zoom and read as small
+     targets. */
+  :root:root:root[data-client='standalone'] .question-card .question-reply input {
+    font-size: 16px;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Keyframes and reduced motion                                            */
+/* ---------------------------------------------------------------------- */
+
+@keyframes craft-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(3px);
+  }
+}
+@keyframes craft-timer {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root[data-client='standalone'] :is(.alert-card.craft-tray, .stopped-line) {
+    animation: none;
+  }
+  :root:root:root[data-client='standalone'] .craft-fold {
+    transition: none;
+  }
+  :root:root:root[data-client='standalone'] .toast-timer {
+    display: none;
+  }
+}
+
+
+/* ---------------------------------------------------------------------- */
+/* 7. Next                                                                 */
+/* ---------------------------------------------------------------------- */
+
+/* Row actions: Later and Not for me stay on every row (Owner's Oct 10
+   ask), but as the quiet text buttons he asked for, not filled pills:
+   muted label, no fill at rest, a soft wash and a small give on press
+   (affectUI Button "ghost"; AI SDK Message actions, the quiet bar). The
+   invisible hit area keeps the touch target large. */
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage {
+  gap: 2px;
+  padding-bottom: 10px;
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage > button,
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage > button:first-child {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 9px 0 8px;
+  border-radius: 9px;
+  background: transparent;
+  color: rgb(from var(--fp-ink) r g b / 0.7);
+  font-size: 13px;
+  font-weight: 520;
+  transition: transform var(--craft-fast) var(--craft-ease), background-color var(--craft-fast) ease, color var(--craft-fast) ease;
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage > button:first-child {
+  margin-left: -8px;
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage > button:active {
+  transform: scale(0.96);
+  background: rgb(from var(--fp-ink) r g b / 0.07);
+  color: var(--fp-ink);
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage > button svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0.7;
+}
+@media (hover: hover) {
+  :root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage > button:hover {
+    background: rgb(from var(--fp-ink) r g b / 0.05);
+    color: var(--fp-ink);
+  }
+}
+
+/* "Next is working on" as a task tray: a fixed 16px status slot (rays while
+   running, a drawn check when it is ready for you), so the title never
+   moves when the state changes. */
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-tray-row {
+  align-items: flex-start;
+}
+:root:root:root[data-client='standalone'] .n3-tray-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin: 3px 9px 0 7px;
+  color: rgb(from var(--fp-ink, var(--foreground)) r g b / 0.62);
+}
+:root:root:root[data-client='standalone'] .n3-tray-row.is-ready .n3-tray-mark {
+  color: var(--fp-accent-fill, var(--brand));
+  animation: craft-pop 440ms var(--craft-pop) both;
+}
+:root:root:root[data-client='standalone'] .n3-tray-ring {
+  fill: currentColor;
+}
+:root:root:root[data-client='standalone'] .n3-tray-tick {
+  stroke: var(--fp-card, #fff);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 10;
+  stroke-dashoffset: 10;
+  animation: craft-draw 340ms var(--craft-ease) 160ms forwards;
+}
+:root:root:root[data-client='standalone'] .n3-tray-row.is-ready .n3-row-meta {
+  color: rgb(from var(--fp-ink, var(--foreground)) r g b / 0.78);
+}
+
+/* Research: a stopped job carries a small square stop mark in the same
+   column as the answers' verdict dots (one shared left edge), and a quiet
+   Ask again on the right. */
+:root:root:root[data-client='standalone'] .n3-verdict-mark.is-stopped {
+  width: 8px;
+  height: 8px;
+  margin: 0 16px;
+  border-radius: 2px;
+  background: rgb(from var(--fp-ink, var(--foreground)) r g b / 0.34);
+}
+:root:root:root[data-client='standalone'] .n3-failed-row {
+  align-items: center;
+}
+:root:root:root[data-client='standalone'] .n3-failed-row > .n3-row-body {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+:root:root:root[data-client='standalone'] .n3-again {
+  flex: none;
+  margin-left: 8px;
+}
+
+/* Activity: a run of identical entries reads as one row with its count. */
+:root:root:root[data-client='standalone'] .na-run-count {
+  margin-left: 6px;
+  color: rgb(from var(--fp-ink, var(--foreground)) r g b / 0.5);
+  font-variant-numeric: tabular-nums;
+}
+:root:root:root[data-client='standalone'] .na-run-list {
+  margin: 0 0 6px 28px;
+  animation: craft-in 260ms var(--craft-ease) both;
+}
+:root:root:root[data-client='standalone'] .na-run-list .na-row-main {
+  min-height: 36px;
+}
+
+/* System sans for the two serif headings left on Next (component-craft law
+   3; Owner's no-serif-headline rule). Weight and tracking carry the tone. */
+:root:root:root[data-client='standalone'] :is(.na-control-state, .next-title) {
+  font-family: var(--font-sans);
+  font-weight: 640;
+  letter-spacing: -0.02em;
+}
+:root:root:root[data-client='standalone'] .na-control-state {
+  font-size: 19px;
+  line-height: 24px;
+}
+:root:root:root[data-client='standalone'] .next-title {
+  font-size: 25px;
+  line-height: 30px;
+}
+
+@keyframes craft-pop {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes craft-draw {
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root[data-client='standalone'] :is(.n3-tray-mark, .na-run-list) { animation: none; }
+  :root:root:root[data-client='standalone'] .n3-tray-tick { animation: none; stroke-dashoffset: 0; }
+}
+
+/* ---------------------------------------------------------------------- */
+/* 8. Next on the Mac (desk v4)                                            */
+/* ---------------------------------------------------------------------- */
+
+/* The next move's title was a 27px serif while the inspector shows the
+   same title in sans: one family, weight and tracking carry the rank. */
+:root:root:root .dk.dk4 .dk-now-title {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+/* Activity: the seal line sat 8px under the status card and 10px over the
+   filters; give the group one rhythm (12 / 14). */
+:root:root:root .dk.dk4 .dk-embed .na-seal {
+  margin: 12px 0 14px;
+}
+/* Tags under 11px stop reading as words. */
+:root:root:root .dk.dk4 .dk-tag,
+:root:root .dk-tag {
+  font-size: 11px;
+}
+/* The run count and the stop mark use the desk's own ink ladder. */
+:root:root:root .dk.dk4 .na-run-count {
+  color: var(--c-ink-3, var(--c-ink-2));
+}
+:root:root:root .dk.dk4 .n3-verdict-mark.is-stopped {
+  background: var(--c-ink-3, var(--c-ink-2));
+}
+/* Rows keep their 8px corner for the hover wash, but the hairline between
+   them is drawn square: a top border on a rounded row curls up at both
+   ends. The line moves to a pseudo-element that the radius does not bend. */
+:root:root:root .dk.dk4 .dk-embed :is(.n3-row, .na-row) + :is(.n3-row, .na-row) {
+  position: relative;
+  border-top: 0;
+}
+:root:root:root .dk.dk4 .dk-embed :is(.n3-row, .na-row) + :is(.n3-row, .na-row)::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--c-line);
+  pointer-events: none;
+}
+/* Selected segment: the desk's own raised white and line ring, not the
+   phone's faintly blue glass. */
+:root:root:root .dk.dk4 .dk-embed .na-context-tabs [aria-selected='true'] {
+  background: var(--c-raised);
+  box-shadow: 0 0 0 1px var(--c-line-2), 0 1px 2px rgb(31 21 0 / 0.05);
+}
+
+/* ---------------------------------------------------------------------- */
+/* 9. Next: the School / Personal switch (phone)                           */
+/* ---------------------------------------------------------------------- */
+
+/* A segmented control is recessed, not floating: a quiet ink-tinted tray
+   with a raised white thumb (affectUI Segmented control; iOS segmented).
+   Before, a 92% white thumb sat on a 42% white glass slab with a 22px drop
+   shadow, so the choice barely read and the control looked puffy. */
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone {
+  --sp-pad: 3px;
+  height: 40px;
+  border-radius: 20px;
+}
+:root:root:root:root:root[data-client='standalone'][data-fit='paper'] .n3:not(.dk) .sp-switch.is-phone {
+  background: rgb(from var(--fp-ink) r g b / 0.065);
+  box-shadow: inset 0 0 0 0.5px rgb(from var(--fp-ink) r g b / 0.06);
+}
+:root:root:root:root:root[data-client='standalone'][data-fit='midnight'] .n3:not(.dk) .sp-switch.is-phone {
+  background: rgb(255 248 236 / 0.07);
+  box-shadow: inset 0 0 0 0.5px rgb(255 245 230 / 0.08);
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone button {
+  position: relative;
+  height: 34px;
+  gap: 5px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  transition: color var(--craft-fast) ease;
+}
+/* The visible control is 40px; the tap area stays 44px. */
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone button::before {
+  content: '';
+  position: absolute;
+  inset: -5px 0;
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone .sp-count {
+  min-width: 1ch;
+  font-size: 12px;
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+  color: rgb(from var(--fp-ink) r g b / 0.38);
+  transition: color var(--craft-fast) ease;
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone button.is-on .sp-count {
+  color: rgb(from var(--fp-ink) r g b / 0.55);
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone .sp-thumb {
+  border-radius: 17px;
+  transition: transform 380ms var(--craft-ease);
+}
+:root:root:root:root:root[data-client='standalone'][data-fit='paper'] .n3:not(.dk) .sp-switch.is-phone .sp-thumb {
+  background: #ffffff;
+  box-shadow:
+    0 0 0 0.5px rgb(74 52 34 / 0.10),
+    0 1px 2px rgb(74 52 34 / 0.08),
+    0 3px 8px -2px rgb(74 52 34 / 0.10);
+}
+:root:root:root:root:root[data-client='standalone'][data-fit='midnight'] .n3:not(.dk) .sp-switch.is-phone .sp-thumb {
+  background: rgb(255 248 236 / 0.17);
+  box-shadow: inset 0 0.5px 0 rgb(255 245 230 / 0.12), 0 1px 3px rgb(0 0 0 / 0.35);
+}
+/* The thumb gives a little while pressed, and stretches toward the side it
+   is heading to, then settles (leading edge first). */
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone:has(button:active) .sp-thumb {
+  scale: 0.97;
+  transition: transform 380ms var(--craft-ease), scale var(--craft-fast) var(--craft-ease);
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone.is-moved[data-space='personal'] .sp-thumb {
+  transform-origin: left center;
+  animation: sp-stretch 380ms var(--craft-ease);
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone.is-moved[data-space='school'] .sp-thumb {
+  transform-origin: right center;
+  animation: sp-stretch-back 380ms var(--craft-ease);
+}
+@keyframes sp-stretch { 40% { scale: 1.1 1; } }
+@keyframes sp-stretch-back { 40% { scale: 1.1 1; } }
+/* "Something is due over there": a small clay dot inline after the count,
+   centred on the text, never floating against the thumb's edge. */
+:root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone .sp-alert {
+  position: static;
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-left: 1px;
+  border-radius: 50%;
+  background: var(--fp-glow);
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone .sp-thumb {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* 10. Steady reading and navigation. Geometry never changes on scroll. */
+:root:root:root:root[data-client='standalone'] .thread-header,
+:root:root:root:root[data-client='standalone'] .thread-header[data-condensed='true'] {
+  padding-top: calc(8px + var(--tg-chrome-top, var(--shell-content-top, 0px)));
+  padding-bottom: 8px;
+  min-height: 52px;
+  transition: none;
+}
+:root:root:root:root[data-client='standalone'] .thread-header .thread-subtitle,
+:root:root:root:root[data-client='standalone'] .thread-header[data-condensed='true'] .thread-subtitle {
+  height: 18px;
+  max-height: 18px;
+  margin: 1px 0 0;
+  opacity: 1;
+  transition: none;
+}
+:root:root:root:root:root[data-client='standalone'] .thread-header .thread-subtitle[data-pending] { opacity: 0; }
+/* Retain layout under the cover: content-visibility:hidden discarded the
+   geometry needed to reset Home before the navigation snapshot. */
+:root:root #root > .app-home[data-covered] {
+  content-visibility: visible;
+}
+:root:root:root[data-client='standalone'] .app-home[data-home-reset] .home-dock {
+  transition: none;
+}
+:root:root:root[data-client='standalone'] .thread-scroll {
+  scroll-behavior: auto;
+}
+/* The old front-loaded .32/.72 curve completed most travel immediately.
+   A softer curve gives push/pop the same readable, continuous pace. */
+:root:root::view-transition-group(root) { animation-duration: var(--craft-navigate); }
+:root:root[data-nav]::view-transition-old(root),
+:root:root[data-nav]::view-transition-new(root) {
+  animation-duration: var(--craft-navigate);
+  animation-timing-function: var(--craft-ease-soft);
+}
+:root:root[data-nav='fade']::view-transition-old(root),
+:root:root[data-nav='fade']::view-transition-new(root) { animation-duration: 200ms; }
+@media (prefers-reduced-motion: reduce) {
+  :root:root[data-nav]::view-transition-old(root),
+  :root:root[data-nav]::view-transition-new(root) { animation: none; }
+}
+/* A sheet follows a finger now, not its still-running entrance animation. */
+:root:root:root .sheet[data-direct] { animation: none; }
+:root:root:root .sheet.is-dragging { animation: none; transition: none; }
+:root:root:root .sheet.is-leaving { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root :is(.sheet, .sheet-backdrop, .sheet-page, .sheet-titles) {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* 11. Reversible disclosures: same curve, duration and path both ways. */
+:root:root:root .motion-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 320ms var(--craft-ease-soft), opacity 320ms var(--craft-ease-soft);
+}
+:root:root:root .motion-collapse[data-open='true'] { grid-template-rows: 1fr; opacity: 1; }
+:root:root:root .motion-collapse-inner { min-height: 0; overflow: hidden; }
+:root:root:root .disclosure-summary { width: 100%; text-align: left; cursor: pointer; }
+:root:root:root .turn-body,
+:root:root:root .turn-body[data-open='true'],
+:root:root:root .turn-body[data-auto='true'][data-open='false'] {
+  transition: grid-template-rows 320ms var(--craft-ease-soft), opacity 320ms var(--craft-ease-soft);
+}
+/* No state-dependent margin/padding: it snapped off before the fold ran. */
+:root:root:root .turn-body[data-open='true'] > .turn-body-inner { padding-bottom: 0; }
+:root:root:root .turn.is-open > .turn-body { margin-bottom: 0; }
+:root:root:root :is(.step-chevron, .fold-chevron, .turn-row-chevron, .todo-chevron, .activity-island-chevron) {
+  transition: transform 320ms var(--craft-ease-soft);
+}
+:root:root:root .subagent-spawn[aria-expanded='true'] .step-chevron { transform: rotate(90deg); }
+:root:root:root .todo-section.is-open .todo-chevron { transform: rotate(180deg); }
+:root:root:root .motion-collapse :is(.tool-card, .file-card, .timeline, .settings-choices, .todo-list, .subagent-card, .activity-island-detail, .np-step-more, .na-detail) { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root :is(.motion-collapse, .turn-body, .turn-body[data-open='true'], .turn-body[data-auto='true'][data-open='false'], .step-chevron, .fold-chevron, .turn-row-chevron, .todo-chevron, .activity-island-chevron) { transition: none; }
+}
+/* Sheets travel the same distance and time on both paths. */
+@keyframes craft-sheet-up { from { transform: translate3d(0, calc(100% + 16px), 0); } }
+@keyframes craft-sheet-right { from { transform: translate3d(calc(100% + 16px), 0, 0); } }
+:root:root:root .sheet-bottom { animation: craft-sheet-up 380ms var(--craft-ease-soft) both; }
+:root:root:root .sheet-right { animation: craft-sheet-right 380ms var(--craft-ease-soft) both; }
+:root:root:root .sheet-backdrop { animation-duration: 380ms; transition: opacity 380ms var(--craft-ease-soft); }
+:root:root:root .sheet[data-direct] { animation: none; }
+:root:root:root .sheet[data-direct]:not(.is-dragging):not(.is-leaving) { transition: transform 380ms var(--craft-ease-soft); }
+:root:root:root .sheet.is-dragging, :root:root:root .sheet.is-leaving { animation: none; transition: none; }
+/* Full-screen viewers and small confirmation panels fade on both paths. */
+@keyframes craft-overlay-in { from { opacity: 0; } }
+@keyframes craft-overlay-out { from { opacity: var(--motion-close-opacity, 1); } to { opacity: 0; } }
+:root:root:root :is(.lightbox, .live-full, .nc-dialog[open]) { animation: craft-overlay-in 320ms var(--craft-ease-soft) both; }
+:root:root:root :is(.lightbox, .live-full, .nc-dialog)[data-leaving] { animation: craft-overlay-out 320ms var(--craft-ease-soft) both; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root :is(.sheet, .sheet-backdrop, .sheet[data-direct], .sheet[data-direct]:not(.is-dragging):not(.is-leaving), .lightbox, .live-full, .nc-dialog[open]) { animation: none; transition: none; }
+}
+/* Long prompts keep the full text laid out and reverse a measured height,
+   instead of switching line-clamp on instantly at the start of collapse. */
+:root:root:root .user-bubble-body {
+  max-height: var(--bubble-full-height, 6lh);
+  overflow: hidden;
+  transition: max-height 320ms var(--craft-ease-soft);
+}
+:root:root:root .user-bubble-body[data-clamped='true'] {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  max-height: 6lh;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root .user-bubble-body { transition: none; }
+}
+:root:root:root .sheet-backdrop.is-leaving { animation: none; transition: opacity 380ms var(--craft-ease-soft); }
+/* The sheet's internal Back is not a faster class of page change. */
+:root:root:root .sheet-page[data-page-dir],
+:root:root:root .sheet-titles[data-page-dir] {
+  animation-duration: 320ms;
+  animation-timing-function: var(--craft-ease-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root :is(.sheet-page[data-page-dir], .sheet-titles[data-page-dir]) { animation: none; }
+}
+
+/* 12. Session details + prepared-message context.
+   AI SDK Agents agent-plan / task-tray / attachments anatomy; fitted to
+   Aside's ink and surfaces. Keep the 320ms reversible folds above. */
+:root:root:root:root[data-client='standalone'] .session-panel {
+  width: min(calc(100vw - 24px), 380px);
+  --panel-soft: color-mix(in srgb, var(--foreground) 70%, var(--fp-card, var(--background)));
+}
+:root:root:root:root[data-client='standalone'] .session-panel > .sheet-head { padding: 12px 16px 14px; }
+:root:root:root:root[data-client='standalone'] .session-panel .sheet-title { font: 600 17px/22px var(--font-sans); letter-spacing: -0.02em; }
+:root:root:root:root[data-client='standalone'] .session-panel > .sheet-body { padding: 0 16px 20px; gap: 20px; }
+:root:root:root:root[data-client='standalone'] .session-panel .panel-section { gap: 8px; }
+:root:root:root:root[data-client='standalone'] .panel-section-head { display: flex; align-items: center; justify-content: space-between; min-height: 20px; gap: 12px; }
+:root:root:root:root[data-client='standalone'] .session-panel .panel-heading { margin: 0; font: 600 13px/20px var(--font-sans); letter-spacing: -0.01em; text-transform: none; color: var(--foreground); }
+:root:root:root:root[data-client='standalone'] :is(.panel-section-count, .panel-task-count) { flex: none; font: 500 12px/18px var(--font-sans); color: var(--panel-soft); font-variant-numeric: tabular-nums; }
+:root:root:root:root[data-client='standalone'] .panel-task-count { display: flex; align-items: center; gap: 7px; }
+:root:root:root:root[data-client='standalone'] .session-panel .panel-list { margin: 0; border-radius: 16px; background: var(--fp-card, var(--surface-primary)); box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--foreground) 8%, transparent); }
+:root:root:root:root[data-client='standalone'] .session-panel .panel-row { min-height: 54px; padding: 10px 12px; gap: 10px; border-radius: 0; font-size: 13.5px; }
+:root:root:root:root[data-client='standalone'] .session-panel .panel-row-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow: hidden; font: 500 13.5px/19px var(--font-sans); letter-spacing: -0.006em; }
+:root:root:root:root[data-client='standalone'] .panel-row-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+:root:root:root:root[data-client='standalone'] .panel-row-caption { color: var(--panel-soft); font: 400 12px/18px var(--font-sans); font-variant-numeric: tabular-nums; }
+:root:root:root:root[data-client='standalone'] .panel-agent-status { flex: 0 0 44px; width: 44px; text-align: right; font: 400 12px/18px var(--font-sans); color: var(--panel-soft); }
+:root:root:root:root[data-client='standalone'] .panel-agent-status.is-running { color: var(--brand-text); }
+:root:root:root:root[data-client='standalone'] .panel-row-chevron { flex: none; color: var(--panel-soft); }
+:root:root:root:root[data-client='standalone'] .session-panel .mute-row { flex-direction: row; min-height: 64px; border-radius: 16px; background: var(--fp-card, var(--surface-primary)); box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--foreground) 8%, transparent); }
+:root:root:root:root[data-client='standalone'] .session-panel .mute-row:disabled { opacity: 0.8; }
+:root:root:root:root[data-client='standalone'] .panel-empty-inline { width: auto; margin: 0; padding: 10px 0; min-height: 40px; gap: 8px; text-align: left; justify-content: flex-start; color: var(--panel-soft); font: 400 13px/19px var(--font-sans); }
+:root:root:root:root[data-client='standalone'] .panel-empty-inline > svg { flex: none; }
+:root:root:root:root[data-client='standalone'] .panel-file-icon { display: grid; place-items: center; flex: 0 0 28px; height: 32px; color: var(--panel-soft); }
+:root:root:root:root[data-client='standalone'] .panel-file-group { font: 500 12px/18px var(--font-sans); color: var(--panel-soft); margin: 0 0 7px; }
+:root:root:root:root[data-client='standalone'] .panel-file-error { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 400 13px/19px var(--font-sans); color: var(--panel-soft); }
+:root:root:root:root[data-client='standalone'] .panel-inline-error { margin: 0; font: 400 12px/18px var(--font-sans); color: var(--destructive); }
+:root:root:root:root[data-client='standalone'] .panel-task-card { border-radius: 16px; background: var(--fp-card, var(--surface-primary)); box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--foreground) 8%, transparent); }
+:root:root:root:root[data-client='standalone'] .panel-task-card .todo-list { margin: 0; padding: 12px; gap: 12px; }
+:root:root:root:root[data-client='standalone'] .session-panel .todo-content { font: 400 13.5px/20px var(--font-sans); letter-spacing: -0.006em; }
+:root:root:root:root[data-client='standalone'] .session-panel .todo-row.is-in_progress .todo-content { font-weight: 500; }
+:root:root:root:root[data-client='standalone'] .session-panel .todo-row.is-completed .todo-content { color: var(--panel-soft); }
+:root:root:root:root[data-client='standalone'] .session-panel .todo-row :is(.todo-mark, .todo-content) { transition: color var(--craft-fast) ease; }
+:root:root:root:root[data-client='standalone'] .session-panel .todo-mark .af-check circle { fill: color-mix(in srgb, var(--foreground) 12%, transparent); }
+:root:root:root:root[data-client='standalone'] .session-panel .todo-mark .af-check path { stroke: var(--foreground); }
+
+/* One bounded context region keeps the field and send controls reachable.
+   It shrinks with either a resized viewport or the Android keyboard inset. */
+:root:root:root:root[data-client='standalone'] .composer-context {
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  max-height: min(220px, calc((100svh - var(--kb, 0px)) * 0.26));
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  scrollbar-width: none;
+  container: message-context / inline-size;
+}
+:root:root:root:root[data-client='standalone'] .composer-context::-webkit-scrollbar { display: none; }
+:root:root:root:root[data-client='standalone'] .composer .todo-section { border: 0; border-radius: 12px; box-shadow: none; background: color-mix(in srgb, var(--foreground) 5%, transparent); }
+:root:root:root:root[data-client='standalone'] .composer .todo-toggle { min-height: 54px; padding: 9px 10px; gap: 8px; }
+:root:root:root:root[data-client='standalone'] .composer .todo-toggle-label { font: 500 13px/18px var(--font-sans); min-height: 36px; display: flex; align-items: center; white-space: normal; }
+:root:root:root:root[data-client='standalone'] .composer .todo-toggle-label > .af-roll { display: grid; width: 100%; height: 36px; align-items: center; }
+:root:root:root:root[data-client='standalone'] .composer .todo-toggle-label .af-roll-label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 18px; max-height: 36px; }
+:root:root:root:root[data-client='standalone'] .composer .todo-count { min-width: 3.5ch; text-align: right; font: 500 12px/18px var(--font-sans); font-variant-numeric: tabular-nums; }
+:root:root:root:root[data-client='standalone'] .composer .todo-section .todo-list { padding: 10px; margin: 0; gap: 10px; }
+:root:root:root:root[data-client='standalone'] .composer .todo-content { font: 400 13px/19px var(--font-sans); }
+:root:root:root:root[data-client='standalone'] .composer .chip-row { margin: 0; padding: 6px 0; gap: 12px 8px; }
+:root:root:root:root[data-client='standalone'] .composer .chip-skill { height: 32px; gap: 4px; padding: 0 2px 0 10px; border-radius: 10px; background: color-mix(in srgb, var(--foreground) 5%, transparent); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--foreground) 8%, transparent); font: 500 12.5px/18px var(--font-sans); }
+:root:root:root:root[data-client='standalone'] .composer .chip-skill-mark { margin-right: 0; color: var(--muted-foreground); font-weight: 500; }
+:root:root:root:root[data-client='standalone'] .composer .chip-skill .chip-remove { position: relative; width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin: -6px -6px -6px 0; border-radius: 8px; opacity: 1; transition: transform var(--craft-fast) var(--craft-ease); }
+:root:root:root:root[data-client='standalone'] .composer .chip-skill .chip-remove::before { content: none; }
+
+/* Stable, original-order rows: changing upload state cannot move an image
+   from one section to another. The composer is already the outer card. */
+:root:root:root:root[data-client='standalone'] .att-tray { gap: 7px; margin: 0; }
+:root:root:root:root[data-client='standalone'] .att-head { height: 20px; gap: 6px; animation: none; }
+:root:root:root:root[data-client='standalone'] .att-title { font: 500 12px/18px var(--font-sans); color: var(--muted-foreground); }
+:root:root:root:root[data-client='standalone'] .att-status { font: 400 12px/18px var(--font-sans); }
+:root:root:root:root[data-client='standalone'] .att-items { list-style: none; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; min-width: 0; }
+:root:root:root:root[data-client='standalone'] .att-item { display: flex; align-items: center; min-height: 64px; gap: 8px; padding: 6px; border-radius: 12px; background: color-mix(in srgb, var(--foreground) 3%, transparent); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--foreground) 8%, transparent); }
+:root:root:root:root[data-client='standalone'] .att-leading { display: grid; place-items: center; flex: 0 0 48px; width: 48px; height: 48px; }
+:root:root:root:root[data-client='standalone'] .att-item .att-mark { width: 36px; height: 36px; border-radius: 10px; }
+:root:root:root:root[data-client='standalone'] .att-preview { position: relative; display: block; width: 48px; height: 48px; padding: 0; border-radius: 8px; overflow: hidden; background: var(--muted); transition: transform var(--craft-fast) var(--craft-ease); }
+:root:root:root:root[data-client='standalone'] .att-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+:root:root:root:root[data-client='standalone'] .att-preview-busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / 0.12); pointer-events: none; }
+:root:root:root:root[data-client='standalone'] .att-preview-busy .att-mark { width: 24px; height: 24px; border-radius: 50%; background: var(--fp-card, var(--background)); }
+:root:root:root:root[data-client='standalone'] .att-preview-busy .att-spinner { width: 16px; height: 16px; }
+:root:root:root:root[data-client='standalone'] .att-item .att-text { margin: 0; gap: 2px; }
+:root:root:root:root[data-client='standalone'] .att-item .att-name { font: 500 12.5px/18px var(--font-sans); }
+:root:root:root:root[data-client='standalone'] .att-item .att-sub { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; font: 400 12px/16px var(--font-sans); max-height: 32px; }
+:root:root:root:root[data-client='standalone'] .att-row-action { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 10px; color: var(--muted-foreground); background: transparent; transition: background-color var(--craft-fast) ease, color var(--craft-fast) ease, transform var(--craft-fast) var(--craft-ease); }
+:root:root:root:root[data-client='standalone'] .att-row-action:active { transform: scale(0.97); color: var(--foreground); background: color-mix(in srgb, var(--foreground) 7%, transparent); }
+:root:root:root:root[data-client='standalone'] .att-preview:active { transform: scale(0.97); }
+:root:root:root:root[data-client='standalone'] :is(.att-preview, .att-row-action):focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+:root:root:root:root[data-client='standalone'] .att-item[data-status='failed'] .att-mark { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 10%, transparent); }
+:root:root:root:root[data-client='standalone'] .att-item[data-status='failed'] .att-sub { color: var(--destructive); }
+@media (hover: hover) {
+  :root:root:root:root[data-client='standalone'] .att-row-action:hover { color: var(--foreground); background: color-mix(in srgb, var(--foreground) 5%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root[data-client='standalone'] :is(.att-preview, .att-row-action) { transition: none; }
+}
+
+@container message-context (max-width: 300px) {
+  :root:root:root:root[data-client='standalone'] .att-item { gap: 6px; }
+  :root:root:root:root[data-client='standalone'] .att-leading { flex-basis: 40px; width: 40px; }
+  :root:root:root:root[data-client='standalone'] .att-preview { width: 44px; height: 44px; padding: 2px; }
+  :root:root:root:root[data-client='standalone'] .att-preview img { border-radius: 6px; }
+}
+:root:root:root:root[data-client='standalone'] .composer .chip-remove:active { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root[data-client='standalone'] .composer .chip-remove { transition: none; }
+}
+
+/* The field and actions own the dock's last available space. Context and
+   queued messages scroll independently instead of pushing typing under IME. */
+:root:root:root:root[data-client='standalone'] .app-thread > .thread-footer {
+  min-height: 0;
+  max-height: var(--dock-max-h, calc(100% - 72px));
+}
+:root:root:root:root[data-client='standalone'] .thread-footer > :is(.composer, [data-voice-beam]) {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+:root:root:root:root[data-client='standalone'] .thread-footer > [data-voice-beam] {
+  display: flex;
+  flex-direction: column;
+}
+:root:root:root:root[data-client='standalone'] .thread-footer > [data-voice-beam] > .composer {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+:root:root:root:root[data-client='standalone'] .thread-footer .composer-context {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+:root:root:root:root[data-client='standalone'] .thread-footer .composer-input {
+  flex: 0 1 auto;
+  min-height: 48px;
+}
+:root:root:root:root[data-client='standalone'] .composer-actions { flex: none; }
+:root:root:root:root[data-client='standalone'] .thread-footer > .queue-stack {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: min(120px, calc((100svh - var(--kb, 0px)) * 0.18));
+  overflow-y: auto;
+  overflow-x: clip;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+/* Padding itself cannot shrink below its sum in a flex item. When the dock
+   is tall, dock-sized bottom padding used to push the whole footer down.
+   A real spacer preserves scroll clearance without imposing that minimum;
+   the existing content ResizeObserver also sees its height change. */
+:root:root:root:root[data-client='standalone'] .app-thread > .thread-scroll:has(> .thread-dock-spacer) { padding-bottom: 22px; }
+:root:root:root:root[data-client='standalone'] .thread-dock-spacer { height: var(--dock-h, 104px); flex: none; pointer-events: none; }
+
+/* State is removed immediately; its inert row alone survives the fold.
+   A common 320ms trajectory is reversible, including rapid re-adds. */
+:root:root:root:root[data-client='standalone'] .att-tray-presence { flex: none; }
+:root:root:root:root[data-client='standalone'] .att-items { gap: 0; margin-top: -6px; }
+:root:root:root:root[data-client='standalone'] .att-presence-row { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows 320ms var(--craft-ease-soft), opacity 220ms ease; }
+:root:root:root:root[data-client='standalone'] .att-presence-row[data-open='false'] { grid-template-rows: 0fr; opacity: 0; }
+:root:root:root:root[data-client='standalone'] .att-row-clip { min-height: 0; overflow: hidden; }
+:root:root:root:root[data-client='standalone'] .att-row-clip > .att-item { margin-top: 6px; }
+:root:root:root:root[data-client='standalone'] .att-presence-row[data-leaving] { pointer-events: none; }
+:root:root:root:root[data-client='standalone'] .att-presence-row[data-leaving] :is(.att-spinner, .af-check) { animation-play-state: paused; }
+:root:root:root:root[data-client='standalone'] .att-tray[data-empty] .att-presence-row { grid-template-rows: 1fr; opacity: 1; transition: none; }
+:root:root:root:root[data-client='standalone'] .att-item[data-pulse='error'] { animation: craft-attachment-error 380ms var(--craft-ease); }
+@keyframes craft-attachment-error { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root[data-client='standalone'] :is(.att-presence-row, .att-item) { transition: none; animation: none; }
+}
+
+/* Oct 17: run steps bleed 12px left of their column (6px timeline + 6px
+   row) so the icon and press fill line up with the run glyph. The reveal
+   only needs to clip height; give the clip box that same horizontal room
+   so the opened run never shaves the left half off each step icon. */
+:root:root:root .fold > .motion-collapse > .motion-collapse-inner {
+  padding-inline: 12px;
+  margin-inline: -12px;
+}
+
+/* Oct 17: the context region scrolls, so its own edge is what cuts the
+   task card mid-scroll. Round that clip to the card radius; the card keeps
+   its corners at every scroll position instead of only at the ends. */
+:root:root:root:root[data-client='standalone'] .composer-context {
+  border-radius: 12px;
+}
+
+/* 13. TypeUI public foundations (docs/typeui-foundations.md).
+   This corrects the existing system, not the theme. Order-proof selectors
+   keep targets/focus/wrapping correct in Vite's shared CSS chunk; the mode
+   control also outranks the older three-root/context-specific rule.
+   No reading/stream text is balanced, weight-animated or width-animated. */
+:root:root:root:root[data-client='standalone'] {
+  --foundation-target: 44px;
+}
+:root:root:root:root[data-client='standalone'] :is(button, a[href], input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+:root:root:root:root[data-client='standalone'] .cq-custom:has(input:focus-visible) {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+:root:root:root:root[data-client='standalone'] .cq-custom input:focus-visible { outline: none; }
+
+/* One stable thumb. Both 44px phone targets fit inside the 52px shell
+   with a concentric 4px inset; retain desktop geometry. */
+@media (max-width: 600px), (pointer: coarse) {
+:root:root:root:root:root[data-client='standalone'] .mode-switch.mode-switch-context {
+  height: 52px;
+  min-height: 52px;
+  padding: 3px;
+  border-radius: 26px;
+}
+:root:root:root:root:root[data-client='standalone'] .mode-switch.mode-switch-context .mode-switch-option {
+  height: var(--foundation-target);
+  min-height: var(--foundation-target);
+  border-radius: 22px;
+}
+:root:root:root:root[data-client='standalone'] .rest-cue { min-width: var(--foundation-target); }
+}
+/* Selection feedback may change ink, never glyph metrics. */
+:root:root:root:root:root[data-client='standalone'] .mode-switch.mode-switch-context .mode-switch-option {
+  font-weight: 500;
+  transition: color var(--craft-fast) ease, opacity var(--craft-fast) ease;
+}
+:root:root:root:root[data-client='standalone'] .mode-switch-option:enabled:active { opacity: 0.72; }
+@media (max-width: 600px), (pointer: coarse) {
+  :root:root:root:root:root[data-client='standalone'] .mode-switch.mode-switch-context .mode-switch-selection {
+    height: var(--foundation-target);
+    border-radius: 22px;
+  }
+}
+:root:root:root:root[data-client='standalone'] .mode-switch[data-keyboard] .mode-switch-selection { transition: none; }
+
+:root:root:root:root[data-client='standalone'] label.settings-row { cursor: pointer; user-select: none; }
+
+/* Normal wrapping for live prose. Only static, bounded explanatory copy
+   gets pretty wrapping; links can break without forcing horizontal pan. */
+:root:root:root:root[data-client='standalone'] :is(.settings-row-description, .settings-note, .question-text, .cq-question p) {
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+:root:root:root:root[data-client='standalone'] .md a[href] {
+  overflow-wrap: anywhere;
+  text-decoration-line: underline;
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+:root:root:root:root[data-client='standalone'] :is(.session-row-time, .cq-progress, .question-artifact dd) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dense desktop question geometry is retained. On a phone, grow the real
+   controls, not overlapping pseudo-targets; the labels remain fully hit. */
+@media (max-width: 600px), (pointer: coarse) {
+  :root:root:root:root[data-client='standalone'] :is(.cq-option, .cq-next, .cq-secondary button, .cq-receipt-toggle, .question-option, .question-send, .question-skip, .question-recover, .code-fence-copy) {
+    min-height: var(--foundation-target);
+  }
+  :root:root:root:root[data-client='standalone'] :is(.cq-next, .cq-secondary button, .question-send, .question-skip) { min-width: var(--foundation-target); }
+  :root:root:root:root[data-client='standalone'] .cq-custom input { font-size: 16px; line-height: 1.5; }
+  :root:root:root:root[data-client='standalone'] .question-reply input { min-height: var(--foundation-target); font-size: 16px; }
+  :root:root:root:root[data-client='standalone'] .cq-next kbd { display: none; }
+  :root:root:root:root[data-client='standalone'] .cq-option { padding: 10px; }
+  /* Align the marker with the first line of a wrapped choice, not the
+     middle of its multi-line description. Single-line targets stay centred. */
+  :root:root:root:root[data-client='standalone'] .cq-number { align-self: flex-start; margin-top: 3px; }
+  :root:root:root:root[data-client='standalone'] .code-fence-copy { min-width: 88px; justify-content: center; }
+  :root:root:root:root[data-client='standalone'] .code-fence-copy::before { content: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root[data-client='standalone'] :is(.mode-switch-option, .mode-switch-selection) { transition: none; }
+}
+@media (forced-colors: active) {
+  :root:root:root:root[data-client='standalone'] :is(button, a[href], input, textarea, select, [tabindex]):focus-visible,
+  :root:root:root:root[data-client='standalone'] .cq-custom:has(input:focus-visible) { outline-color: Highlight; }
+  :root:root:root:root[data-client='standalone'] .mode-switch-selection { border: 2px solid Highlight; background: Canvas; box-shadow: none; }
+  :root:root:root:root[data-client='standalone'] .cq-option[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+
+/* Liquid-home refresh: a single quiet rim, not stacked glass rings. */
+:root:root:root:root:root[data-client='standalone'][data-fit] .mode-switch.mode-switch-context {
+  box-shadow: inset 0 0 0 0.5px var(--ms-edge);
+}
+:root:root:root:root:root[data-client='standalone'][data-fit] .mode-switch.mode-switch-context .mode-switch-selection {
+  border: 0;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+@media (max-width: 600px), (pointer: coarse) {
+  :root:root:root:root:root[data-client='standalone'][data-fit] .mode-switch.mode-switch-context .mode-switch-selection { top: 4px; }
+}
+@media (forced-colors: active) {
+  :root:root:root:root:root[data-client='standalone'][data-fit] .mode-switch.mode-switch-context .mode-switch-selection { border: 2px solid Highlight; box-shadow: none; }
+}
+
+/* ---------------------------------------------------------------------- */
+/* 14. Calm motion and thumb-sized targets (Oct 23 pass)                   */
+/* Measured in the 393x852 harness: the live dot ran ahead of words still  */
+/* fading in, so it sat in blank space (start of the next line, end of an  */
+/* invisible heading) and hopped each time a word landed. Overshooting     */
+/* curves bounced the whole list on pull-to-refresh and the send arrow.    */
+/* ---------------------------------------------------------------------- */
+
+/* The words are the cursor while they flow. The dot only fades in once the
+   stream has paused long enough for the last word to settle; a new word
+   remounts it, so during steady flow it never shows and never jumps. */
+:root:root:root:root[data-client='standalone'] .md .caret-dot {
+  opacity: 0;
+  animation: craft-caret-settle 360ms var(--craft-ease-soft) 700ms forwards;
+}
+:root:root:root:root[data-client='standalone'] .md .caret-dot::before {
+  animation: af-caret 1.6s ease-in-out 1.2s infinite;
+}
+@keyframes craft-caret-settle {
+  to { opacity: 1; }
+}
+
+/* Pull to refresh lands home on one soft curve instead of bouncing past. */
+:root:root:root:root[data-client='standalone'][data-fit] .pull-refresh.is-finishing .pull-refresh-content {
+  transition: margin-top 520ms var(--craft-ease);
+}
+:root:root:root:root[data-client='standalone'][data-fit] .pull-refresh.is-finishing .pull-refresh-indicator {
+  transition: transform 520ms var(--craft-ease);
+}
+
+/* Send arrow arms without a rubber-band overshoot. */
+:root:root:root:root:root[data-client='standalone'][data-fit] .composer .round-button.send:not(.stop):not(:disabled) > * {
+  animation-duration: 300ms;
+  animation-timing-function: var(--craft-ease);
+}
+
+/* Jump to latest: settles instead of springing, and takes a thumb. */
+:root:root:root:root[data-client='standalone'] .jump-latest {
+  transition: opacity 240ms var(--craft-ease), transform 320ms var(--craft-ease);
+}
+:root:root:root:root[data-client='standalone'] .jump-latest::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+}
+
+/* 44px hit areas without growing the furniture. */
+:root:root:root:root[data-client='standalone'] .notify-nudge-dismiss {
+  width: 44px;
+  margin-left: -10px;
+}
+:root:root:root:root[data-client='standalone'] .list-toolbar .segmented [role='tab'],
+:root:root:root:root[data-client='standalone'] .list-toolbar .icon-button,
+:root:root:root:root[data-client='standalone'] .tab-deck-go button,
+:root:root:root:root[data-client='standalone'] .settings-segment {
+  position: relative;
+}
+:root:root:root:root[data-client='standalone'] .list-toolbar .segmented [role='tab']::after,
+:root:root:root:root[data-client='standalone'] .list-toolbar .icon-button::after,
+:root:root:root:root[data-client='standalone'] .tab-deck-go button::after,
+:root:root:root:root[data-client='standalone'] .settings-segment::after {
+  content: '';
+  position: absolute;
+  inset-block: min(0px, calc((100% - 44px) / 2));
+  inset-inline: min(0px, calc((100% - 44px) / 2));
+}
+
+/* Card view can be swiped to delete like the list. Cards keep their own
+   shadow and corners, so the row neither clips nor squares them. */
+:root:root:root:root[data-client='standalone'] .session-cards .swipe-row {
+  overflow: visible;
+  border-radius: var(--session-card-radius, 19px);
+}
+:root:root:root:root[data-client='standalone'] .session-cards .swipe-action {
+  border-radius: inherit;
+}
+:root:root:root:root[data-client='standalone'] .session-cards .swipe-surface {
+  background: transparent;
+  border-radius: inherit;
+}
+
+/* A failed load says so and offers the obvious next step. */
+:root:root:root:root[data-client='standalone'] .list-retry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+:root:root:root:root[data-client='standalone'] .list-retry > p { margin: 0; }
+:root:root:root:root[data-client='standalone'] .list-retry .craft-pill { min-height: 36px; padding-inline: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root[data-client='standalone'] .md .caret-dot { animation: none; opacity: 1; }
+  :root:root:root:root[data-client='standalone'] .md .caret-dot::before { animation: none; }
+  :root:root:root:root[data-client='standalone'][data-fit] .pull-refresh.is-finishing :is(.pull-refresh-content, .pull-refresh-indicator) { transition: none; }
+}
+
+/* Loops nobody can see do not run. The composer spark looped at opacity 0
+   all the time, and Recents' loading shimmer kept going under an open
+   chat; both cost frames on the phone for nothing. */
+:root:root:root:root[data-client='standalone'][data-fit] .composer-critter:not([data-spark='on']):not([data-spark='fading']) :is(.cc-spark > svg, .cc-spark-a, .cc-spark-b),
+:root:root:root:root[data-client='standalone'] [inert] :is(.history-skeleton-row, .history-skeleton-row::after, .thread-skeleton > span, .boot-skeleton-row, .boot-skeleton-row::after) {
+  animation-play-state: paused;
+}
+
+/* Questions panel, closer to the AI SDK Agents Cursor questions panel it is
+   built from (aisdkagents.com/ai-components/cursor-questions-panel):
+   - Next stays a pill with its label; a 44px circle read as a blob.
+   - "Something else" types at the option size. The viewport pins scale
+     (maximum-scale=1), so 16px was buying nothing but a mismatched row.
+   - The answered receipt unfolds instead of popping open. */
+@media (max-width: 600px), (pointer: coarse) {
+  :root:root:root:root:root[data-client='standalone'] .cq-next {
+    position: relative;
+    min-height: 36px;
+    min-width: 0;
+    padding: 0 16px;
+    font-size: 13px;
+    transition: transform 160ms var(--craft-ease), opacity 160ms var(--craft-ease);
+  }
+  :root:root:root:root:root[data-client='standalone'] .cq-next::after {
+    content: '';
+    position: absolute;
+    inset: -4px -2px;
+  }
+  :root:root:root:root:root[data-client='standalone'] .cq-next:not(:disabled):active { transform: scale(0.97); }
+  :root:root:root:root:root[data-client='standalone'] .cq-custom input {
+    font: inherit;
+    line-height: 1.35;
+  }
+}
+:root:root:root:root[data-client='standalone'] .cq-receipt-fold > div > .cq-receipt-answer { padding-top: 12px; margin-top: 0; }
+:root:root:root:root[data-client='standalone'] .cq-receipt-toggle .cq-header::after {
+  content: '';
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: -2px;
+  background: currentColor;
+  color: var(--cq-muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: rotate(-90deg);
+  transition: transform 260ms var(--craft-ease);
+}
+:root:root:root:root[data-client='standalone'] .cq-receipt-toggle[aria-expanded='true'] .cq-header::after { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root[data-client='standalone'] .cq-receipt-toggle .cq-header::after { transition: none; }
+}
+
+/* Arc UI Market terminal (uiarc.dev/components/blocks/market-terminal):
+   its range selector slides on a 580ms critically damped spring, sampled
+   from the live block. Same curve for Aside's sliding thumbs, so Chat/Web
+   and List/Card settle instead of snapping to a stop. Keyboard changes
+   keep their existing instant path. */
+:root:root:root:root {
+  --arc-spring: linear(0, 0.0213 2.78%, 0.0739 5.56%, 0.1443 8.33%, 0.2235 11.11%, 0.305 13.89%, 0.3849 16.67%, 0.4606 19.44%, 0.5305 22.22%, 0.594 25%, 0.6508 27.78%, 0.7011 30.56%, 0.7452 33.33%, 0.7836 36.11%, 0.8168 38.89%, 0.8454 41.67%, 0.8699 44.44%, 0.8907 47.22%, 0.9084 50%, 0.9234 52.78%, 0.9361 55.56%, 0.9467 58.33%, 0.9557 61.11%, 0.9632 63.89%, 0.9694 66.67%, 0.9747 69.44%, 0.979 72.22%, 0.9826 75%, 0.9857 77.78%, 0.9882 80.56%, 0.9902 83.33%, 0.992 86.11%, 0.9934 88.89%, 0.9946 91.67%, 0.9955 94.44%, 0.9963 97.22%, 1);
+}
+:root:root:root:root[data-client='standalone'] .mode-switch:not([data-keyboard]) .mode-switch-selection,
+:root:root:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .segmented::before {
+  transition: transform 580ms var(--arc-spring);
+}
+
+/* Anything that counts keeps its width while it counts (Arc, AI SDK Agents:
+   tabular figures on every timer, count and size). */
+:root:root:root:root[data-client='standalone'] :is(.thread-subtitle, .fold-label, .activity-line, .session-card-time, .todo-count, .toast, .agent-tree-elapsed, .agent-tree-tokens, .agent-tree-tally, .stream-footer, .att-tray-count) {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root[data-client='standalone'] .mode-switch:not([data-keyboard]) .mode-switch-selection,
+  :root:root:root:root[data-client='standalone'][data-fit] .session-area .list-toolbar .segmented::before { transition: none; }
+}
+
+/* The nudge's dismiss was the one pressable on Home with no press state. */
+:root:root:root:root[data-client='standalone'] .notify-nudge-dismiss {
+  transition: transform 160ms var(--craft-ease), opacity 160ms var(--craft-ease);
+}
+:root:root:root:root[data-client='standalone'] .notify-nudge-dismiss:active { transform: scale(0.94); opacity: 0.7; }
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root[data-client='standalone'] .notify-nudge-dismiss { transition: none; }
+}

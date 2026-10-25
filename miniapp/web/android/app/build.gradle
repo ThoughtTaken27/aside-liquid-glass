@@ -1,0 +1,103 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "app.aside.mobile"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "app.aside.mobile"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        /*
+         * One ABI, on purpose.
+         *
+         * GeckoView ships native libraries for every Android architecture
+         * and the published AAR is ~240 MB because of it. This is a
+         * sideloaded build for one known phone, so packaging the other
+         * three architectures would quadruple the download to serve
+         * hardware that will never run it. Add armeabi-v7a/x86_64 here if
+         * the app ever needs to run on an older device or an emulator.
+         */
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    /*
+     * Compress the native libraries.
+     *
+     * Modern AGP stores .so files uncompressed so Android can map them
+     * straight from the APK, which is the right default for a Play Store
+     * app measured on cold start. Here the APK is downloaded over a
+     * tailnet from a laptop on every rebuild, and GeckoView's libxul.so is
+     * 145 MB uncompressed. Trading a slightly slower first launch for
+     * roughly half the download is clearly the better side of that deal
+     * for a sideloaded personal build.
+     */
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    /*
+     * Custom Tabs, declared here rather than inherited.
+     *
+     * `:capacitor-browser` pulls the same artifact, but it declares it as
+     * `implementation`, which Gradle deliberately keeps off the compile
+     * classpath of anything that consumes the module. MainActivity binds
+     * the Custom Tabs service directly, so the app module needs its own
+     * declaration or it will not compile.
+     */
+    implementation "androidx.browser:browser:$androidxBrowserVersion"
+    /*
+     * The browser engine the search screen renders with.
+     *
+     * Pinned to an exact build rather than a range: GeckoView publishes a
+     * new timestamped version every few days, and a floating version would
+     * mean the app silently changes engine between two builds of the same
+     * source.
+     */
+    implementation "org.mozilla.geckoview:geckoview:$geckoviewVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

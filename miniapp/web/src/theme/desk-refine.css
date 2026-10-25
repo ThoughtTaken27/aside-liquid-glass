@@ -1,0 +1,341 @@
+/*
+ * Mac desk, Oct 5 refinement. Loaded last; scoped to .dk.
+ * Sources: Arc foundation (standard ease .22,1,.36,1; 160/240ms), Arc morph select
+ * (one highlight that glides), transitions.dev content swap (4px + 2px blur), Emil
+ * (exit faster than enter, press .97). Clay stays on deadlines and stuck syncs only.
+ */
+.dk {
+  --dk-glide: cubic-bezier(.22, 1, .36, 1);
+}
+
+/* 1. One selection surface glides between lists instead of hopping. */
+.dk .dk-nav { position: relative; }
+.dk .dk-nav-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  border-radius: 10px;
+  background: var(--next-surface);
+  box-shadow: inset 0 0 0 1px var(--next-rule), 0 1px 2px rgb(32 41 38 / .05);
+  pointer-events: none;
+}
+.dk .dk-nav-pill.is-ready { transition: transform 260ms var(--dk-glide), height 260ms var(--dk-glide); }
+.dk .dk-nav.has-pill .dk-nav-btn.is-on { background: transparent; box-shadow: none; }
+.dk .dk-nav-btn,
+.dk .dk-nav-head { position: relative; z-index: 1; }
+.dk .dk-nav-btn .dk-nav-icon,
+.dk .dk-nav-btn .dk-nav-label { transition: color 200ms var(--dk-glide); }
+
+/* The switch above already names the space; the repeated label was noise. */
+.dk .dk-nav-space { display: none; }
+.dk .dk-nav > .dk-nav-pill + .dk-nav-head:not(.dk-nav-space),
+.dk .dk-nav-space + .dk-nav-btn { margin-top: 6px; }
+
+/* 2. Calmer headings: still large, less compressed. */
+.dk .dk-head h1 { font-size: 44px; line-height: 50px; font-weight: 610; letter-spacing: -.038em; }
+.dk .dk-head .sp-eyebrow { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 550; }
+.dk .dk-section { margin-top: 36px; }
+.dk .dk-section h2 { font-size: 17px; line-height: 22px; font-weight: 620; letter-spacing: -.022em; }
+.dk .dk-section h2 span { font-weight: 520; color: var(--next-soft); font-variant-numeric: tabular-nums; }
+
+/* Selection reads as its own state, not as sidebar colour. */
+.dk .dk-row.is-on:not(.is-late) {
+  background: color-mix(in srgb, var(--next-ink) 5.5%, var(--next-paper));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--next-ink) 9%, transparent);
+  border-bottom-color: transparent;
+  border-radius: 10px;
+}
+
+/* 3. Late rows: one signal (clay dot + clay date) on a faint wash. No side bar,
+   no clay on the source line, and the same left edge as every other row. */
+.dk .dk-row.is-late {
+  padding-left: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--next-clay) 6%, transparent);
+  box-shadow: none;
+}
+.dk .dk-row.is-late.is-on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--next-clay) 22%, transparent); }
+.dk .dk-row.is-late .dk-row-meta { color: var(--next-soft); }
+.dk .dk-row.is-late .dk-row-when,
+.dk .dk-row.is-today .dk-row-when { color: #a44e2e; }
+
+/* 4. Done: the row fades, slides a touch, then its space closes, so the list
+   below rises instead of jumping. Fits inside the 320ms before the save. */
+.dk .dk-row {
+  max-height: 160px;
+  transition:
+    background-color 120ms var(--dk-glide),
+    opacity 180ms var(--dk-glide),
+    transform 180ms var(--dk-glide),
+    max-height 220ms var(--dk-glide) 100ms,
+    min-height 220ms var(--dk-glide) 100ms,
+    padding 220ms var(--dk-glide) 100ms;
+}
+.dk .dk-row.is-leaving {
+  max-height: 0;
+  min-height: 0;
+  padding-block: 0;
+  opacity: 0;
+  transform: translateX(8px);
+  border-bottom-color: transparent;
+  overflow: hidden;
+}
+
+/* Row shortcuts arrive with a short fade, not a hard swap. */
+@keyframes dk-fade { from { opacity: 0; transform: translateX(-2px); } }
+.dk .dk-row:hover .dk-hover,
+.dk .dk-row:focus-within .dk-hover { animation: dk-fade 140ms var(--dk-glide) both; }
+
+/* 5. Details swap: content settles in (transitions.dev text swap values). */
+@keyframes dk-swap { from { opacity: 0; transform: translateY(6px); filter: blur(2px); } }
+.dk .dk-insp { animation: dk-swap 220ms var(--dk-glide) both; }
+
+/* 6. Sources: each on its own line; a stuck sync is visible, not buried. */
+.dk .dk-sources { display: grid; gap: 5px; margin: 2px 0 0; padding: 0; list-style: none; }
+.dk .dk-sources li { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 11.5px; line-height: 16px; color: var(--next-soft); }
+.dk .dk-source-dot { flex: none; width: 5px; height: 5px; border-radius: 99px; background: #3f9d6b; }
+.dk .dk-source-label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dk .dk-source-time { flex: none; font-variant-numeric: tabular-nums; }
+.dk .dk-sources li.is-stale .dk-source-dot { background: var(--next-clay); }
+.dk .dk-sources li.is-stale .dk-source-time { color: #a44e2e; font-weight: 560; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dk .dk-nav-pill.is-ready,
+  .dk .dk-row { transition: none; }
+  .dk .dk-insp,
+  .dk .dk-row:hover .dk-hover { animation: none; }
+}
+
+/* 7. Narrow windows (Aside's side panel open): the idle guide is not worth a
+   third of the screen. With nothing selected and no helper running, the list
+   gets the room; selecting a task floats its details in as an inset sheet. */
+@keyframes dk-sheet-in { from { opacity: 0; transform: translateX(16px); } }
+@media (max-width: 980px) and (min-width: 761px) {
+  .dk.n3:not(.has-runs) { grid-template-columns: 64px minmax(0, 1fr); }
+  .dk:not(.has-runs) .dk-inspector { display: none; }
+  .dk:not(.has-runs) .dk-inspector.is-open {
+    display: block;
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    bottom: auto;
+    max-height: calc(100% - 24px);
+    z-index: 40;
+    width: min(380px, calc(100% - 96px));
+    overflow-y: auto;
+    border: 0;
+    border-radius: 20px;
+    background: var(--next-surface);
+    box-shadow: 0 0 0 1px var(--next-rule), 0 24px 64px -16px rgb(15 28 23 / .3), 0 4px 12px rgb(15 28 23 / .06);
+    animation: dk-sheet-in 240ms var(--dk-glide) both;
+  }
+  .dk:not(.has-runs) .dk-inspector-close {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    width: 100%;
+    min-height: 44px;
+    padding: 11px 24px;
+    border-bottom: 1px solid var(--next-rule);
+    background: color-mix(in srgb, var(--next-surface) 88%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    color: var(--next-soft);
+    text-align: left;
+    font-size: 13px;
+    font-weight: 560;
+  }
+  .dk:not(.has-runs) .dk-inspector-close:hover { color: var(--next-ink); }
+  .dk:not(.has-runs) .dk-insp { padding-top: 20px; padding-bottom: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dk .dk-inspector.is-open { animation: none; }
+}
+
+/* =====================================================================
+   v2 (Oct 5, 2026): the visible redesign. Warm editorial paper, grouped
+   white task cards with inset separators (Zeron), larger display type,
+   pill meta (Refero Notion / Bencho), a serif-led focus card, icons in
+   the inspector. One accent (clay) on lateness only.
+   Order matters: this block sits last so it wins ties with earlier layers;
+   the media queries at the end restore the narrow-window behaviour.
+   ===================================================================== */
+.dk.n3 {
+  --next-paper: #f5f2ea;
+  --next-surface: #fffdf8;
+  --next-ink: #1d1c19;
+  --next-soft: #68645b;
+  --next-rule: #e6e1d4;
+  --next-focus: #1f2420;
+  --next-focus-soft: #cfd3c8;
+  --dk-side: #eeeadf;
+  --dk-line: #e2ddd0;
+  --dk-muted: #68645b;
+  --dk-sel: #ece7da;
+  --dk-wash: rgb(40 34 20 / .055);
+  --dk-card: 0 0 0 1px var(--next-rule), 0 1px 2px rgb(40 32 20 / .04), 0 14px 30px -20px rgb(40 32 20 / .16);
+  background: var(--next-paper);
+  font-feature-settings: 'tnum' 1, 'cv11' 1;
+  grid-template-columns: 264px minmax(0, 1fr) 344px;
+}
+.dk kbd {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 7px;
+  font: 560 11.5px/1 var(--font-sans);
+  color: var(--next-soft);
+  background: var(--next-surface);
+  box-shadow: inset 0 0 0 1px var(--next-rule), 0 1px 0 var(--next-rule);
+}
+
+/* Sidebar */
+.dk .dk-side { padding: 24px 14px 16px; background: var(--dk-side); border-right: 1px solid var(--dk-line); }
+.dk .dk-brand { gap: 11px; padding: 0 12px 24px; font-size: 19px; font-weight: 650; letter-spacing: -.03em; }
+.dk .dk-brand-mark { width: 26px; height: 26px; border-radius: 8px; background: var(--next-ink); box-shadow: inset 0 0 0 7px var(--next-ink), inset 0 0 0 9px var(--next-paper); }
+.dk .dk-nav-btn { height: 40px; padding-inline: 12px; gap: 12px; border-radius: 12px; font-size: 14px; font-weight: 500; }
+.dk .dk-nav-btn.is-on { font-weight: 600; }
+.dk .dk-nav-pill { border-radius: 12px; background: var(--next-surface); box-shadow: 0 0 0 1px var(--next-rule), 0 1px 2px rgb(40 32 20 / .05), 0 8px 16px -10px rgb(40 32 20 / .22); }
+.dk .dk-nav-head { margin: 28px 12px 8px; font-size: 12px; font-weight: 600; letter-spacing: 0; color: var(--next-soft); }
+.dk .dk-nav-count { min-width: 22px; text-align: right; font-size: 12.5px; font-weight: 560; }
+.dk .dk-side-foot { gap: 10px; margin-top: 8px; padding: 14px 14px 13px; border: 0; border-radius: 18px; background: var(--next-surface); box-shadow: var(--dk-card); }
+.dk .dk-state { font-size: 13px; font-weight: 600; }
+
+/* Main column */
+.dk .dk-main { padding-top: 28px; background: var(--next-paper); }
+.dk .dk-bar,
+.dk .dk-bar-hint,
+.dk .dk-scroll > * { width: min(780px, calc(100% - 104px)); }
+.dk .dk-bar { height: 56px; padding-inline: 20px 14px; border-radius: 20px; gap: 12px; background: var(--next-surface); box-shadow: var(--dk-card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.dk .dk-bar input { font-size: 15.5px; }
+.dk .dk-bar:focus-within { background: var(--next-surface); box-shadow: 0 0 0 1px rgb(29 28 25 / .28), 0 0 0 5px rgb(29 28 25 / .07), 0 14px 30px -20px rgb(40 32 20 / .2); }
+.dk .dk-bar-hint { margin-top: 10px; font-size: 13px; }
+.dk .dk-scroll { padding-bottom: 96px; }
+
+.dk .dk-head { padding: 44px 4px 2px; }
+.dk .dk-head h1 { margin-top: 6px; font-size: 54px; line-height: 58px; font-weight: 580; letter-spacing: -.05em; }
+.dk .dk-head p.dk-head-date { margin: 0; font-size: 13.5px; font-weight: 580; color: var(--next-soft); }
+.dk .dk-head p:not(.sp-eyebrow):not(.dk-head-date) { margin-top: 12px; font-size: 16px; line-height: 24px; max-width: 54ch; }
+.dk .dk-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.dk .dk-stat { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border-radius: 99px; background: var(--next-surface); box-shadow: inset 0 0 0 1px var(--next-rule); font-size: 13px; color: var(--next-soft); }
+.dk .dk-stat b { font-weight: 640; color: var(--next-ink); }
+.dk .dk-stat.is-late { color: #a44e2e; background: color-mix(in srgb, var(--next-clay) 9%, var(--next-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--next-clay) 28%, transparent); }
+.dk .dk-stat.is-late b { color: #8f3f20; }
+
+/* Focus card */
+.dk .dk-now { margin-top: 32px; min-height: 292px; padding: 34px 38px; border-radius: 32px; box-shadow: inset 0 1px 0 rgb(255 255 255 / .1), 0 30px 50px -32px rgb(20 28 22 / .65), 0 3px 8px rgb(20 28 22 / .14); }
+.dk .dk-now-content { grid-template-columns: minmax(0, 1fr) 196px; gap: 32px; }
+.dk .dk-now-top { align-items: center; gap: 10px; }
+.dk .dk-now-label { display: inline-flex; align-items: center; height: 28px; padding: 0 13px; border-radius: 99px; background: rgb(255 255 255 / .13); font-size: 12.5px; font-weight: 620; }
+.dk .dk-now-title { margin-top: 22px; font-size: 40px; line-height: 46px; letter-spacing: -.03em; }
+.dk .dk-now-why { margin-top: 14px; font-size: 15.5px; line-height: 23px; max-width: 50ch; color: #dde1d6; }
+.dk .dk-now-actions { gap: 10px; padding-top: 26px; }
+.dk .dk-now .dk-btn { height: 44px; padding-inline: 22px; border-radius: 15px; font-size: 14px; font-weight: 600; }
+.dk .dk-now .dk-quiet { height: 44px; padding-inline: 14px; font-size: 14px; }
+.dk .dk-now-rail { padding-left: 30px; }
+.dk .dk-now-time strong { font-size: 44px; line-height: 44px; font-weight: 560; letter-spacing: -.05em; }
+.dk .dk-now-time span { font-size: 12.5px; }
+.dk .dk-now-due { font-size: 13px; font-weight: 560; }
+
+/* Lists: one grouped white card per section, inset hairlines between rows */
+.dk .dk-section { margin-top: 46px; }
+.dk .dk-section h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 0 6px; font-size: 17px; line-height: 22px; font-weight: 620; letter-spacing: -.025em; }
+.dk .dk-section h2 span { display: inline-grid; place-items: center; min-width: 26px; height: 22px; margin: 0; padding: 0 8px; border-radius: 99px; background: var(--dk-wash); font-size: 12px; font-weight: 620; color: var(--next-soft); }
+.dk .dk-rows { padding: 6px; border-radius: 24px; background: var(--next-surface); box-shadow: var(--dk-card); }
+.dk .dk-row { gap: 8px; min-height: 70px; padding: 10px 14px 10px 6px; border-bottom: 0; border-radius: 18px; }
+.dk .dk-row + .dk-row::before { display: block; top: 0; left: 58px; right: 16px; border-top: 1px solid var(--next-rule); }
+.dk .dk-row:hover { background: var(--dk-wash); }
+.dk .dk-row.is-on:not(.is-late) { background: #f3eee1; box-shadow: inset 0 0 0 1px rgb(29 28 25 / .09); }
+.dk .dk-row.is-late { background: color-mix(in srgb, var(--next-clay) 7%, var(--next-surface)); box-shadow: none; }
+.dk .dk-row.is-late.is-on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--next-clay) 28%, transparent); }
+.dk .dk-check { width: 42px; height: 42px; border-radius: 14px; }
+.dk .n3-check-ring { stroke: #8d887c; }
+.dk .dk-check:hover .n3-check-ring { stroke: var(--next-ink); fill: rgb(29 28 25 / .055); }
+.dk .dk-row-title { font-size: 15.5px; line-height: 22px; font-weight: 590; letter-spacing: -.018em; }
+.dk .dk-row-meta { gap: 6px 10px; margin-top: 3px; font-size: 13px; }
+.dk .dk-row-end { gap: 8px; }
+.dk .dk-est { display: inline-flex; align-items: center; height: 26px; padding: 0 11px; border-radius: 99px; background: var(--dk-wash); font-size: 12.5px; font-weight: 580; color: var(--next-soft); }
+.dk .dk-chip { padding: 1px 9px; border: 0; background: var(--dk-wash); box-shadow: none; font-size: 11.5px; font-weight: 560; line-height: 18px; color: var(--next-soft); }
+.dk .dk-pill { height: 30px; padding: 0 13px; font-weight: 600; background: var(--next-surface); }
+.dk .dk-icon { width: 30px; height: 30px; border-radius: 10px; }
+.dk .dk-empty { padding: 72px 4px; }
+.dk .dk-empty p:first-child { font-size: 17px; letter-spacing: -.02em; }
+
+/* Buttons */
+.dk .dk-btn { height: 40px; padding: 0 18px; border-radius: 13px; font-size: 14px; font-weight: 600; background: var(--next-surface); box-shadow: inset 0 0 0 1px var(--next-rule), 0 1px 2px rgb(40 32 20 / .05); }
+.dk .dk-btn.is-primary { background: var(--next-focus); color: #fffdf8; box-shadow: 0 1px 2px rgb(20 28 22 / .25), inset 0 1px 0 rgb(255 255 255 / .12); }
+.dk .dk-btn.is-primary:hover { background: #2a312b; }
+.dk .dk-now .dk-btn.is-primary { background: #fffdf8; color: var(--next-focus); box-shadow: 0 1px 2px rgb(0 0 0 / .2); }
+
+/* Inspector */
+.dk .dk-inspector { background: var(--next-surface); border-left: 1px solid var(--next-rule); }
+.dk .dk-insp,
+.dk .dk-idle { padding: 34px 30px 44px; }
+.dk .dk-insp-eyebrow { font-size: 13px; font-weight: 560; color: var(--next-soft); }
+.dk .dk-insp-title { margin-top: 10px; font-size: 29px; line-height: 35px; font-weight: 620; letter-spacing: -.038em; }
+.dk .dk-facts { margin-top: 24px; padding: 2px 18px; border-radius: 20px; background: var(--next-surface); box-shadow: inset 0 0 0 1px var(--next-rule); }
+.dk .dk-facts > div { gap: 14px; padding: 14px 0; font-size: 14px; }
+.dk .dk-facts > div + div { border-top-color: var(--next-rule); }
+.dk .dk-facts dt { display: flex; align-items: center; gap: 10px; color: var(--next-soft); }
+.dk .dk-facts dt svg { opacity: .7; }
+.dk .dk-facts dd { font-weight: 560; }
+.dk .dk-insp-why { margin-top: 18px; font-size: 14.5px; line-height: 22px; }
+.dk .dk-insp-actions { margin-top: 20px; }
+.dk .dk-insp-actions .dk-btn { height: 46px; border-radius: 15px; font-size: 14.5px; }
+.dk .dk-later { margin-top: 14px; gap: 7px; }
+.dk .dk-chip-btn { height: 32px; padding: 0 14px; border-radius: 99px; background: var(--next-paper); box-shadow: inset 0 0 0 1px var(--next-rule); font-size: 12.5px; font-weight: 560; }
+.dk .dk-hand { margin-top: 24px; padding: 20px; border-radius: 22px; background: var(--next-paper); box-shadow: inset 0 0 0 1px var(--next-rule); }
+.dk .dk-hand-head p { font-size: 14px; letter-spacing: -.01em; }
+.dk .dk-model { background: var(--next-surface); }
+.dk .dk-idle-guide { margin-bottom: 36px; padding-bottom: 30px; }
+.dk .dk-idle-guide-title { font-size: 24px; letter-spacing: -.035em; font-weight: 620; }
+.dk .dk-idle-guide p:last-child { font-size: 14px; line-height: 21px; }
+.dk .dk-idle-head { font-size: 14px; font-weight: 620; }
+.dk .dk-runs button { padding: 14px; border-radius: 16px; background: var(--next-paper); box-shadow: inset 0 0 0 1px var(--next-rule); }
+.dk .dk-keys { margin-top: 36px; padding-top: 28px; border-top-color: var(--next-rule); }
+.dk .dk-keys dl { gap: 10px; }
+.dk .dk-keys dl > div { font-size: 13.5px; }
+
+@media (max-width: 1180px) {
+  .dk.n3 { grid-template-columns: 232px minmax(0, 1fr) 308px; }
+  .dk .dk-bar, .dk .dk-bar-hint, .dk .dk-scroll > * { width: min(780px, calc(100% - 64px)); }
+  .dk .dk-head h1 { font-size: 52px; line-height: 56px; }
+  .dk .dk-now-title { font-size: 38px; line-height: 44px; }
+  .dk .dk-now-rail { padding: 14px 0 0; }
+  .dk .dk-now-time strong { font-size: 22px; line-height: 24px; }
+}
+@media (max-width: 980px) {
+  .dk.n3 { grid-template-columns: 72px minmax(0, 1fr) 300px; }
+  .dk .dk-head h1 { font-size: 46px; line-height: 50px; }
+  .dk .dk-bar, .dk .dk-bar-hint, .dk .dk-scroll > * { width: min(780px, calc(100% - 48px)); }
+  .dk .dk-now { padding: 28px 28px; }
+  .dk .dk-nav-btn { justify-content: center; padding: 0; }
+}
+@media (max-width: 760px) {
+  .dk.n3 { grid-template-columns: 64px minmax(0, 1fr); }
+  .dk .dk-bar, .dk .dk-bar-hint, .dk .dk-scroll > * { width: min(780px, calc(100% - 32px)); }
+  .dk .dk-head h1 { font-size: 40px; line-height: 44px; }
+}
+.dk .dk-row.is-late { padding-left: 6px; }
+.dk .dk-inspector .dk-facts { background: var(--next-surface); box-shadow: inset 0 0 0 1px var(--next-rule); }
+
+/* 8. Loading: the page's own silhouette (stable widths, no layout jump). */
+@keyframes dk-shimmer { to { background-position: -200% 0; } }
+.dk .dk-skel { padding-top: 48px; }
+.dk .dk-skel-bit {
+  display: block;
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgb(40 34 20 / .055) 0%, rgb(40 34 20 / .1) 50%, rgb(40 34 20 / .055) 100%);
+  background-size: 200% 100%;
+  animation: dk-shimmer 1.5s linear infinite;
+}
+.dk .dk-skel-bit.is-eyebrow { width: 150px; height: 14px; border-radius: 7px; }
+.dk .dk-skel-bit.is-title { width: 230px; height: 54px; margin-top: 14px; }
+.dk .dk-skel-bit.is-sub { width: min(420px, 70%); height: 18px; margin-top: 18px; border-radius: 9px; }
+.dk .dk-skel-bit.is-card { height: 292px; margin-top: 52px; border-radius: 32px; }
+.dk .dk-skel-rows { margin-top: 46px; padding: 6px; border-radius: 24px; background: var(--next-surface); box-shadow: var(--dk-card); display: grid; gap: 6px; }
+.dk .dk-skel-bit.is-row { height: 70px; border-radius: 18px; }
+@media (prefers-reduced-motion: reduce) { .dk .dk-skel-bit { animation: none; } }

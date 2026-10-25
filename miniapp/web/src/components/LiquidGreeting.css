@@ -1,0 +1,18 @@
+/* Original preview. Palette shading is intentional, no surrounding glow. */
+:root .rest-greeting:has(.liquid-greeting){font-family:var(--font-sans);font-size:56px;font-weight:730;letter-spacing:-.045em;line-height:1.08;text-shadow:none;max-width:330px;margin-inline:auto;}
+.liquid-greeting{--liquid-lo:#d9734e;--liquid-mid:#e87d4f;--liquid-hi:#f6b18a;position:relative;display:inline-block;vertical-align:top;color:var(--fp-ink);}
+:root.dark .liquid-greeting{--liquid-lo:#babcc3;--liquid-mid:#e1e3e8;--liquid-hi:#ffffff;}
+.liquid-greeting-label{display:block;overflow-wrap:anywhere;}.liquid-greeting-label>span{display:block;}
+.liquid-greeting canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;}
+.liquid-greeting[data-ready=true] canvas{opacity:1;}.liquid-greeting[data-ready=true] .liquid-greeting-label{visibility:hidden;}
+@media(forced-colors:active){.liquid-greeting canvas{display:none;}.liquid-greeting[data-ready=true] .liquid-greeting-label{visibility:visible;}}
+@media(max-width:350px){:root .rest-greeting:has(.liquid-greeting){font-size:48px;}}
+
+/* The shader is the greeting's one motion layer, replacing the inherited blur entrance. */
+:root:root:root[data-client='standalone'][data-fit] .rest-hero.is-first .rest-greeting:has(.liquid-greeting){animation:none;filter:none;opacity:1;transform:none;}
+
+@media(prefers-reduced-motion:reduce){:root .rest-greeting:has(.liquid-greeting){animation:none;transition:none;}}
+.liquid-greeting-a11y{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;}
+
+.liquid-greeting[data-ready=true]{cursor:pointer;}
+.liquid-greeting[data-ready=true]:active{opacity:.96;}

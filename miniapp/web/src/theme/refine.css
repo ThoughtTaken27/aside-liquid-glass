@@ -1,0 +1,564 @@
+/*
+ * refine.css -- the Shadowfax-grade polish layer. Imported last.
+ *
+ * Studied from Kris Puckett's Shadowfax launch videos (Sep. 29, 2026),
+ * frame by frame. What made it feel intentional, and what this layer
+ * carries over WITHOUT changing Aside's theme or layout:
+ *
+ *  1. Cards are recessed, not floating: one opaque material a few percent
+ *     darker than the page, a single hairline, no glass, no stripe, no
+ *     cast shadow. Every card is the same material.
+ *  2. A card speaks in the same reading face as the answer around it.
+ *  3. Choices are dashed "slots"; the picked one gets a solid ink outline
+ *     and a check, and the rest step back. One trailing action per row.
+ *  4. Answered cards settle into a receipt, not a wall of dead buttons.
+ *  5. Only new things move. Words come into focus as they stream; status
+ *     phrases cross-fade with a blur; history never re-animates.
+ *
+ * Every rule is scoped to the standalone phone client.
+ */
+
+:root[data-client='standalone'] {
+  --rf-card: color-mix(in srgb, var(--foreground) 3.5%, var(--background));
+  --rf-card-settled: color-mix(in srgb, var(--foreground) 2.5%, var(--background));
+  --rf-hair: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --rf-dash: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --rf-quiet: color-mix(in srgb, var(--foreground) 66%, transparent);
+  --rf-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --rf-pop: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* ---------------------------------------------------------------------
+ * 1. Motion: only new rows enter. History, and rows the virtualizer
+ *    remounts on scroll, stay still. `data-fresh` is set by Thread.tsx.
+ * ------------------------------------------------------------------- */
+@keyframes rf-lift-in {
+  from { opacity: 0; transform: translate3d(0, 4px, 0); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes rf-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; filter: none; }
+}
+
+:root[data-client='standalone'] .thread-row :is(.answer, .user-bubble, .question-card) {
+  animation: none;
+}
+:root[data-client='standalone'] .thread-row[data-fresh] :is(.user-bubble, .question-card) {
+  animation: rf-lift-in 200ms var(--rf-ease) both;
+}
+:root[data-client='standalone'] .thread-row[data-fresh] .answer[data-answer-state='settled'] {
+  animation: rf-fade-in 180ms var(--rf-ease) both;
+}
+:root[data-client='standalone'] .thread-row[data-fresh].is-question .question-card {
+  animation-delay: 80ms;
+}
+
+/* Streaming words come into focus one chunk at a time (streamWords.ts).
+   Inline on purpose: no transform, so line breaking is untouched. */
+@keyframes rf-word-in {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+:root[data-client='standalone'] .md .sw {
+  animation: rf-word-in 160ms var(--rf-ease) var(--sw, 0ms) backwards;
+}
+/* The words are the cursor now. */
+:root[data-client='standalone'] .answer[data-answer-state='streaming'] .caret {
+  display: none;
+}
+
+/* A live status phrase cross-fades through a soft blur instead of cutting. */
+@keyframes rf-status-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+:root[data-client='standalone'] .status-swap {
+  display: inline;
+  animation: rf-status-in 160ms var(--rf-ease) backwards;
+}
+
+/* ---------------------------------------------------------------------
+ * 2. The card material, and the question card built on it.
+ * ------------------------------------------------------------------- */
+:root[data-client='standalone'] .question-card,
+:root[data-client='standalone'] .question-card:not(.is-settled) {
+  margin-top: 4px;
+  padding: 18px 16px 0;
+  border-radius: 22px;
+  border: 1px solid var(--rf-hair);
+  background: var(--rf-card);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  font-family: var(--font-prose);
+  overflow: hidden;
+}
+:root[data-client='standalone'] .question-card::before {
+  content: none;
+}
+:root[data-client='standalone'] .question-card.is-settled {
+  padding-bottom: 16px;
+  background: var(--rf-card-settled);
+  border-color: var(--rf-hair);
+}
+
+/* Label: sentence case, quiet. The one orange dot marks "waiting on you",
+   which is exactly the live state the accent is reserved for. */
+:root[data-client='standalone'] .question-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 6px;
+  font-family: var(--font-prose);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--rf-quiet);
+}
+:root[data-client='standalone'] .question-card:not(.is-settled) .question-header::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--zeron-signature, #e87d4f);
+}
+:root[data-client='standalone'] .question-card.is-settled .question-header {
+  color: var(--rf-quiet);
+}
+
+:root[data-client='standalone'] .question-text {
+  margin: 0 0 14px;
+  font-family: var(--font-prose);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.006em;
+  color: var(--foreground);
+}
+:root[data-client='standalone'] .question-card.is-settled .question-text {
+  margin-bottom: 8px;
+  font-weight: 400;
+  color: var(--rf-quiet);
+}
+
+:root[data-client='standalone'] .question-options {
+  gap: 8px;
+}
+:root[data-client='standalone'] .question-card .question-option,
+:root[data-client='standalone'] .question-card .question-option:disabled {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  margin: 0;
+  padding: 12px 44px 12px 16px;
+  border: 1px dashed var(--rf-dash);
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--font-prose);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--foreground);
+  text-align: left;
+  opacity: 1;
+  transition:
+    transform 160ms var(--rf-ease),
+    border-color 160ms var(--rf-ease),
+    background-color 160ms var(--rf-ease),
+    opacity 260ms var(--rf-ease);
+}
+:root[data-client='standalone'] .question-card .question-option:active:not(:disabled) {
+  transform: scale(0.98);
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--foreground) 60%, transparent);
+  background: var(--background);
+}
+:root[data-client='standalone'] .question-card .question-option.is-chosen,
+:root[data-client='standalone'] .question-card .question-option.is-chosen:disabled {
+  border: 1.5px solid var(--foreground);
+  padding: 11.5px 43.5px 11.5px 15.5px;
+  background: var(--background);
+  color: var(--foreground);
+}
+/* The rest step back once a choice is made, footer included. */
+:root[data-client='standalone'] .question-options:has(.is-chosen) .question-option:not(.is-chosen),
+:root[data-client='standalone'] .question-card:has(.is-chosen) .question-reply {
+  opacity: 0.38;
+}
+:root[data-client='standalone'] .question-card .question-reply {
+  transition: opacity 260ms var(--rf-ease);
+}
+:root[data-client='standalone'] .question-option-label {
+  display: block;
+  font-weight: 400;
+}
+@keyframes rf-check-in {
+  from { opacity: 0; transform: translateY(-50%) scale(0.4); }
+  to { opacity: 1; transform: translateY(-50%) scale(1); }
+}
+:root[data-client='standalone'] .question-option-label svg {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  animation: rf-check-in 300ms var(--rf-pop) both;
+}
+:root[data-client='standalone'] .question-card .question-option-description,
+:root[data-client='standalone'] .question-card .question-option.is-chosen .question-option-description {
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--rf-quiet);
+}
+
+/* Footer row: one hairline, a borderless field, one trailing action. */
+:root[data-client='standalone'] .question-card .question-reply {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 14px -16px 0;
+  padding: 2px 6px 2px 16px;
+  border-top: 1px solid var(--rf-hair);
+  background: transparent;
+}
+:root[data-client='standalone'] .question-card .question-reply input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  font-family: var(--font-prose);
+  font-size: 15px;
+  color: var(--foreground);
+}
+:root[data-client='standalone'] .question-card .question-reply input::placeholder {
+  color: var(--rf-quiet);
+  opacity: 1;
+}
+@keyframes rf-swap-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+:root[data-client='standalone'] .question-card .question-reply :is(.question-send, .question-skip) {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  height: 44px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--font-prose);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  animation: rf-swap-in 200ms var(--rf-ease) both;
+  transition: background-color 140ms var(--rf-ease), transform 160ms var(--rf-ease);
+}
+:root[data-client='standalone'] .question-card .question-reply .question-skip {
+  font-weight: 500;
+  color: var(--rf-quiet);
+}
+:root[data-client='standalone'] .question-card .question-reply :is(.question-send, .question-skip):active:not(:disabled) {
+  transform: scale(0.96);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+:root[data-client='standalone'] .question-card .question-reply :is(.question-send, .question-skip):disabled {
+  opacity: 0.45;
+}
+
+/* The receipt an answered card settles into. */
+:root[data-client='standalone'] .question-receipt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-prose);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--foreground);
+}
+:root[data-client='standalone'] .question-receipt svg {
+  flex: none;
+}
+
+:root[data-client='standalone'] .question-card :is(.question-notice, .question-error) {
+  margin: 12px 0 14px;
+  font-family: var(--font-prose);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* ---------------------------------------------------------------------
+ * 3. Composer: the send control is quiet until there is something to send,
+ *    then fills to ink. Same slot, same size; only its weight changes.
+ * ------------------------------------------------------------------- */
+:root[data-client='standalone'] .composer .round-button.send:not(.stop) {
+  transition:
+    background-color 200ms var(--rf-ease),
+    color 200ms var(--rf-ease),
+    box-shadow 200ms var(--rf-ease),
+    transform 140ms var(--rf-ease);
+}
+:root[data-client='standalone'] .composer .round-button.send:not(.stop):disabled {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: color-mix(in srgb, var(--foreground) 55%, transparent);
+  box-shadow: none;
+}
+:root[data-client='standalone'] .composer .round-button.send:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* ---------------------------------------------------------------------
+ * 4. Reduced motion: keep fades so arrivals are still marked, drop blur,
+ *    movement and pops.
+ * ------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .thread-row[data-fresh] :is(.user-bubble, .question-card, .answer),
+  :root[data-client='standalone'] .md .sw,
+  :root[data-client='standalone'] .status-swap,
+  :root[data-client='standalone'] .question-option-label svg,
+  :root[data-client='standalone'] .question-card .question-reply :is(.question-send, .question-skip) {
+    animation: none;
+  }
+  :root[data-client='standalone'] .question-card .question-option:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------
+ * 5. Grouped lists -- recents, settings, the model picker -- on ONE set
+ *    of rules, the way every Shadowfax list shares one.
+ *
+ *    - Section labels: sentence case, 13/500, quiet, no tracking, and
+ *      sitting on the same left edge as the row text under them.
+ *    - Separators honour the `data-separator="inset"` the markup already
+ *      asks for: they start at the text edge, not the card edge.
+ *    - One row title scale (15/500) and one meta scale (13/400).
+ *    - A selected row is full ink with a check, never greyed out.
+ * ------------------------------------------------------------------- */
+:root[data-client='standalone'] {
+  --rf-sep: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+:root[data-client='standalone'] .session-rows { --rf-inset: 10px; }
+:root[data-client='standalone'] .settings-rows { --rf-inset: 12px; }
+:root[data-client='standalone'] .sheet-group { --rf-inset: 14px; }
+/* Sheet rows drew their own full-width bottom rule; the inset top line
+   below replaces it. */
+:root[data-client='standalone'] .sheet-group > * {
+  border-bottom-color: transparent;
+}
+
+:root[data-client='standalone'] .session-rows > * + *,
+:root[data-client='standalone'] .settings-rows > * + *,
+:root[data-client='standalone'] .sheet-group > * + * {
+  border-top-color: transparent;
+  background-image: linear-gradient(
+    to right,
+    transparent var(--rf-inset),
+    var(--rf-sep) var(--rf-inset)
+  );
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-origin: border-box;
+  background-clip: border-box;
+}
+
+/* Labels */
+:root[data-client='standalone'] :is(.settings-heading, .session-group-head, [data-surface-heading]) {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--rf-quiet);
+}
+/* Same left edge as the row text: group border (1px) + row padding. */
+:root[data-client='standalone'] .settings-heading {
+  padding-inline: 13px 2px;
+}
+:root[data-client='standalone'] .session-group-head {
+  padding-inline: 0;
+  margin-bottom: 0;
+}
+
+/* Rows */
+:root[data-client='standalone'] :is(.session-row-title, .settings-row-title, .sheet-row-title) {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+}
+:root[data-client='standalone'] :is(.settings-row-description, .sheet-row-subtitle) {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--rf-quiet);
+}
+:root[data-client='standalone'] .settings-row-value {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--rf-quiet);
+}
+:root[data-client='standalone'] .session-row-time {
+  color: var(--rf-quiet);
+  font-variant-numeric: tabular-nums;
+}
+/* Recents rows: 56px, not 68. The list is for scanning. */
+:root[data-client='standalone'] .session-row {
+  min-height: 56px;
+  padding-block: 6px;
+}
+:root[data-client='standalone'] .sheet-row {
+  min-height: 52px;
+}
+
+/* Selected is full ink plus the check; the check carries the state. */
+:root[data-client='standalone'] .sheet-row.is-selected :is(.sheet-row-title, .sheet-row-trailing) {
+  color: var(--foreground);
+}
+:root[data-client='standalone'] .sheet-row.is-selected .sheet-row-subtitle {
+  color: var(--rf-quiet);
+}
+
+/* Press feedback that keeps the separator (colour only, not shorthand). */
+:root[data-client='standalone'] :is(.settings-row.is-button, .sheet-row):active {
+  background-color: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+/* Recents toolbar: the segmented control is already glass, so the bar
+   around it is not -- no glass inside glass. */
+:root[data-client='standalone'] .list-toolbar {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ---------------------------------------------------------------------
+ * 6. Home controls: one geometry.
+ *    The globe and Chat/Web selection share a centre line. Composer
+ *    secondaries (+, mic) are plain glyphs like the model label beside
+ *    them; send is the one filled control. All actions use 44px targets.
+ * ------------------------------------------------------------------- */
+:root[data-client='standalone'] .app-home button.icon-button[aria-label='Browser tabs'] {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 22px;
+  /* The capsule is absolutely placed at top 18; this row centres 6px
+     lower. `translate` leaves `transform` free for the press scale. */
+  translate: 0 -6px;
+}
+:root[data-client='standalone'] .composer .round-button.ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+:root[data-client='standalone'] .composer .round-button.ghost:active:not(:disabled) {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+:root[data-client='standalone'] .composer .round-button.send {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 14px;
+}
+
+/* Curated controls: Arc 44px targets / 160-240ms timing, Skecher .97
+ * press feedback, Planes single segmented selection. Existing tokens and
+ * handlers only; no library source/package copied. docs/curated-ui.md. */
+:root[data-client='standalone'] .mode-switch {
+  height: 52px;
+  min-height: 52px;
+  border-radius: 26px;
+}
+:root[data-client='standalone'] .mode-switch-option {
+  height: 44px;
+  min-height: 44px;
+  border-radius: 22px;
+  color: var(--rf-quiet);
+  font-size: 13px;
+  font-weight: 500;
+}
+:root[data-client='standalone'] .mode-switch-option::before { content: none; }
+:root[data-client='standalone'] .mode-switch-option.is-on { color: var(--foreground); }
+/* One clean thumb already communicates selection; omit the goo silhouette. */
+:root[data-client='standalone'] .mode-switch-liquid-layer { display: none; }
+:root[data-client='standalone'] .mode-switch-selection {
+  height: 44px;
+  border-radius: 22px;
+  transition: transform 240ms var(--rf-ease);
+  will-change: auto;
+}
+:root[data-client='standalone'] .composer-actions { min-height: 44px; gap: 4px; }
+:root[data-client='standalone'] .composer .round-button.ghost,
+:root[data-client='standalone'] .composer .composer-actions .pill.composer-context-control {
+  height: 44px;
+  min-height: 44px;
+}
+:root[data-client='standalone'] .composer .round-button.ghost {
+  width: 44px;
+  min-width: 44px;
+  border-radius: 14px;
+}
+:root[data-client='standalone'] .composer .round-button {
+  transition: transform 160ms var(--rf-ease), opacity 160ms var(--rf-ease);
+}
+:root[data-client='standalone'] .composer .round-button:active:not(:disabled) { transform: scale(0.97); }
+:root[data-client='standalone'] .composer .composer-input::placeholder { color: var(--rf-quiet); opacity: 1; }
+/* Focus reads as a graphite edge, never a second chromatic glow. */
+:root[data-client='standalone'] .composer:focus-within {
+  border-color: color-mix(in srgb, var(--foreground) 32%, transparent);
+}
+:root[data-client='standalone'] :is(.mode-switch-option, .composer-actions button, .sheet button, .fold-row):focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+:root[data-client='standalone'] .fold-row { min-height: 44px; }
+/* Only the entrance changes; existing drag/exit behavior remains intact. */
+:root[data-client='standalone'] .sheet-bottom { animation-duration: 240ms; }
+:root[data-client='standalone'] .sheet-backdrop { animation-duration: 200ms; }
+:root[data-client='standalone'] .sheet-grip { width: 36px; height: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] :is(.mode-switch-selection, .composer .round-button, .sheet-bottom, .sheet-backdrop) {
+    animation: none;
+    transition: none;
+  }
+  :root[data-client='standalone'] .composer .round-button:active:not(:disabled) { transform: none; }
+}
+
+/* Review round 2: visible disabled affordance, less accessory chrome. */
+:root[data-client='standalone'] .sheet-row-glyph {
+  background: transparent;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .composer .round-button.send,
+  :root[data-client='standalone'] .question-card .question-option,
+  :root[data-client='standalone'] .question-card .question-reply {
+    transition: none;
+  }
+  :root[data-client='standalone'] .question-card .question-option:active:not(:disabled),
+  :root[data-client='standalone'] .composer .round-button.send:not(:disabled):active {
+    transform: none;
+  }
+}

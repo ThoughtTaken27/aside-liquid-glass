@@ -1,0 +1,474 @@
+/* Clean polish pass (Sep 27). Standalone phone only; Telegram untouched.
+   Values: transitions.dev ease-out curve, Emil press scale, Zeron hairlines. */
+
+:root[data-client='standalone'] {
+  --polish-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --polish-hair: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+/* 1. Chat view has no artwork backdrop; the plain page reads cleanest. */
+
+/* 2. Header: title fades instead of an ellipsis; subtitle is quiet metadata. */
+:root[data-client='standalone'] .thread-title {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(to right, #000 82%, transparent);
+  mask-image: linear-gradient(to right, #000 82%, transparent);
+  letter-spacing: -0.012em;
+}
+:root[data-client='standalone'] .thread-subtitle {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--foreground) 50%, transparent);
+  letter-spacing: 0;
+}
+
+/* 3. Composer: the task strip is a soft inset surface whose radius is
+   concentric with the composer (24px outer - 11px padding = 13px), and whose
+   text starts on the same 8px inset as the input text. No hard divider. */
+:root[data-client='standalone'] .composer .todo-section {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  border: 0;
+  box-shadow: none;
+  border-radius: 13px;
+  overflow: hidden;
+}
+:root[data-client='standalone'].dark .composer .todo-section {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+:root[data-client='standalone'] .composer .todo-toggle {
+  padding: 8px 8px;
+  min-height: 38px;
+  border-radius: 13px;
+}
+:root[data-client='standalone'] .composer:has(.composer-above:not(:empty)) {
+  gap: 8px;
+}
+
+/* Model picker reads as text with a chevron, not a filled pill. */
+:root[data-client='standalone'] .composer .pill {
+  background: transparent;
+  padding: 0 8px;
+  color: color-mix(in srgb, var(--foreground) 72%, transparent);
+  font-weight: 500;
+}
+:root[data-client='standalone'] .composer .pill:active {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+/* 4. Inline code: each wrapped line keeps its own rounded chip, lighter fill,
+   so long paths read as one token instead of a jagged grey column. */
+:root[data-client='standalone'] .md-inline-code {
+  padding: 0.08em 0.36em;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--foreground) 5.5%, transparent);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  font-size: 0.84em;
+}
+
+/* 5. Message actions: real tap targets with press feedback. */
+:root[data-client='standalone'] .message-action {
+  min-height: 32px;
+  padding-inline: 10px;
+  font-size: 12.5px;
+  transition: transform 140ms var(--polish-ease), background-color 140ms var(--polish-ease);
+}
+:root[data-client='standalone'] :is(.message-action, .icon-button, .session-row):active {
+  transform: scale(0.97);
+}
+:root[data-client='standalone'] .message-action:active {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+/* 6. Recents: sentence-case group labels, no tracked caps. */
+:root[data-client='standalone'] .session-group-head {
+  margin: 14px 10px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-transform: none;
+  color: color-mix(in srgb, var(--foreground) 52%, transparent);
+}
+:root[data-client='standalone'] .session-group:first-child .session-group-head {
+  margin-top: 4px;
+}
+:root[data-client='standalone'] .session-rows > * + * {
+  border-top-color: var(--polish-hair);
+}
+
+/* 7. Motion: a thread arrives from the right; nothing else re-animates. */
+@keyframes polish-thread-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+:root[data-client='standalone'] .app-thread > .thread-header,
+:root[data-client='standalone'] .app-thread > :not(.thread-header):not(.thread-footer):not(.relay-banner) {
+  animation: polish-thread-in 280ms var(--polish-ease) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .app-thread > * { animation: none !important; }
+  :root[data-client='standalone'] :is(.message-action, .icon-button, .session-row):active { transform: none; }
+}
+
+/* 8. User bubble: one quiet tinted surface, no rim or cast shadow. */
+:root[data-client='standalone'] .user-bubble {
+  background: color-mix(in srgb, var(--foreground) 6.5%, transparent);
+  border: 0;
+  box-shadow: none;
+  border-radius: 20px 20px 6px 20px;
+}
+:root[data-client='standalone'].dark .user-bubble {
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+/* 9. Specificity-matched overrides for the model control and row times. */
+:root[data-client='standalone'] .composer .composer-actions .pill.composer-context-control {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+:root[data-client='standalone'] .session-row-time {
+  font-family: var(--font-sans, -apple-system, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  letter-spacing: 0;
+}
+
+/* 10. Recents groups: calm, near-opaque grouped lists (Zeron grouped cards),
+   so the artwork stays in the hero and never texture-fights the list. */
+:root[data-client='standalone'] .home-history .session-group {
+  background: color-mix(in srgb, var(--card, #fff) 90%, transparent);
+  background-image: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid var(--polish-hair);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+:root[data-client='standalone'].dark .home-history .session-group {
+  background: color-mix(in srgb, var(--foreground) 5%, var(--page));
+  box-shadow: none;
+}
+:root[data-client='standalone'] .home-history .session-group + .session-group {
+  margin-top: 16px;
+}
+
+/* 11. Thread header: no edge. Frost + tint live on one full-width layer that
+   runs 40px past the bar and fades out through a linear mask, so the header
+   dissolves into the transcript instead of ending on a line. */
+:root[data-client='standalone'] .app-thread > .thread-header {
+  position: relative;
+  z-index: 3;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-bottom: 0;
+  box-shadow: none;
+}
+:root[data-client='standalone'] .app-thread > .thread-header::before {
+  content: '';
+  display: block;
+  position: absolute;
+  inset: 0 0 -40px 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--page) 86%, transparent) 0%,
+    color-mix(in srgb, var(--page) 78%, transparent) 55%,
+    color-mix(in srgb, var(--page) 0%, transparent) 100%
+  );
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 50%, rgb(0 0 0 / 0.55) 72%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 50%, rgb(0 0 0 / 0.55) 72%, transparent 100%);
+}
+:root[data-client='standalone'] .app-thread > .thread-header::after {
+  content: none;
+}
+
+/* 12. Home artwork: richer blue and a touch more contrast. Coverage and the
+   long pearl fade are unchanged, so it stays a hero-only wash. */
+:root[data-client='standalone'] .app-home::before,
+:root[data-client='standalone'][data-surface='boot'] body::before {
+  opacity: 0.92;
+  filter: saturate(0.85);
+}
+:root[data-client='standalone'].dark .app-home::before,
+:root[data-client='standalone'].dark[data-surface='boot'] body::before {
+  filter: saturate(0.95) brightness(0.56) contrast(1.1);
+}
+
+/* 13. Scroll steadiness. The header no longer changes height while you
+   scroll (that reflowed the transcript under your finger); condensing only
+   fades the subtitle. Home drops proximity snap, which tugged the list back
+   toward the Recents boundary. */
+:root[data-client='standalone'] .thread-header[data-condensed='true'] {
+  padding-top: calc(8px + var(--tg-chrome-top, var(--shell-content-top, 0px)));
+  padding-bottom: 8px;
+  min-height: 52px;
+}
+:root[data-client='standalone'] .thread-header,
+:root[data-client='standalone'] .thread-header[data-condensed='true'] {
+  transition: none;
+}
+:root[data-client='standalone'] .thread-header[data-condensed='true'] .thread-subtitle {
+  max-height: 24px;
+  margin: 1px 0 0;
+  opacity: 0;
+}
+:root[data-client='standalone'] .thread-header .thread-subtitle {
+  transition: opacity 180ms var(--polish-ease);
+}
+:root[data-client='standalone'] .home-scroll {
+  scroll-snap-type: none;
+}
+:root[data-client='standalone'] :is(.thread-scroll, .home-scroll) {
+  overflow-anchor: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 14. Compact turn status: a quiet line in the header's subtitle slot. */
+:root[data-client='standalone'] .header-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: color-mix(in srgb, var(--foreground) 58%, transparent);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+:root[data-client='standalone'] .header-activity-orb {
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  overflow: visible;
+}
+:root[data-client='standalone'] .header-activity-orb > * {
+  transform: scale(0.5);
+  transform-origin: center;
+}
+:root[data-client='standalone'] .header-activity:active {
+  opacity: 0.6;
+}
+:root[data-client='standalone'] .thread-header[data-condensed='true'] .header-activity {
+  opacity: 1;
+}
+/* The island only appears expanded now; it rises from the header's cue. */
+@keyframes polish-island-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+:root[data-client='standalone'] .activity-island.is-expanded {
+  animation: polish-island-in 220ms var(--polish-ease) both;
+}
+
+/* 15. Session panel: mostly solid so the page underneath does not bleed
+   through the text. A light blur stays only at the edges of perception. */
+:root[data-client='standalone'] .sheet.sheet-right,
+:root[data-client='standalone'].dark .sheet.sheet-right {
+  background: var(--page);
+  background-image: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-client='standalone'] .sheet.sheet-right .todo-section {
+  background: color-mix(in srgb, var(--foreground) 3.5%, var(--page));
+  border: 0;
+  box-shadow: none;
+  border-radius: 14px;
+  overflow: hidden;
+}
+:root[data-client='standalone'] .sheet.sheet-right :is(.surface-group, .panel-list) {
+  background: color-mix(in srgb, var(--foreground) 3.5%, var(--page));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .activity-island.is-expanded { animation: none; }
+}
+
+/* 16. Session panel groups: one grouped-list language with Recents. */
+:root[data-client='standalone'] .sheet.sheet-right .panel-heading {
+  text-transform: none;
+  letter-spacing: -0.005em;
+  font-size: 13px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--foreground) 52%, transparent);
+  padding-inline: 4px;
+}
+:root[data-client='standalone'] .sheet.sheet-right :is(.surface-group, .panel-list) {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 0;
+  box-shadow: none;
+}
+:root[data-client='standalone'] .sheet.sheet-right :is(.surface-group, .panel-list) > * + * {
+  border-top: 1px solid var(--polish-hair);
+}
+:root[data-client='standalone'] .sheet.sheet-right [class*='todo'][class*='card'],
+:root[data-client='standalone'] .sheet.sheet-right .surface-section > [class*='todo'] {
+  border: 0;
+  box-shadow: none;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--foreground) 3.5%, var(--page));
+}
+:root[data-client='standalone'] .sheet.sheet-right .panel-section.utility-card {
+  border: 0;
+  box-shadow: none;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--foreground) 3.5%, var(--page));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* 17. Agent tab: the header's browser button is its only control. It reads
+   as pressed while the live view is open; closed, a small accent dot says a
+   tab is still live and one tap brings it back. */
+:root[data-client='standalone'] .live-toggle {
+  position: relative;
+  border-radius: 999px;
+  transition: background-color 160ms var(--polish-ease), color 160ms var(--polish-ease);
+}
+:root[data-client='standalone'] .live-toggle,
+:root[data-client='standalone'] .live-toggle[data-open] {
+  background: transparent;
+  box-shadow: none;
+}
+/* Open: full ink. Hidden: quieter icon plus the accent dot. */
+:root[data-client='standalone'] .live-toggle[data-open='true'] {
+  color: var(--foreground);
+}
+:root[data-client='standalone'] .live-toggle[data-open='false'] {
+  color: color-mix(in srgb, var(--foreground) 55%, transparent);
+}
+:root[data-client='standalone'] .live-toggle[data-open='false']::after {
+  content: '';
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #E87D4F;
+  box-shadow: 0 0 0 2px var(--page);
+}
+/* The live view slides down from under the header when it opens. */
+@keyframes polish-live-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+:root[data-client='standalone'] .live-view.is-expanded {
+  animation: polish-live-in 260ms var(--polish-ease) backwards;
+}
+:root[data-client='standalone'] .live-view-chevron {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .live-view.is-expanded { animation: none; }
+}
+
+/* 18. Every sheet is ONE surface. The sheet owns the colour; its header,
+   body, and content wrappers are transparent, so nothing stacks white on
+   grey on white. Sheets opened from Next take Next's warm paper. The scrim
+   is a light neutral dim instead of a heavy black wash. */
+:root[data-client='standalone'] .sheet {
+  --sheet-ground: var(--page);
+  background: var(--sheet-ground);
+  background-image: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-client='standalone'] .sheet:has(.n3-sheet),
+:root[data-client='standalone'] .next-screen ~ .sheet-layer .sheet,
+:root[data-client='standalone'] .app:has(.n3) .sheet {
+  --sheet-ground: var(--next-paper, #f7f6f2);
+}
+:root[data-client='standalone'].dark .sheet:has(.n3-sheet),
+:root[data-client='standalone'].dark .app:has(.n3) .sheet {
+  --sheet-ground: var(--page);
+}
+:root[data-client='standalone'] .sheet :is(.sheet-head, .sheet-body, .n3-sheet) {
+  background: transparent;
+  background-image: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+/* Content groups inside any sheet: one quiet tint of the same ground. */
+:root[data-client='standalone'] .sheet :is(.n3-facts, .surface-group, .settings-rows, .panel-list) {
+  background: color-mix(in srgb, var(--foreground) 4%, var(--sheet-ground));
+  box-shadow: none;
+  border: 0;
+}
+:root[data-client='standalone'] .sheet-backdrop {
+  background: rgb(18 22 20 / 0.2);
+}
+:root[data-client='standalone'].dark .sheet-backdrop {
+  background: rgb(0 0 0 / 0.42);
+}
+
+/* No glass inside sheets: groups sit flat on the sheet's one ground. */
+:root[data-client='standalone'] .sheet :is(.sheet-group, .surface-group, .panel-list, .utility-card) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-image: none;
+}
+:root[data-client='standalone'] .sheet .sheet-group {
+  background: color-mix(in srgb, var(--foreground) 4%, var(--sheet-ground));
+  border: 0;
+  box-shadow: none;
+}
+
+/* 19. One top colour everywhere (light): every screen's top edge starts at
+   #F6F9F8, the same value as the Android status bar, then fades into that
+   screen's own ground. */
+:root[data-client='standalone']:not(.dark) {
+  --top-fade: #F6F9F8;
+}
+/* Home: the artwork field starts from the top colour instead of page. */
+:root[data-client='standalone']:not(.dark) .app-home::before,
+:root[data-client='standalone']:not(.dark)[data-surface='boot'] body::before {
+  background-image:
+    linear-gradient(
+      to bottom,
+      var(--top-fade) 0%,
+      var(--top-fade) 7%,
+      color-mix(in srgb, var(--top-fade) 94%, transparent) 13%,
+      color-mix(in srgb, var(--page) 72%, transparent) 20%,
+      color-mix(in srgb, var(--page) 44%, transparent) 27%,
+      color-mix(in srgb, var(--page) 28%, transparent) 37%,
+      color-mix(in srgb, var(--page) 28%, transparent) 64%,
+      color-mix(in srgb, var(--page) 30%, transparent) 78%,
+      color-mix(in srgb, var(--page) 78%, transparent) 92%,
+      var(--page) 100%
+    ),
+    radial-gradient(ellipse 56% 82% at -12% 48%, var(--page) 0%, transparent 70%),
+    radial-gradient(ellipse 56% 82% at 112% 48%, var(--page) 0%, transparent 70%),
+    linear-gradient(to right, color-mix(in srgb, var(--page) 18%, transparent), transparent 22% 78%, color-mix(in srgb, var(--page) 18%, transparent)),
+    var(--zeron-atmosphere);
+}
+/* Chat header haze starts from the top colour. */
+:root[data-client='standalone']:not(.dark) .app-thread > .thread-header::before {
+  background: linear-gradient(
+    to bottom,
+    var(--top-fade) 0%,
+    color-mix(in srgb, var(--top-fade) 80%, transparent) 55%,
+    transparent 100%
+  );
+}
+/* Settings / memory / other destination screens: a soft top fade. */
+:root[data-client='standalone']:not(.dark) .destination-surface {
+  background-image: linear-gradient(to bottom, var(--top-fade) 0, var(--top-fade) 8px, transparent 96px);
+  background-repeat: no-repeat;
+}

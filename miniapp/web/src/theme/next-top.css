@@ -1,0 +1,420 @@
+/* ==========================================================================
+ * Next, phone: the top of Today (Oct 10 redesign).
+ *
+ * What it replaced: a dark slab glued under a light bar in Paper, an ember
+ * gradient in its corner, a 44px "Today" and a 31px serif task title
+ * competing for first place inside the same panel, a hairline cutting the
+ * panel in two, the task's own name repeated beside its label, and colour
+ * dots in the switch.
+ *
+ * What it is now (apple-design §15-16; Things/HIG values in
+ * skills/user/ui-polish/references/extracted-values.md):
+ * - One canvas. The page title sits on it at Large Title size (34/40).
+ * - One card for the one task, opaque, 24px radius, a hairline ring and a
+ *   soft shadow; no gradient, no texture.
+ * - The task title is sans, 22/28, three lines at most. The label is the
+ *   only accent on the card ("your move" is what the accent is for).
+ * - The bar is the home screen's chrome: a 44px glass back circle on the
+ *   left (Next is entered from home's top-left circle), the School /
+ *   Personal switch centred in the Chat/Web switch's material.
+ *
+ * Scoped to the phone (.n3:not(.dk)) under the standalone fits; the Mac
+ * desk keeps its own layout.
+ * ======================================================================= */
+
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) {
+  --nt-ink: var(--fp-ink);
+  --nt-soft: rgb(from var(--fp-ink) r g b / 0.60);
+  --nt-faint: rgb(from var(--fp-ink) r g b / 0.46);
+  --nt-card: var(--fp-card);
+  --nt-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* --- Bar ----------------------------------------------------------------- */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-top {
+  min-height: 56px;
+  padding-left: 16px;
+  padding-right: 16px;
+  gap: 8px;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) :is(.n3-back, .n3-refresh) {
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  color: var(--nt-ink);
+}
+:root:root:root[data-client='standalone'][data-fit='paper'] .n3:not(.dk) :is(.n3-back, .n3-refresh, .sp-switch.is-phone) {
+  background: rgb(255 255 255 / 0.42);
+  box-shadow:
+    inset 0 0 0 0.5px rgb(74 52 34 / 0.10),
+    inset 0 0.5px 0 rgb(255 255 255 / 0.85),
+    0 1px 2px rgb(74 52 34 / 0.05),
+    0 8px 22px -12px rgb(74 52 34 / 0.16);
+  -webkit-backdrop-filter: blur(24px) saturate(1.32);
+  backdrop-filter: blur(24px) saturate(1.32);
+}
+:root:root:root[data-client='standalone'][data-fit='midnight'] .n3:not(.dk) :is(.n3-back, .n3-refresh, .sp-switch.is-phone) {
+  background: linear-gradient(145deg, rgb(255 248 236 / 0.07), rgb(255 248 236 / 0.035));
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 245 230 / 0.10),
+    inset 0 0.5px 0 rgb(255 245 230 / 0.07),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 10px 26px -12px rgb(0 0 0 / 0.55);
+  -webkit-backdrop-filter: blur(24px) saturate(1.32);
+  backdrop-filter: blur(24px) saturate(1.32);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) :is(.n3-back, .n3-refresh):active {
+  background-color: transparent;
+  opacity: 1;
+  transform: scale(0.94);
+  transition: transform 60ms ease-out;
+}
+
+/* School / Personal: 44px track, 3px inset, 38px thumb, like Chat/Web. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone {
+  --sp-pad: 3px;
+  width: 212px;
+  height: 44px;
+  font-size: 14px;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone button {
+  height: 38px;
+  gap: 6px;
+  padding: 0 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--nt-soft);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone button.is-on {
+  color: var(--nt-ink);
+}
+/* The colour dots coded each space in a second accent; the label already
+   says which is which. The clay "something due over there" dot stays. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone .sp-glyph {
+  display: none;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone .sp-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--nt-faint);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone .sp-alert {
+  top: 8px;
+  right: 10px;
+  background: var(--fp-glow);
+  box-shadow: none;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone .sp-thumb {
+  border-radius: 19px;
+  transition: transform 380ms var(--nt-ease);
+}
+:root:root:root[data-client='standalone'][data-fit='paper'] .n3:not(.dk) .sp-switch.is-phone .sp-thumb {
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.66), 0 0 0 0.5px rgb(74 52 34 / 0.05), 0 1px 3px rgb(74 52 34 / 0.10);
+}
+:root:root:root[data-client='standalone'][data-fit='midnight'] .n3:not(.dk) .sp-switch.is-phone .sp-thumb {
+  background: rgb(255 255 255 / 0.13);
+  box-shadow: inset 0 0.5px 0 rgb(255 245 230 / 0.10), 0 1px 3px rgb(0 0 0 / 0.30);
+}
+/* The space's colour wash behind the title was a second, page-wide tint. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-wash {
+  display: none;
+}
+
+/* --- Title, on the canvas -------------------------------------------------- */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage,
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage.is-clear {
+  margin: 0;
+  padding: 12px 0 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--nt-ink);
+  isolation: auto;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage .n3-title-block {
+  /* On the same 20px edge as the card and "Up next". */
+  padding: 0;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage .n3-date {
+  margin: 0 0 4px;
+  color: var(--nt-soft);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage .n3-title {
+  margin: 0;
+  color: var(--nt-ink);
+  font-family: var(--font-sans);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -0.03em;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage .n3-subtitle {
+  margin: 4px 0 0;
+  max-width: 34ch;
+  color: var(--nt-soft);
+  font-size: 15px;
+  line-height: 21px;
+}
+
+/* --- The one card ------------------------------------------------------------ */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage :is(.n3-now, .n3-clear) {
+  margin: 20px 0 0;
+  padding: 20px 20px 8px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--nt-card);
+  color: var(--nt-ink);
+  animation: none;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage .n3-clear {
+  padding-bottom: 20px;
+}
+:root:root:root[data-client='standalone'][data-fit='paper'] .n3:not(.dk) .n3-stage :is(.n3-now, .n3-clear) {
+  background: #fffdf9;
+  box-shadow:
+    0 0 0 0.5px rgb(74 52 34 / 0.08),
+    0 1px 2px rgb(74 52 34 / 0.05),
+    0 14px 34px -18px rgb(74 52 34 / 0.22);
+}
+:root:root:root[data-client='standalone'][data-fit='midnight'] .n3:not(.dk) .n3-stage :is(.n3-now, .n3-clear) {
+  background: rgb(from var(--fp-card) r g b / 0.92);
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 248 236 / 0.08),
+    inset 0 1px 0 rgb(255 248 236 / 0.05),
+    0 18px 40px -22px rgb(0 0 0 / 0.75);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-main {
+  gap: 0;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-top {
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-label {
+  color: var(--fp-accent);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: 0;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-context {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--nt-faint);
+  font-size: 13px;
+  line-height: 18px;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-title {
+  margin: 8px 0 0;
+  max-width: none;
+  color: var(--nt-ink);
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 28px;
+  letter-spacing: -0.02em;
+  /* Fill the measure; balance left a third of the card empty. */
+  text-wrap: pretty;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-facts {
+  margin-top: 8px;
+  gap: 4px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--nt-soft);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now .n3-due {
+  color: var(--nt-ink);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now :is(.n3-due.is-late, .n3-due.is-today) {
+  color: var(--fp-accent);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now .n3-now-est {
+  color: var(--nt-soft);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-why {
+  margin-top: 12px;
+  color: rgb(from var(--fp-ink) r g b / 0.72);
+  font-size: 15px;
+  line-height: 21px;
+  -webkit-line-clamp: 2;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-actions {
+  margin-top: 16px;
+  gap: 8px;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-actions .n3-btn {
+  height: 48px;
+  border-radius: 24px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: none;
+  border: 0;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-actions .n3-btn.is-primary {
+  background: var(--fp-ink);
+  color: var(--fp-page);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-actions .n3-btn.is-secondary {
+  background: rgb(from var(--fp-ink) r g b / 0.06);
+  color: var(--nt-ink);
+}
+:root:root:root[data-client='standalone'][data-fit='midnight'] .n3:not(.dk) .n3-now-actions .n3-btn.is-secondary {
+  background: rgb(255 248 236 / 0.08);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-actions .n3-btn:active {
+  transform: scale(0.97);
+  transition: transform 60ms ease-out;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-quiet {
+  justify-content: flex-start;
+  gap: 20px;
+  margin: 4px 0 0;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-quiet button {
+  min-height: 36px;
+  padding: 0;
+  color: var(--nt-soft);
+  font-size: 13px;
+  font-weight: 500;
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage .n3-clear-title {
+  color: var(--nt-ink);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage .n3-clear-line {
+  color: var(--nt-soft);
+}
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-stage button:focus-visible {
+  outline-color: var(--fp-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone .sp-thumb {
+    transition: none;
+  }
+}
+
+/* Scrolled: content dissolves under the bar's own fade (apple-design §12);
+   the extra hairline drew a hard edge across it. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-top::after {
+  display: none;
+}
+
+/* Convenience pass: 4px rhythm, Zeron 44px hits/50px primary,
+   coss visible focus, Apple persistent wayfinding. Inherit both app fits. */
+.n3:not(.dk) .n3-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.n3:not(.dk) :is(.n3-find,.n3-refresh) { display:grid; place-items:center; width:44px; height:44px; flex:none; border-radius:22px; color:var(--foreground); }
+.n3:not(.dk) .n3-find { background:transparent; margin-right:-10px; }
+.n3:not(.dk) .n3-refresh.is-refreshing svg { animation:n3-spin .8s linear infinite; }
+@keyframes n3-spin { to { transform:rotate(360deg); } }
+.n3:not(.dk) .n3-search { display:flex; align-items:center; gap:12px; margin-top:16px; padding:0 12px; min-height:50px; border-radius:12px; background:var(--n3-card); box-shadow:inset 0 0 0 1px var(--n3-line); color:var(--foreground); }
+.n3:not(.dk) .n3-search input { min-width:0; flex:1; width:100%; min-height:50px; background:transparent; color:inherit; font:inherit; font-size:16px; border:0; outline:0; }
+.n3:not(.dk) .n3-search:focus-within { outline:2px solid var(--foreground); outline-offset:2px; }
+.n3:not(.dk) .n3-search-count { font-size:13px; }
+.n3:not(.dk) .n3-search-empty { padding:16px; line-height:1.5; }
+.n3:not(.dk) .n3-triage { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+.n3:not(.dk) .n3-triage button { min-height:44px; padding:8px 12px; border-radius:12px; background:var(--n3-wash); color:var(--foreground); font-size:14px; font-weight:550; line-height:1.4; }
+/* Hero: one quiet row of secondary choices under Open / Done. */
+.n3:not(.dk) .n3-now-more { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin:8px -8px -8px; }
+.n3:not(.dk) .n3-now-more button { display:flex; align-items:center; justify-content:center; gap:6px; min-height:44px; padding:0 4px; border-radius:12px; color:var(--nt-soft, var(--muted-foreground)); font-size:14px; font-weight:550; line-height:1; white-space:nowrap; transition:background-color 120ms ease-out, transform 100ms ease-out; }
+.n3:not(.dk) .n3-now-more button:active { background:var(--n3-wash); }
+/* Rows: quiet text actions on the title's left edge, no fills. */
+.n3:not(.dk) .n3-row-triage { display:flex; gap:4px; margin:-10px 0 4px; padding-left:42px; }
+.n3:not(.dk) .n3-row-triage button { min-height:36px; padding:0 10px; border-radius:10px; color:var(--nt-soft, var(--muted-foreground)); background:transparent; font-size:13px; font-weight:550; line-height:1; transition:background-color 120ms ease-out, transform 100ms ease-out; }
+.n3:not(.dk) .n3-row-triage button:first-child { margin-left:-10px; }
+.n3:not(.dk) .n3-row-triage button:active { background:var(--n3-wash); }
+/* Lateness is said by the red due line; no side stripe or wash. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row:is(.is-late,.is-today) { background:transparent; box-shadow:none; padding-left:0; border-radius:0; }
+/* With actions, the hairline sits under the actions, not between. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-swipe:has(> .n3-row-triage) > .n3-row { border-bottom-color:transparent; padding-bottom:4px; min-height:0; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-swipe:has(> .n3-row-triage) { border-bottom:1px solid var(--next-rule); }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage { margin:0 0 6px; }
+.n3:not(.dk) .n3-row-title { -webkit-line-clamp:unset; overflow:visible; font-size:16px; line-height:1.4; }
+.n3:not(.dk) .n3-row-meta { flex-wrap:wrap; line-height:1.5; }
+.n3:not(.dk) .n3-check { width:44px; height:44px; margin-left:-8px; margin-right:-4px; }
+.n3:not(.dk) .n3-tabs { border-radius:22px; }
+.n3:not(.dk) .n3-tabs button { min-width:0; border-radius:18px; }
+.n3:not(.dk) .n3-tabs-pill { border-radius:18px; }
+.n3:not(.dk) .n3-plus { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; border-radius:22px; }
+.n3:not(.dk) .n3-add-label { font-size:12px; line-height:16px; font-weight:600; }
+.n3:not(.dk) .n3-tab-label { font-size:12px; line-height:16px; }
+.n3:not(.dk) .n3-sheet-title { font-family:var(--font-sans); font-size:24px; line-height:1.25; letter-spacing:-.02em; }
+.n3:not(.dk) .n3-sheet-actions { margin-top:16px; }
+.n3:not(.dk) .n3-sheet-triage { margin-bottom:16px; }
+.n3:not(.dk) :is(.n3-btn,.n3-chip,.n3-text-btn,.n3-disclosure,.n3-x-btn) { min-height:44px; }
+.n3:not(.dk) .n3-btn { min-height:50px; height:auto; }
+.n3:not(.dk) .n3-chip-row { flex-wrap:wrap; }
+.n3:not(.dk) .sheet-head .icon-button { width:44px; height:44px; flex:none; }
+.n3:not(.dk) button:active { transform:scale(.97); }
+.n3:not(.dk) :is(button,input):focus-visible { outline:2px solid var(--foreground); outline-offset:3px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) { --nt-soft:rgb(from var(--fp-ink) r g b / .76); --nt-faint:rgb(from var(--fp-ink) r g b / .72); }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-title { display:block; overflow:visible; -webkit-line-clamp:unset; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-quiet { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-now-quiet button { min-height:44px; font-size:13px; padding:8px 0; color:var(--nt-soft); }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone { height:48px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sp-switch.is-phone button { height:44px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) :is(.n3-row-meta,.n3-row-end,.n3-group-aside,.n3-foot,.n3-subtitle) { color:var(--nt-soft); }
+@media (prefers-reduced-motion:reduce) { .n3:not(.dk) *, .n3:not(.dk) *::before, .n3:not(.dk) *::after { animation:none !important; transition:none !important; } }
+@media (prefers-reduced-transparency:reduce), (prefers-contrast:more) { :root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) :is(.n3-top,.n3-tabs,.sp-switch,.n3-back,.sheet) { background:var(--fp-page); backdrop-filter:none; -webkit-backdrop-filter:none; box-shadow:inset 0 0 0 1px var(--fp-ink); } }
+
+/* Sheet: same quiet choices as the hero; legible secondary and Later chips. */
+.n3:not(.dk) .n3-sheet-more { grid-template-columns:repeat(2,1fr); margin:8px -8px 12px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-sheet .n3-btn.is-secondary { background:var(--n3-wash); color:var(--foreground); box-shadow:none; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-sheet .n3-chip { background:var(--n3-wash); color:var(--foreground); border-radius:12px; padding:0 14px; }
+.n3:not(.dk) .n3-sheet-title { font-weight:650; }
+.n3:not(.dk) .n3-search { color:var(--nt-soft, var(--muted-foreground)); }
+.n3:not(.dk) .n3-search input { color:var(--foreground); }
+.n3:not(.dk) .n3-search input::-webkit-search-cancel-button { -webkit-appearance:none; display:none; }
+.n3:not(.dk) .n3-search:focus-within { outline:none; box-shadow:inset 0 0 0 1.5px var(--foreground); }
+.n3:not(.dk) .n3-search-clear { display:grid; place-items:center; width:44px; height:44px; margin-right:-12px; border-radius:22px; color:var(--nt-soft, var(--muted-foreground)); }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-clear-title { font-family:var(--font-sans); font-size:20px; line-height:1.3; font-weight:650; letter-spacing:-.015em; font-style:normal; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-clear-add { min-height:44px; margin-top:16px; }
+/* Sheet primary matches the hero in both fits; close icon follows ink. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-sheet .n3-btn.is-primary { background:var(--fp-ink); color:var(--fp-page); box-shadow:none; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .sheet-head .icon-button { color:rgb(from var(--fp-ink) r g b / .72); }
+
+/* Row, round 2 (Apple list rules): the checkbox and the duration sit on the
+   title's first line, not the middle of a wrapped block; actions are small
+   capsules under the details with an even 8px above and 14px below. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-swipe > .n3-row { align-items:flex-start; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-swipe:has(> .n3-row-triage) { max-height:260px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-swipe > .n3-row > .n3-check { margin-top:-7px; align-self:flex-start; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-swipe > .n3-row > .n3-row-end { align-self:flex-start; margin-top:4px; line-height:22px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-swipe:has(> .n3-row-triage) > .n3-row { padding-top:14px; padding-bottom:0; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage { display:flex; gap:8px; margin:4px 0 0; padding:0 0 14px 42px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage button,
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage button:first-child {
+  position:relative; display:inline-flex; align-items:center; gap:5px; min-height:30px; height:30px; margin:0; padding:0 12px 0 10px;
+  border-radius:15px; background:var(--n3-wash); color:rgb(from var(--fp-ink) r g b / .78);
+  font-size:13px; font-weight:560; line-height:1; letter-spacing:-.005em;
+  transition:transform 100ms ease-out, background-color 100ms ease-out;
+}
+/* 44px touch target around a 30px capsule. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage button::before { content:''; position:absolute; inset:-7px -4px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage button:active { transform:scale(.96); background:rgb(from var(--fp-ink) r g b / .11); }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row-triage button svg { opacity:.8; flex:none; }
+/* Without the day line, the title hands straight to the card. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-title-block { margin-bottom:20px; }
+
+/* One leading edge for every list: glyphs centre on the checkbox axis
+   (34px) and text starts at the task-title edge (62px). Accessories sit on
+   the title's first line, like the task rows. */
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) :is(.n3-row:has(> .n3-live-dot), .n3-row.n3-notice) { align-items:flex-start; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row > .n3-live-dot { align-self:flex-start; margin:11px 14px 0 10px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row.n3-notice > .n3-lead { align-self:flex-start; width:28px; margin:1px 4px 0 0; justify-content:center; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row.n3-notice > .n3-row-body { padding-left:0; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row.n3-notice > .n3-x-btn { align-self:flex-start; margin-top:-7px; }
+:root:root:root[data-client='standalone'][data-fit] .n3:not(.dk) .n3-row > .n3-row-chev { align-self:flex-start; margin-top:7px; }

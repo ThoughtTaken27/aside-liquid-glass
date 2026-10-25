@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.*
+*.log
+.DS_Store
+# The JWT signing secret is generated at runtime into
+# ~/.aside-mobile/miniapp-secret.json (chmod 600), outside the repo.
+# Listed here anyway in case MINIAPP_SECRET_PATH points inside the checkout.
+miniapp-secret.json

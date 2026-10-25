@@ -1,0 +1,128 @@
+import { useEffect, useRef, useState } from 'react';
+import { CopyIcon } from './Icons';
+import { IconMorph } from './Affect';
+import type { FileEdit } from '../types';
+import { haptic } from '../telegram';
+import { copyText } from '../utils/clipboard';
+import { toast } from './Toasts';
+
+/**
+ * The diff card behind a `Writing …` / `Edited …` row.
+ *
+ * This replaces the generic tool card for file writes, which used to show
+ * the absolute path and the daemon's "Successfully wrote …" line -- true,
+ * and useless. What a reader wants is the content: numbered lines, added
+ * ones tinted green and removed ones red, exactly as the desktop app draws
+ * it.
+ *
+ * Markdown gets a light syntactic tint (headings, bold, emphasis, links,
+ * inline code) by regex rather than by pulling in a highlighter: almost
+ * every artifact these sessions write is a .md file, and a whole
+ * tokenizer's worth of dependency for four accents is not a trade worth
+ * making on a phone.
+ */
+export function FileCard({ file }: { file: FileEdit }) {
+  const markdown = /\.(md|markdown)$/i.test(file.name);
+  const added = file.lines.filter((line) => line.kind === 'add').length;
+  const removed = file.lines.filter((line) => line.kind === 'del').length;
+
+  return (
+    <div
+      className="file-card utility-card"
+      data-card-group="utility"
+      data-card-kind="file"
+      data-card-state={file.truncated ? 'truncated' : 'complete'}
+    >
+      <div className="file-card-head">
+        <span className="file-card-name">{file.name}</span>
+        {/* Same rule as the step row: no zero half, and a real minus sign
+            rather than a hyphen. */}
+        {added || removed ? (
+          <span className="diffstat">
+            {added ? <span className="added">+{added}</span> : null}
+            {added && removed ? ' ' : null}
+            {removed ? <span className="removed">−{removed}</span> : null}
+          </span>
+        ) : null}
+        <CopyButton text={file.lines.map((line) => line.text).join('\n')} />
+      </div>
+      <div className="file-card-body">
+        {file.lines.map((line, index) => (
+          <div key={index} className={`file-line is-${line.kind}`}>
+            <span className="file-line-n">{line.n ?? ''}</span>
+            <span className="file-line-text">
+              {markdown ? tintMarkdown(line.text) : line.text}
+            </span>
+          </div>
+        ))}
+      </div>
+      {file.truncated ? (
+        <p className="tool-note">Only the first {file.lines.length} lines are shown.</p>
+      ) : null}
+    </div>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current);
+    };
+  }, []);
+  return (
+    <button
+      type="button"
+      className="icon-button file-card-copy"
+      aria-label={copied ? 'Copied' : 'Copy file contents'}
+      onClick={() => {
+        void copyText(text).then((ok) => {
+          haptic(ok ? 'light' : 'error');
+          if (!ok) {
+            toast('Couldn’t copy that file', { tone: 'error' });
+            return;
+          }
+          setCopied(true);
+          if (timer.current) window.clearTimeout(timer.current);
+          timer.current = window.setTimeout(() => setCopied(false), 1600);
+        });
+      }}
+    >
+      <IconMorph on={copied} size={14} idle={<CopyIcon size={14} strokeWidth={1.75} />} />
+    </button>
+  );
+}
+
+/** Ordered so the earliest match wins on any one character run. */
+const MARKDOWN_TINTS: Array<[RegExp, string]> = [
+  [/^(\s{0,3}#{1,6}\s.*)$/, 'md-heading'],
+  [/(\*\*[^*]+\*\*)/, 'md-strong'],
+  [/(`[^`]+`)/, 'md-code'],
+  [/(_[^_]+_)/, 'md-em'],
+  [/(\[[^\]]+\]\([^)]+\))/, 'md-link'],
+];
+
+/**
+ * Split one line into tinted and plain spans.
+ *
+ * Deliberately single-pass and non-nesting: this is decoration, and a
+ * "correct" recursive parse would be both slower and no more readable at
+ * 12px.
+ */
+export function tintMarkdown(text: string): React.ReactNode {
+  for (const [pattern, className] of MARKDOWN_TINTS) {
+    const match = pattern.exec(text);
+    if (!match) continue;
+    const start = match.index;
+    const end = start + match[1].length;
+    return (
+      <>
+        {text.slice(0, start)}
+        <span className={className}>{match[1]}</span>
+        {tintMarkdown(text.slice(end))}
+      </>
+    );
+  }
+  return text;
+}

@@ -1,0 +1,48 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.google.gms:google-services:4.4.4'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        /*
+         * GeckoView is published by Mozilla, not to Maven Central.
+         *
+         * It is the browser engine the search screen renders with. The
+         * reason it is here instead of the system WebView is account
+         * sign-in: Android's WebView announces itself with an
+         * `X-Requested-With` header carrying the app's package name, which
+         * Google reads and refuses to sign in behind, and that header
+         * cannot be removed. GeckoView is a real Firefox, so it does not
+         * send it and Google treats it as an ordinary browser.
+         */
+        maven {
+            url = "https://maven.mozilla.org/maven2"
+            content {
+                // Scoped so a typo in any other dependency cannot silently
+                // resolve against Mozilla's repository.
+                includeGroup "org.mozilla.geckoview"
+            }
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

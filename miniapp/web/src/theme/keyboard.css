@@ -1,0 +1,43 @@
+/*
+ * Keyboard motion (see src/keyboard.ts).
+ *
+ * `--kb` is the software keyboard's target height. Only #root's height
+ * transitions: animating an inherited variable invalidated styles in the
+ * entire transcript every frame. Everything laid out inside
+ * follows on one curve: the docked composer rises, the greeting re-centres,
+ * a pinned transcript keeps its last line in view, sheets lift.
+ *
+ * Curve and timing: Android slides its keyboard in ~300ms on a fast-start,
+ * long-settle decelerate. cubic-bezier(0.2, 0, 0, 1) is that shape and the
+ * closest CSS gets to a critically damped spring (apple-design: damping 1,
+ * response ~0.3). The descent is a little quicker, since exits should never
+ * make you wait. A transition retargets from its current value, so a late
+ * correction from the real geometry bends the motion instead of jumping.
+ */
+
+/*
+ * `contain: layout` makes `#root` the containing block for the fixed sheet
+ * layers inside it, so a bottom sheet with a search field lifts with the
+ * page instead of staying under the keyboard. #root is already its own
+ * stacking context in the standalone app, so layering does not change.
+ */
+:root[data-vk='on'] #root {
+  height: calc(100% - var(--kb, 0px));
+  contain: layout;
+  transition: height 300ms cubic-bezier(0.2, 0, 0, 1);
+}
+:root[data-vk='on'][data-kb='closed'] #root {
+  transition-duration: 260ms;
+}
+
+/* A tall sheet must not grow past the top once the space has shrunk. */
+:root[data-client='standalone'][data-vk='on'] .sheet-bottom {
+  max-height: min(80dvh, calc(100% - 16px - env(safe-area-inset-top, 0px)));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still moves out of the keyboard's way, just without the glide. */
+  :root[data-vk='on'] #root {
+    transition: none;
+  }
+}

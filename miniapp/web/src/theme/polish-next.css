@@ -1,0 +1,154 @@
+/* Next polish pass (Sep 27): same rules as the chat pass.
+   Phone = .n3:not(.dk). Mac desk = .dk. */
+
+/* 1. Page titles outside Today's dark stage were white on pearl. Only the
+   stage keeps light text; every other page uses graphite at a calmer size. */
+.n3:not(.dk) .n3-title {
+  color: var(--foreground);
+  font-size: 34px;
+  line-height: 39px;
+  letter-spacing: -0.035em;
+}
+.n3:not(.dk) .n3-stage .n3-title {
+  color: var(--next-focus-text);
+  font-size: 44px;
+  line-height: 48px;
+  letter-spacing: -0.05em;
+}
+/* Title clears the bar with air instead of tucking under its fade. */
+.n3:not(.dk) .n3-scroll > * > .n3-title-block,
+.n3:not(.dk) .n3-title-block:not(.n3-stage .n3-title-block) {
+  padding-top: 14px;
+}
+.n3:not(.dk) .n3-stage .n3-title-block {
+  padding-top: 0;
+}
+.n3:not(.dk) .n3-subtitle {
+  color: color-mix(in srgb, var(--foreground) 56%, transparent);
+}
+.n3:not(.dk) .n3-stage .n3-subtitle {
+  color: var(--next-focus-soft);
+}
+
+/* 2. Top bar dissolves into the page instead of ending on an edge. */
+.n3:not(.dk) .n3-top {
+  position: relative;
+  z-index: 4;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.n3:not(.dk) .n3-top::before {
+  content: '';
+  display: block;
+  position: absolute;
+  inset: 0 0 -12px 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgb(from var(--next-paper, rgb(247 246 242)) r g b / 0.92) 0%, rgb(from var(--next-paper, rgb(247 246 242)) r g b / 0.86) 75%, rgb(from var(--next-paper, rgb(247 246 242)) r g b / 0) 100%);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+}
+
+/* 3. Grouped lists inside Next are opaque and edge-free (no glass on content). */
+.n3 .settings-rows.surface-group {
+  background: color-mix(in srgb, var(--foreground) 3.5%, #fbfbf8);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 0;
+  box-shadow: none;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.n3 .settings-rows.surface-group > * {
+  border: 0;
+}
+.n3 .settings-rows.surface-group > * + * {
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+
+/* 4. Sheets opened from Next are solid, like the session panel. */
+.n3 ~ * .sheet,
+.next-screen .sheet,
+.dk .sheet {
+  background: var(--page, #f7f6f2);
+  background-image: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* 5. Scroll steadiness. */
+.n3 .n3-scroll,
+.dk :is(.dk-main, .dk-scroll) {
+  overflow-anchor: none;
+  overscroll-behavior-y: contain;
+}
+
+/* 6. Press, hover, and focus feedback everywhere it was missing. */
+.n3 button:not(:disabled),
+.dk button:not(:disabled) {
+  -webkit-tap-highlight-color: transparent;
+}
+.n3:not(.dk) :is(.n3-row, .na-row, .np-card, .settings-row, .sp-switch button):active {
+  transform: scale(0.985);
+  transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.dk :is(.sp-switch button, .dk-nav-btn, .dk-btn, .dk-quiet) {
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms cubic-bezier(0.23, 1, 0.32, 1), color 140ms;
+}
+.dk :is(.sp-switch button, .dk-nav-btn, .dk-btn, .dk-quiet):active {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .dk .sp-switch button:not(.is-on):hover {
+    background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  }
+}
+.dk button:focus-visible,
+.n3 button:focus-visible {
+  outline: 2px solid color-mix(in srgb, #E87D4F 70%, transparent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .n3 *:active,
+  .dk *:active {
+    transform: none !important;
+  }
+}
+
+/* Focus timer takes Next's paper, not pure white. */
+.n3 .nf,
+.nf {
+  background: var(--next-paper, #f7f6f2);
+}
+.dark .n3 .nf,
+.dark .nf {
+  background: var(--background);
+}
+
+/* Desk inspector: same ground as the page, separated by one hairline;
+   its facts group is a flat tint like the phone sheet. */
+.dk .dk-inspector {
+  background: var(--next-paper, #f7f6f2);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--foreground) 8%, transparent);
+  border-left: 0;
+}
+.dk .dk-inspector .n3-facts,
+.dk .dk-inspector [class*='facts'] {
+  background: color-mix(in srgb, var(--foreground) 4%, var(--next-paper, #f7f6f2));
+  box-shadow: none;
+  border: 0;
+}
+
+/* Top colour: Next's bar starts at var(--top-fade, #F6F9F8) and fades into its warm paper. */
+:root:not(.dark) .n3:not(.dk) .n3-top::before {
+  background: linear-gradient(to bottom, var(--top-fade, #F6F9F8) 0%, color-mix(in srgb, var(--top-fade, #F6F9F8) 60%, rgb(from var(--next-paper, rgb(247 246 242)) r g b / 0.86)) 70%, rgb(from var(--next-paper, rgb(247 246 242)) r g b / 0) 100%);
+}
+:root:not(.dark) .n3:not(.dk) .n3-scroll {
+  background-image: linear-gradient(to bottom, var(--top-fade, #F6F9F8) 0, rgb(from var(--fit-tint, rgb(246 249 248)) r g b / 0) 140px);
+  background-repeat: no-repeat;
+  background-attachment: local;
+}

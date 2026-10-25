@@ -1,0 +1,110 @@
+#!/opt/homebrew/bin/node
+/**
+ * jev: ask the Jev decision model through Aside Mobile's local socket.
+ * One daily budget, one cache, one privacy guard for every tool on this Mac.
+ *
+ *   jev status                          budget and state
+ *   jev route "<words>"                 Hey Aside: fast path or full agent?
+ *   jev quick "<words>" [--history f]   route, and a short spoken answer if fast
+ *   jev reply < {"text","history","busy","steps","kind"}   Jarvis: fast answer, or the natural first line
+ *   jev risk "<command>" [--cwd dir]    0 read-only .. 3 dangerous
+ *   jev verify --goal "<stop when>" --evidence <file|->
+ *   jev same <a> <b>                    two notes: same? conflicting? (text or file)
+ *   jev scan [file|-]                   does text try to give orders to an AI?
+ *   jev ask < request.json              raw typed questions
+ *
+ * Exit codes: 0 answered, 2 veto or flag (verify veto, risk >= 2, scan >= 0.8),
+ * 3 unavailable (server down, Jev paused or over budget, private text),
+ * 10 quick: not a fast-path question (use the full agent).
+ * Output is one JSON line; add --plain for a short human line.
+ */
+const http = require('node:http');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const SOCK = process.env.JEV_SOCK || path.join(os.homedir(), '.aside/u/0/next/jev.sock');
+const argv = process.argv.slice(2);
+const plain = argv.includes('--plain');
+const args = argv.filter((a) => a !== '--plain');
+const cmd = args[0];
+
+function flag(name) {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 ? args[i + 1] : undefined;
+}
+function textOf(v) {
+  if (v === undefined) return '';
+  if (v === '-') return fs.readFileSync(0, 'utf8');
+  try {
+    if (fs.statSync(v).isFile()) return fs.readFileSync(v, 'utf8');
+  } catch {}
+  return v;
+}
+function call(method, p, body) {
+  return new Promise((resolve) => {
+    const req = http.request({ socketPath: SOCK, path: p, method, headers: { 'content-type': 'application/json' }, timeout: 15000 }, (res) => {
+      let d = '';
+      res.on('data', (c) => (d += c));
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(d));
+        } catch {
+          resolve({ ok: false, why: 'bad_reply' });
+        }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', () => resolve({ ok: false, why: 'server_down' }));
+    req.end(body ? JSON.stringify(body) : undefined);
+  });
+}
+function out(obj, code, line) {
+  process.stdout.write(plain && line ? `${line}\n` : `${JSON.stringify(obj)}\n`);
+  process.exit(code);
+}
+
+(async () => {
+  let r;
+  switch (cmd) {
+    case 'status':
+      r = await call('GET', '/status');
+      return out(r, r.state ? 0 : 3, r.state ? `Jev ${r.state}: ${r.used}/${r.cap} requests today${r.pausedUntil ? `, paused until ${r.pausedUntil}` : ''}${r.clef ? ` | Clef ${r.clef.state}: ${r.clef.neurons}/${r.clef.cap} neurons, ${r.clef.calls} calls${r.clef.hedges || r.clef.slow ? ` (${r.clef.hedges} hedged, ${r.clef.slow} slow)` : ''}${r.clef.pausedUntil ? `, paused until ${r.clef.pausedUntil}` : ''}${r.clef.lastError ? ` (last error: ${r.clef.lastError})` : ''}` : ''}` : `unavailable: ${r.why}`);
+    case 'route':
+      r = await call('POST', '/route', { text: args.slice(1).join(' ') });
+      return out(r, r.ok ? 0 : 3, r.ok ? `${r.route}${r.fast ? ' (fast)' : ''} p=${r.p.toFixed(2)}` : `unavailable: ${r.why}`);
+    case 'quick': {
+      const hf = flag('history');
+      const history = hf ? JSON.parse(textOf(hf)) : [];
+      const text = args.slice(1).filter((a, i, all) => a !== '--history' && all[i - 1] !== '--history').join(' ');
+      r = await call('POST', '/quick', { text, history });
+      if (!r.ok) return out(r, 3, `unavailable: ${r.why}`);
+      return r.fast ? out(r, 0, r.answer) : out(r, 10, `use the full agent (${r.route})`);
+    }
+    case 'reply':
+      r = await call('POST', '/reply', JSON.parse(fs.readFileSync(0, 'utf8') || '{}'));
+      if (!r.ok) return out(r, 3, `unavailable: ${r.why}`);
+      return out(r, r.say ? 0 : 10, r.say ?? `(nothing to say: ${r.mode})`);
+    case 'risk':
+      r = await call('POST', '/risk', { command: args[1] ?? '', cwd: flag('cwd') ?? process.cwd() });
+      if (!r.ok) return out(r, 3, `unavailable: ${r.why}`);
+      return out(r, r.level >= 2 ? 2 : 0, `risk ${r.level}/3 (${r.by}): ${r.why}`);
+    case 'verify':
+      r = await call('POST', '/verify', { goal: textOf(flag('goal')), evidence: textOf(flag('evidence')) });
+      if (!r.ok) return out(r, 3, `unavailable: ${r.why}`);
+      return out(r, r.veto ? 2 : 0, r.veto ? `VETO: evidence does not show the goal is met (p=${r.p.toFixed(2)})` : `no veto (p=${r.p.toFixed(2)}); this is not approval, still run the real check`);
+    case 'same':
+      r = await call('POST', '/same', { a: textOf(args[1]), b: textOf(args[2]) });
+      return out(r, r.ok ? 0 : 3, r.ok ? `same=${r.same.toFixed(2)} conflict=${r.conflict.toFixed(2)}` : `unavailable: ${r.why}`);
+    case 'scan':
+      r = await call('POST', '/scan', { text: textOf(args[1] ?? '-') });
+      if (!r.ok) return out(r, 3, `unavailable: ${r.why}`);
+      return out(r, r.bait >= 0.8 ? 2 : 0, r.bait >= 0.8 ? `FLAG (${r.by}): ${r.why}` : `clean (${r.bait.toFixed(2)})`);
+    case 'ask':
+      r = await call('POST', '/ask', JSON.parse(fs.readFileSync(0, 'utf8')));
+      return out(r, r.ok ? 0 : 3);
+    default:
+      process.stderr.write(fs.readFileSync(__filename, 'utf8').split('*/')[0].replace(/^#!.*\n\/\*\*?\n?/, '').replace(/^ \* ?/gm, '') + '\n');
+      process.exit(cmd ? 64 : 0);
+  }
+})();

@@ -1,0 +1,2513 @@
+/*
+ * Next v3.
+ *
+ * Sources for the values below (details in the session plan):
+ *  - Layout and navigation: Apple HIG tab bars, iOS 26 floating bar, Linear
+ *    glass tab bar, Things Today / Logbook, Todoist title hierarchy.
+ *  - Rows and checks: Super Productivity done-toggle (tick draw 150ms),
+ *    uiable todo list (strike line 250ms), Zeron rows (16/11 padding,
+ *    inset separators, press wash 120ms).
+ *  - Surfaces: coss hairline stack, Zeron 20-26px panels, 50px buttons.
+ *  - Motion: Emil Kowalski ease-out, transitions.dev swap, motion-primitives
+ *    shimmer, coss skeleton band.
+ *  Colour: clay only for a deadline that is today or late, "no room to
+ *  slip", live work, and pause. Everything else is ink and pearl.
+ */
+
+.n3 {
+  --n3-gutter: 16px;
+  --n3-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --n3-ease-swap: cubic-bezier(0.22, 1, 0.36, 1);
+  /* White pass: pure white cards on a pure white page. Hierarchy comes
+     from hairline borders alone, never from tint steps. */
+  --n3-card: #ffffff;
+  --n3-line: rgba(0, 0, 0, 0.1);
+  --n3-ink-2: var(--muted-foreground);
+  --n3-wash: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --n3-clay: var(--next-late-mark, #e87d4f);
+  --n3-clay-text: var(--next-late-text, #a8512a);
+  --n3-card-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+  /* Opaque chrome on the white pass: frosted glass over pure white
+     reads as grey smudges, so the tab bar and sheets stay solid. */
+  --n3-glass: #ffffff;
+  --n3-tabbar-h: 62px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 100vw;
+  /* clip, not hidden: nothing inside can ever become sideways-scrollable,
+     which is what let Android drag the whole screen right. */
+  overflow: clip;
+  contain: layout paint;
+  background: #ffffff;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dark .n3 {
+  --n3-card: #ffffff;
+  --n3-line: rgba(0, 0, 0, 0.1);
+  --n3-card-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+  --n3-glass: #ffffff;
+}
+
+/* --- top bar -------------------------------------------------------------- */
+
+.n3-top {
+  flex: none;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(44px, 1fr) minmax(0, auto) minmax(44px, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: calc(4px + var(--tg-chrome-top, var(--shell-content-top, 0px))) 10px 4px 6px;
+  min-height: 52px;
+  z-index: 6;
+  background: #ffffff;
+  touch-action: pan-y;
+}
+
+.n3-top > * {
+  min-width: 0;
+}
+
+/* Hairline fades in only once content scrolls under the bar. */
+.n3-top::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-bottom: var(--hairline) solid var(--n3-line);
+  opacity: 0;
+  transition: opacity 200ms var(--n3-ease);
+}
+
+.n3-top.is-scrolled::after {
+  opacity: 1;
+}
+
+.n3-top > :last-child {
+  justify-self: end;
+}
+
+.n3-back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 44px;
+  max-width: 100%;
+  padding: 0 8px 0 2px;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.011em;
+  color: var(--foreground);
+  white-space: nowrap;
+  transition: opacity 120ms var(--n3-ease);
+}
+
+/* Back is always just the chevron: same place, same size on every tab. */
+.n3-back span {
+  display: none;
+}
+
+.n3-back {
+  width: 44px;
+  justify-content: center;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.n3-back:active {
+  background: var(--n3-wash);
+}
+
+.n3-back:active {
+  opacity: 0.55;
+}
+
+.n3-icon-btn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--foreground);
+  transition: transform 120ms var(--n3-ease), background 120ms var(--n3-ease);
+}
+
+.n3-icon-btn:active {
+  transform: scale(0.94);
+  background: var(--n3-wash);
+}
+
+.n3-top-title {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 180ms var(--n3-ease), transform 180ms var(--n3-ease);
+}
+
+.n3-top.is-scrolled .n3-top-title {
+  opacity: 1;
+  transform: none;
+}
+
+.n3-top-spacer {
+  width: 44px;
+}
+
+.n3-paused-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n3-clay-text);
+  background: color-mix(in srgb, var(--n3-clay) 12%, transparent);
+}
+
+.n3-paused-chip span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--n3-clay);
+}
+
+/* --- scroll + titles --------------------------------------------------------- */
+
+.n3-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 0 var(--n3-gutter) calc(var(--n3-tabbar-h) + 48px + env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  animation: n3-swap 160ms var(--n3-ease-swap) both;
+}
+
+.n3-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes n3-swap {
+  from {
+    opacity: 0;
+  }
+}
+
+.n3-loading {
+  display: grid;
+  place-items: center;
+  min-height: 50vh;
+  color: var(--n3-ink-2);
+  font-size: 14px;
+}
+
+.n3-title-block {
+  padding: 4px 4px 0;
+}
+
+.n3-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: var(--foreground);
+}
+
+.n3-subtitle {
+  margin: 2px 0 0;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--n3-ink-2);
+  text-wrap: pretty;
+}
+
+.n3-subtitle span {
+  color: var(--n3-ink-2);
+}
+
+/* --- now card ------------------------------------------------------------------ */
+
+.n3-now {
+  margin-top: 18px;
+  padding: 18px 18px 6px;
+  border-radius: 24px;
+  background: var(--n3-card);
+  box-shadow: var(--n3-card-shadow);
+}
+
+.n3-now-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  color: var(--foreground);
+}
+
+.n3-now-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.n3-now-label {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.n3-now-context {
+  min-width: 0;
+  font-size: 13px;
+  color: var(--n3-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.n3-now-title {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  line-height: 31px;
+  letter-spacing: -0.012em;
+  overflow-wrap: anywhere;
+  font-weight: 400;
+  text-wrap: balance;
+}
+
+.n3-now-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.n3-now-est {
+  color: var(--n3-ink-2);
+}
+
+.n3-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--foreground);
+}
+
+.n3-due.is-late,
+.n3-due.is-today {
+  color: var(--n3-clay-text);
+  font-weight: 600;
+}
+
+.n3-due-mark {
+  flex: none;
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--n3-clay);
+}
+
+.n3-due-mark.is-today {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--n3-clay);
+}
+
+.n3-now-why {
+  font-size: 15px;
+  line-height: 21px;
+  color: color-mix(in srgb, var(--foreground) 78%, var(--n3-card));
+  text-wrap: pretty;
+}
+
+.n3-now-trail {
+  font-size: 13px;
+  color: var(--n3-ink-2);
+}
+
+.n3-now-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.n3-btn {
+  flex: 1 1 0;
+  height: 48px;
+  min-width: 0;
+  padding: 0 16px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+  white-space: nowrap;
+  transition: transform 120ms var(--n3-ease), opacity 120ms var(--n3-ease);
+}
+
+.n3-btn:active {
+  transform: scale(0.97);
+}
+
+.n3-btn:disabled {
+  opacity: 0.5;
+}
+
+.n3-btn.is-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.n3-btn.is-secondary {
+  background: var(--n3-card);
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 var(--hairline) var(--border-surface-strong, var(--n3-line));
+}
+
+.n3-btn.is-full {
+  flex: none;
+  width: 100%;
+}
+
+.n3-now-quiet {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.n3-now-quiet button {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--n3-ink-2);
+}
+
+.n3-now-quiet button:active,
+.n3-text-btn:active {
+  opacity: 0.6;
+}
+
+.n3-clear {
+  margin-top: 20px;
+  padding: 22px 20px;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+}
+
+.n3-clear-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 25px;
+  line-height: 30px;
+  color: var(--foreground);
+}
+
+.n3-clear-line {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--n3-ink-2);
+}
+
+/* --- pick up ------------------------------------------------------------------ */
+
+.n3-pickup {
+  margin-top: 12px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'label icon' 'title icon' 'meta icon';
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 1px;
+  padding: 12px 14px 12px 16px;
+  border-radius: 20px;
+  text-align: left;
+  color: var(--foreground);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+  transition: transform 120ms var(--n3-ease), background 120ms var(--n3-ease);
+}
+
+.n3-pickup:active {
+  transform: scale(0.985);
+  background: var(--n3-wash);
+}
+
+.n3-pickup-label {
+  grid-area: label;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--n3-ink-2);
+}
+
+.n3-pickup-title {
+  grid-area: title;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.n3-pickup-meta {
+  grid-area: meta;
+  font-size: 12px;
+  color: var(--n3-ink-2);
+}
+
+.n3-pickup > svg {
+  grid-area: icon;
+  color: var(--n3-ink-2);
+}
+
+/* --- groups + rows -------------------------------------------------------------- */
+
+.n3-group {
+  margin-top: 28px;
+}
+
+/* Sticky header in the same glass as the tab bar (Apple lists on iOS 26). */
+.n3-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0 calc(-1 * var(--n3-gutter));
+  padding: 8px calc(var(--n3-gutter) + 4px) 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+  color: var(--foreground);
+  background: #ffffff;
+}
+
+.n3-group-head > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.n3-group-count {
+  margin-left: 2px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--n3-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.n3-group-aside {
+  flex: none;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--n3-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.n3-group-note {
+  margin: -4px 4px 8px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--n3-ink-2);
+}
+
+.n3-rows {
+  margin-top: 2px;
+  border-radius: 20px;
+  background: var(--n3-card);
+  box-shadow: var(--n3-card-shadow);
+  overflow: hidden;
+}
+
+.n3-rows > * {
+  position: relative;
+}
+
+/* Separators start at the text, not the edge (Zeron: inset 16 + glyph). */
+.n3-rows > * + *::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 56px; /* 6 row inset + 40 lead + 10 gap: starts under the text */
+  right: 0;
+  border-top: var(--hairline) solid var(--n3-line);
+  pointer-events: none;
+}
+
+.n3-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 62px;
+  padding: 9px 14px 9px 6px;
+  background: var(--n3-card);
+  color: var(--foreground);
+  text-align: left;
+  transition: background 120ms var(--n3-ease), transform 220ms var(--n3-ease);
+}
+
+button.n3-row:active,
+.n3-row:has(> .n3-row-body:active) {
+  background: color-mix(in srgb, var(--foreground) 4%, var(--n3-card));
+}
+
+/* Every lead mark sits in the same 40px column as the check circle. */
+.n3-row > .n3-live-dot {
+  margin: 0 16px;
+}
+
+.n3-row > .n3-ring {
+  margin: 0 9px;
+}
+
+.n3-row > .n3-verdict-mark {
+  margin: 0 15px;
+}
+
+.n3-lead {
+  flex: none;
+  width: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--n3-ink-2);
+}
+
+.n3-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.n3-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+  text-align: left;
+  color: inherit;
+}
+
+.n3-row-body.is-static {
+  cursor: default;
+}
+
+.n3-row-title {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 500;
+  letter-spacing: -0.011em;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  transition: color 300ms ease;
+}
+
+.n3-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--n3-ink-2);
+}
+
+.n3-row.is-late .n3-row-meta {
+  color: var(--n3-clay-text);
+}
+
+.n3-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.n3-row-end {
+  flex: none;
+  align-self: center;
+  font-size: 13px;
+  color: var(--n3-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.n3-row-chev {
+  flex: none;
+  color: var(--n3-ink-2);
+}
+
+.n3-row.is-done .n3-row-title {
+  color: var(--n3-ink-2);
+}
+
+.n3-text-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+/* Row actions: a quiet round X and one small pill. Both keep a 44px hit area. */
+.n3-row-acts {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: -6px;
+}
+
+.n3-x-btn {
+  flex: none;
+  position: relative;
+  width: 36px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--n3-ink-2);
+  transition: color 120ms var(--n3-ease), transform 120ms var(--n3-ease);
+}
+
+.n3-x-btn::before {
+  content: '';
+  position: absolute;
+  inset: 6px 2px;
+  border-radius: 999px;
+  background: var(--n3-wash);
+  opacity: 0;
+  transition: opacity 120ms var(--n3-ease);
+}
+
+.n3-x-btn:active::before {
+  opacity: 1;
+}
+
+.n3-x-btn:active {
+  transform: scale(0.92);
+  color: var(--foreground);
+}
+
+.n3-x-btn > svg {
+  position: relative;
+}
+
+.n3-pill-btn {
+  flex: none;
+  position: relative;
+  height: 44px;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.n3-pill-btn::before {
+  content: '';
+  position: absolute;
+  inset: 7px -8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--foreground) 8%, transparent);
+  transition: background 120ms var(--n3-ease), transform 120ms var(--n3-ease);
+  z-index: -1;
+}
+
+.n3-pill-btn {
+  isolation: isolate;
+  margin: 0 12px 0 10px;
+}
+
+.n3-pill-btn:active::before {
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
+  transform: scale(0.95);
+}
+
+.n3-row > .n3-x-btn {
+  margin-right: -8px;
+}
+
+.n3-text-btn.is-muted {
+  color: var(--n3-ink-2);
+}
+
+.n3-notice.is-flagged .n3-row-meta {
+  color: var(--n3-clay-text);
+}
+
+.n3-notice .n3-row-body {
+  padding-left: 12px;
+}
+
+.n3-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+  color: var(--foreground);
+}
+
+.n3-disclosure > svg {
+  margin-left: auto;
+  color: var(--n3-ink-2);
+  transition: transform 200ms var(--n3-ease);
+}
+
+.n3-disclosure > svg.is-open {
+  transform: rotate(180deg);
+}
+
+/* --- check circle --------------------------------------------------------------- */
+
+.n3-check {
+  flex: none;
+  width: 40px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+}
+
+.n3-check:active .n3-check-svg {
+  transform: scale(0.88);
+}
+
+.n3-check-svg {
+  display: block;
+  transition: transform 150ms var(--n3-ease);
+}
+
+.n3-check-ring {
+  fill: transparent;
+  stroke: color-mix(in srgb, var(--foreground) 34%, transparent);
+  stroke-width: 1.5;
+  transition: fill 150ms var(--n3-ease), stroke 150ms var(--n3-ease);
+}
+
+.n3-check-tick {
+  fill: none;
+  stroke: var(--primary-foreground);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 14;
+  stroke-dashoffset: 14;
+  transition: stroke-dashoffset 150ms ease-out 80ms;
+}
+
+.n3-check-svg.is-done .n3-check-ring {
+  fill: var(--foreground);
+  stroke: var(--foreground);
+}
+
+.n3-check-svg.is-done .n3-check-tick {
+  stroke-dashoffset: 0;
+}
+
+.n3-row-title.is-struck {
+  color: var(--n3-ink-2);
+}
+
+.n3-row-title.is-struck::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  height: 1px;
+  width: 100%;
+  background: currentColor;
+  transform-origin: left;
+  animation: n3-strike 250ms ease-in-out both;
+}
+
+@keyframes n3-strike {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* --- swipe ----------------------------------------------------------------------- */
+
+.n3-swipe {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.n3-swipe-under {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 22px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0;
+}
+
+.n3-swipe-under.is-right {
+  opacity: 1;
+  justify-content: flex-start;
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.n3-swipe-under.is-left {
+  opacity: 1;
+  justify-content: flex-end;
+  background: color-mix(in srgb, var(--foreground) 14%, var(--n3-card));
+  color: var(--foreground);
+}
+
+.n3-swipe-under span {
+  transition: transform 150ms var(--n3-ease);
+}
+
+.n3-swipe-under.is-armed span {
+  transform: scale(1.12);
+}
+
+.n3-swipe > .n3-row {
+  z-index: 1;
+}
+
+.n3-swipe.is-leaving {
+  animation: n3-leave 200ms var(--n3-ease) 180ms both;
+}
+
+.n3-swipe.is-later.is-leaving > .n3-row {
+  transform: translate3d(-100%, 0, 0);
+}
+
+@keyframes n3-leave {
+  to {
+    opacity: 0;
+    max-height: 0;
+  }
+}
+
+.n3-swipe {
+  max-height: 120px;
+}
+
+/* --- live marks, rings, shimmer ------------------------------------------------------ */
+
+.n3-live-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+
+.n3-live-dot.is-busy {
+  background: var(--n3-clay);
+}
+
+.n3-ring {
+  flex: none;
+}
+
+.n3-ring-track {
+  fill: none;
+  stroke: color-mix(in srgb, var(--foreground) 14%, transparent);
+  stroke-width: 2.5;
+}
+
+.n3-ring-fill {
+  fill: none;
+  stroke: var(--foreground);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 500ms var(--n3-ease);
+}
+
+.n3-ring.is-at-risk .n3-ring-fill {
+  stroke: var(--n3-clay);
+}
+
+.n3-shimmer {
+  background: linear-gradient(90deg, var(--n3-ink-2) 0%, var(--n3-ink-2) 40%, var(--foreground) 50%, var(--n3-ink-2) 60%, var(--n3-ink-2) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  animation: n3-shimmer 2s linear infinite;
+}
+
+@keyframes n3-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+
+/* --- footer ---------------------------------------------------------------------------- */
+
+.n3-foot {
+  margin-top: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.n3-foot p {
+  margin: 0;
+  max-width: 36ch;
+  font-size: 12px;
+  line-height: 17px;
+  text-wrap: balance;
+  color: var(--n3-ink-2);
+}
+
+/* --- tab bar ------------------------------------------------------------------------------ */
+
+.n3-tabbar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  touch-action: none;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: transform 280ms var(--n3-ease), opacity 200ms var(--n3-ease);
+}
+
+.n3-tabbar.is-hidden {
+  transform: translateY(calc(100% + 24px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.n3-tabs {
+  flex: 1;
+  height: var(--n3-tabbar-h);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 4px;
+  border-radius: 31px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+}
+
+.n3-tabs button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 27px;
+  color: var(--n3-ink-2);
+  transition: color 250ms var(--n3-ease-swap), transform 120ms var(--n3-ease);
+}
+
+.n3-tabs button:active {
+  transform: scale(0.94);
+}
+
+.n3-tabs button.is-on {
+  color: var(--foreground);
+}
+
+/* One pill that slides between tabs (transform only) instead of a
+   background fading out on one button and in on the next. */
+.n3-tabs {
+  position: relative;
+  isolation: isolate;
+}
+
+.n3-tabs-pill {
+  position: absolute;
+  z-index: -1;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 4);
+  border-radius: 27px;
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+  transition: transform 340ms cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .n3-tabs-pill {
+    transition: none;
+  }
+}
+
+.n3-tab-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 24px;
+}
+
+.n3-tab-dot {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--n3-clay);
+  box-shadow: 0 0 0 2px var(--background);
+}
+
+.n3-tab-label {
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.n3-plus {
+  flex: none;
+  width: var(--n3-tabbar-h);
+  height: var(--n3-tabbar-h);
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  /* Same solid white as the tabs, so the bar reads as one object with one quiet +. */
+  background: #ffffff;
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+  transition: transform 160ms var(--n3-ease);
+}
+
+.n3-plus:active {
+  transform: scale(0.92);
+}
+
+/* --- sheets ----------------------------------------------------------------------------- */
+
+.n3-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.n3-facts {
+  margin: 0;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+  padding: 0 14px;
+}
+
+.n3-facts:empty {
+  display: none;
+}
+
+.n3-facts > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 0;
+}
+
+.n3-facts > div + div {
+  border-top: var(--hairline) solid var(--n3-line);
+}
+
+.n3-facts dt {
+  flex: none;
+  font-size: 14px;
+  color: var(--n3-ink-2);
+}
+
+.n3-facts dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.n3-facts dd.n3-due {
+  flex-direction: row;
+}
+
+.n3-facts small {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--n3-ink-2);
+}
+
+.n3-facts small.is-warn {
+  color: var(--n3-clay-text);
+}
+
+.n3-warn {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--n3-clay-text);
+  background: color-mix(in srgb, var(--n3-clay) 10%, transparent);
+}
+
+.n3-sheet-why {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--foreground);
+  text-wrap: pretty;
+}
+
+.n3-sheet-ask,
+.n3-sheet-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--n3-ink-2);
+}
+
+.n3-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.n3-steps button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 0;
+  text-align: left;
+  font-size: 15px;
+  line-height: 21px;
+  color: var(--foreground);
+}
+
+.n3-mini-check {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--foreground) 34%, transparent);
+  color: var(--primary-foreground);
+  transition: background 150ms var(--n3-ease);
+}
+
+.n3-mini-check.is-on {
+  background: var(--foreground);
+  box-shadow: none;
+}
+
+.n3-sheet-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.n3-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.n3-chip-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n3-ink-2);
+  margin-right: 2px;
+}
+
+.n3-chip {
+  min-height: 36px;
+  padding: 0 13px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 var(--hairline) var(--border-surface-strong, var(--n3-line));
+  transition: transform 120ms var(--n3-ease), background 120ms var(--n3-ease);
+}
+
+.n3-chip:active {
+  transform: scale(0.96);
+  background: var(--n3-wash);
+}
+
+.n3-sheet-head {
+  margin: 8px 2px -6px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n3-ink-2);
+}
+
+.n3-sheet-head span {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.n3-help {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--n3-card);
+  box-shadow: var(--n3-card-shadow);
+}
+
+.n3-help-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.n3-help-line {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--n3-ink-2);
+}
+
+.n3-help-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--foreground);
+}
+
+.n3-help-list li {
+  position: relative;
+  padding-left: 22px;
+}
+
+.n3-help-list li.is-will::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 5px;
+  width: 9px;
+  height: 5px;
+  border-left: 1.75px solid var(--foreground);
+  border-bottom: 1.75px solid var(--foreground);
+  transform: rotate(-45deg);
+}
+
+.n3-help-list li.is-wont {
+  color: var(--n3-ink-2);
+}
+
+.n3-help-list li.is-wont::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 9.5px;
+  width: 10px;
+  height: 1.75px;
+  border-radius: 1px;
+  background: var(--n3-ink-2);
+}
+
+.n3-help-stop {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--n3-ink-2);
+}
+
+.n3-help-state {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--n3-ink-2);
+}
+
+.n3-help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.n3-dismiss {
+  align-self: center;
+}
+
+/* --- research ------------------------------------------------------------------------------- */
+
+.n3-ask {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+  padding: 5px 5px 5px 16px;
+  border-radius: 18px;
+  background: var(--n3-card);
+  box-shadow: var(--n3-card-shadow);
+}
+
+.n3-ask:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--foreground), 0 8px 24px -12px rgb(from var(--fit-shade, rgb(20 28 30)) r g b / 0.16);
+}
+
+.n3-ask input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  color: var(--foreground);
+}
+
+.n3-ask input::placeholder {
+  color: var(--n3-ink-2);
+}
+
+.n3-ask-go {
+  flex: none;
+  height: 42px;
+  min-width: 64px;
+  padding: 0 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  transition: transform 120ms var(--n3-ease), opacity 150ms;
+}
+
+.n3-ask-go:disabled {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--n3-ink-2);
+}
+
+.n3-ask-go:active {
+  transform: scale(0.95);
+}
+
+.n3-verdict-mark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.n3-verdict-mark.is-yes {
+  background: var(--foreground);
+}
+
+.n3-verdict-mark.is-no {
+  box-shadow: inset 0 0 0 1.75px var(--foreground);
+}
+
+.n3-verdict-mark.is-unclear {
+  box-shadow: inset 0 0 0 1.75px var(--n3-ink-2);
+  background: linear-gradient(90deg, var(--n3-ink-2) 50%, transparent 50%);
+}
+
+.n3-verdict-mark.is-none {
+  background: color-mix(in srgb, var(--foreground) 20%, transparent);
+}
+
+.n3-answer-row .n3-row-end {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
+.n3-verdict {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.n3-report-summary {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  line-height: 28px;
+  letter-spacing: -0.005em;
+  color: var(--foreground);
+  text-wrap: pretty;
+}
+
+.n3-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.n3-points li {
+  padding: 12px 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--foreground);
+  border-top: var(--hairline) solid var(--n3-line);
+}
+
+.n3-cites {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+.n3-cite {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  transition: background 150ms var(--n3-ease), color 150ms var(--n3-ease);
+}
+
+.n3-cite.is-on {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.n3-report-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.n3-open {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--foreground);
+}
+
+.n3-open li {
+  position: relative;
+  padding-left: 16px;
+}
+
+.n3-open li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 9px;
+  width: 6px;
+  height: 1.5px;
+  background: var(--n3-ink-2);
+}
+
+.n3-sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+  overflow: hidden;
+}
+
+.n3-sources li + li {
+  border-top: var(--hairline) solid var(--n3-line);
+}
+
+.n3-sources button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 14px 8px 12px;
+  text-align: left;
+  color: var(--foreground);
+}
+
+.n3-sources button > svg {
+  flex: none;
+  color: var(--n3-ink-2);
+}
+
+.n3-src-n {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  transition: background 150ms var(--n3-ease), color 150ms var(--n3-ease);
+}
+
+.n3-sources li.is-on .n3-src-n {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.n3-src-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.n3-src-title {
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.n3-src-host {
+  font-size: 12px;
+  color: var(--n3-ink-2);
+}
+
+.n3-report-how {
+  margin: 0;
+  padding-top: 12px;
+  border-top: var(--hairline) solid var(--n3-line);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--n3-ink-2);
+}
+
+/* Skeleton: coss band, 120deg, 200% width, 2s linear. */
+.n3-skel-list {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.n3-skel {
+  display: block;
+  height: 60px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent)
+    linear-gradient(120deg, transparent 40%, rgb(255 255 255 / 0.64) 50%, transparent 60%);
+  background-size: 200% 100%;
+  animation: n3-skel 2s -1s infinite linear;
+}
+
+.n3-skel.is-short {
+  width: 70%;
+}
+
+@keyframes n3-skel {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Empty state: coss "stacked tiles" behind one icon. */
+.n3-empty {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 24px;
+}
+
+.n3-empty-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 18px;
+}
+
+.n3-empty-icon span {
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+  background: var(--n3-card);
+  box-shadow: var(--n3-card-shadow);
+}
+
+.n3-empty-icon span:nth-child(1) {
+  transform: rotate(-10deg) scale(0.84) translateX(-8px);
+  opacity: 0.7;
+}
+
+.n3-empty-icon span:nth-child(2) {
+  transform: rotate(10deg) scale(0.84) translateX(8px);
+  opacity: 0.7;
+}
+
+.n3-empty-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.n3-empty-line {
+  margin: 6px 0 0;
+  max-width: 30ch;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--n3-ink-2);
+  text-wrap: balance;
+}
+
+/* --- projects + activity inside v3 -------------------------------------------------------------- */
+
+.n3 .np-list {
+  gap: 12px;
+  padding-top: 0;
+}
+
+.n3 .np-list > .n3-title-block,
+.n3 .np-empty > .n3-title-block {
+  margin-bottom: 8px;
+}
+
+.n3 .np-card {
+  border-radius: 24px;
+  padding: 18px 18px 16px;
+  box-shadow: var(--n3-card-shadow);
+}
+
+.n3 .np-card-title {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.n3 .np-detail {
+  gap: 24px;
+}
+
+.n3 .np-head {
+  padding-top: 6px;
+}
+
+.n3 .np-stats {
+  border-radius: 18px;
+}
+
+.n3 .np-inspect,
+.n3 .np-proposal-banner {
+  border-radius: 20px;
+}
+
+.n3 .na {
+  gap: 18px;
+  padding-top: 0;
+}
+
+.n3 .na-control {
+  border-radius: 24px;
+  box-shadow: var(--n3-card-shadow);
+}
+
+.n3 .na-list {
+  border-radius: 20px;
+  box-shadow: var(--n3-card-shadow);
+}
+
+.n3 .np-block-head {
+  font-size: 13px;
+}
+
+.n3 .settings-rows {
+  border-radius: 20px;
+}
+
+/* --- preferences -------------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .n3 *,
+  .n3 *::before,
+  .n3 *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+  .n3-shimmer {
+    color: var(--n3-ink-2) !important;
+    background: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .n3 {
+    --n3-ink-2: var(--foreground);
+    --n3-line: color-mix(in srgb, var(--foreground) 45%, transparent);
+  }
+}
+
+.n3 :focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+/* Tall rows: the lead glyph sits on the title's first line (Things, Mail). */
+.n3-row.n3-notice {
+  align-items: flex-start;
+}
+
+.n3-row.n3-notice > .n3-lead {
+  height: 28px;
+  margin-top: 4px;
+}
+
+.n3-row.n3-notice > .n3-text-btn {
+  align-self: center;
+}
+
+.n3-notice .n3-row-meta > .n3-clamp-2 {
+  display: -webkit-box;
+}
+
+/* Sheet: the task title in full, as the sheet's one serif line. */
+.n3-sheet-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+.n3-focus-link {
+  align-self: flex-start;
+  margin: -8px 0 -4px -8px;
+  color: var(--n3-ink-2);
+}
+
+/* Research empty state: real starting points instead of an illustration.
+   A tap only fills the box; asking is still a separate tap. */
+.n3-empty.is-left {
+  align-items: stretch;
+  text-align: left;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.n3-suggest {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background: var(--n3-card);
+  box-shadow: var(--n3-card-shadow);
+  overflow: hidden;
+}
+
+.n3-suggest-label {
+  margin: 0;
+  padding: 12px 16px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--n3-ink-2);
+}
+
+.n3-suggest-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--foreground);
+  transition: background 120ms var(--n3-ease);
+}
+
+.n3-suggest-row + .n3-suggest-row {
+  box-shadow: inset 0 var(--hairline) 0 var(--n3-line);
+}
+
+.n3-suggest-row:active {
+  background: var(--n3-wash);
+}
+
+.n3-suggest-row > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.n3-suggest-hint {
+  flex: none;
+  font-size: 13px;
+  color: var(--n3-ink-2);
+}
+
+.n3-empty.is-left .n3-empty-line {
+  max-width: none;
+  text-wrap: pretty;
+}
+
+.n3-facts dd.n3-due {
+  display: inline-flex;
+  align-items: center;
+}
+
+.n3-private-line {
+  display: block;
+  white-space: normal;
+  text-wrap: pretty;
+}
+
+/* ==========================================================================
+ * School / Personal.
+ * Each space has one quiet color, used only as a small glyph, the switch
+ * thumb's edge, and a faint wash at the very top of the page. Clay stays
+ * reserved for real deadlines.
+ * ========================================================================== */
+
+:root {
+  --space-school: #43698f;
+  --space-personal: #4d7c5d;
+}
+
+.dark {
+  --space-school: #8db2d8;
+  --space-personal: #8fc0a0;
+}
+
+.sp-glyph {
+  flex: none;
+  display: inline-block;
+  border-radius: 99px;
+  background: var(--space-school);
+}
+
+.sp-glyph.is-personal {
+  /* A ring, not a dot: the two read apart even without color. */
+  background: transparent;
+  box-shadow: inset 0 0 0 1.75px var(--space-personal);
+}
+
+.sp-switch {
+  --sp-pad: 3px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: var(--sp-pad);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--foreground) 6%, transparent);
+  isolation: isolate;
+}
+
+.sp-thumb {
+  position: absolute;
+  z-index: -1;
+  top: var(--sp-pad);
+  bottom: var(--sp-pad);
+  left: var(--sp-pad);
+  width: calc(50% - var(--sp-pad));
+  border-radius: 999px;
+  background: var(--background);
+  box-shadow:
+    inset 0 0 0 var(--hairline) color-mix(in srgb, var(--foreground) 10%, transparent),
+    0 1px 2px rgb(from var(--fit-shade, rgb(20 28 30)) r g b / 0.08),
+    0 4px 12px -4px rgb(from var(--fit-shade, rgb(20 28 30)) r g b / 0.12);
+  transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.dark .sp-thumb {
+  background: color-mix(in srgb, var(--foreground) 14%, var(--background));
+  box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--foreground) 12%, transparent), 0 2px 8px rgb(0 0 0 / 0.4);
+}
+
+.sp-switch[data-space='personal'] .sp-thumb {
+  transform: translateX(100%);
+}
+
+.sp-switch button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--muted-foreground);
+  transition: color 200ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sp-switch button.is-on {
+  color: var(--foreground);
+}
+
+.sp-switch button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--foreground) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.sp-switch button:not(.is-on) .sp-glyph {
+  opacity: 0.55;
+}
+
+.sp-count {
+  font-size: 0.86em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.sp-alert {
+  position: absolute;
+  top: 5px;
+  right: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--n3-clay, #e87d4f);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--foreground) 6%, var(--background));
+}
+
+.sp-switch.is-phone {
+  width: min(232px, 100%);
+  height: 36px;
+  font-size: 14px;
+}
+
+.sp-switch button > .sp-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-switch.is-phone button {
+  height: 30px;
+}
+
+.sp-switch.is-desk {
+  height: 34px;
+  font-size: 13px;
+}
+
+.sp-switch.is-desk button {
+  height: 28px;
+  gap: 6px;
+}
+
+.sp-switch.is-desk .sp-alert {
+  top: 4px;
+  right: 7px;
+}
+
+/* A faint wash of the space's color at the top of the page, crossfading
+   between spaces. Barely there on purpose: it tells you where you are
+   without painting the page. */
+.sp-wash {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 320px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.sp-wash::before,
+.sp-wash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transition: opacity 500ms ease;
+}
+
+.sp-wash::before {
+  background: radial-gradient(120% 100% at 50% -30%, color-mix(in srgb, var(--space-school) 11%, transparent), transparent 70%);
+}
+
+.sp-wash::after {
+  background: radial-gradient(120% 100% at 50% -30%, color-mix(in srgb, var(--space-personal) 11%, transparent), transparent 70%);
+  opacity: 0;
+}
+
+.sp-wash[data-space='personal']::before {
+  opacity: 0;
+}
+
+.sp-wash[data-space='personal']::after {
+  opacity: 1;
+}
+
+/* Switching slides the page a few pixels toward the side you picked.
+   The scroller clips sideways, so the slide can never be dragged. */
+.sp-enter-personal {
+  animation: sp-from-right 260ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.sp-enter-school {
+  animation: sp-from-left 260ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes sp-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+@keyframes sp-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+/* The small "School" / "Personal" eyebrow next to a page title. */
+.sp-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-thumb,
+  .sp-wash,
+  .sp-wash::before,
+  .sp-wash::after {
+    transition: none;
+  }
+  .sp-enter-personal,
+  .sp-enter-school {
+    animation: none;
+  }
+}
+
+.n3-scroll.has-wash {
+  position: relative;
+  isolation: isolate;
+}
+
+.sp-choice button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.n3-move {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.n3-move + .n3-dismiss {
+  margin-top: 4px;
+}
+
+.np-elsewhere {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.np-space-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: var(--hairline) solid var(--n3-line);
+  font-size: 15px;
+}
+
+.np-space-row .np-chips {
+  margin: 0;
+}
+
+/* --- resilience: saved-list line and a view that failed ---------------------------- */
+
+.n3-offline {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  margin: 6px 0 2px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  text-align: left;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+.n3-offline-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 99px;
+  background: var(--n3-clay);
+  animation: n3-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes n3-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.n3-broken {
+  margin-top: 32px;
+  padding: 22px 20px;
+  border-radius: 24px;
+  box-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.n3-broken-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.n3-broken-line {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--n3-ink-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .n3-offline-dot {
+    animation: none;
+  }
+}
+
+/* Phone: a flat pearl page. The switch already says which space you are in,
+   and a tint behind a solid top bar and solid section heads shows as bands. */
+.n3 .sp-wash {
+  display: none;
+}
+
+/* White pass: sheets and focus stay solid white inside Next, never the
+   cream app paper. Scoped to .n3 so Telegram and the Mac desk keep theirs. */
+.n3 .sheet {
+  background: #ffffff;
+}
+.n3 .nf {
+  background: #ffffff;
+}
+/* White pass 3: last cream controls go solid white.
+   Scoped to .n3 so Telegram and the Mac desk keep theirs. */
+.n3 .sp-thumb,
+.dark .n3 .sp-thumb {
+  background: #ffffff;
+}
+.n3 .np-form input:not([type='checkbox']),
+.n3 .np-add input,
+.n3 .np-date input {
+  background: #ffffff;
+}
+.n3 .next-secondary {
+  background: #ffffff;
+}
+.n3 .np-form-actions.is-sheet {
+  background: linear-gradient(to bottom, transparent, #ffffff 30%);
+}
+.n3 .n3-offline {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 var(--hairline) var(--n3-line);
+}
+
+/* Content fades out under the floating tab bar instead of peeking below it. */
+.n3-tabbar::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: -12px;
+  right: -12px;
+  top: -28px;
+  bottom: calc(-10px - env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0), #ffffff 62%);
+  pointer-events: none;
+}
+
+.n3-tabbar.is-hidden::before {
+  opacity: 0;
+}
+
+/* Form buttons in a vertical form keep their full height (a row rule's
+   flex: 1 1 0 was shrinking Add to a 22px sliver). */
+.np-form > .next-primary,
+.np-form > .next-secondary,
+.n3-sheet > .next-primary {
+  flex: none;
+  width: 100%;
+  min-height: 50px;
+}
+
+.next-primary:disabled,
+.n3-btn.is-primary:disabled {
+  opacity: 1;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--n3-ink-2, var(--muted-foreground));
+}
+
+.np-typed {
+  margin: -6px 2px 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--n3-ink-2, var(--muted-foreground));
+}
+
+/* Research second look */
+.n3-audit-warn {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg, 12px);
+  background: color-mix(in srgb, var(--n3-clay, #b5623c) 10%, transparent);
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 20px;
+}
+.n3-audit-warn p + p { margin-top: 4px; }
+.n3-unbacked {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--n3-clay, #b5623c);
+}
+.n3-src-bait { color: var(--n3-clay, #b5623c); }
+
+/* Jev hints on items */
+.n3-row-tag {
+  flex: none;
+  margin-right: 6px;
+  padding: 0 7px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--n3-sage-ink, #3f6b4e);
+  background: color-mix(in srgb, var(--n3-sage, #6f9a7d) 16%, transparent);
+}
+.n3-donehint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg, 12px);
+  background: color-mix(in srgb, var(--n3-sage, #6f9a7d) 12%, transparent);
+  font-size: 14px;
+  line-height: 20px;
+}
+.n3-donehint p { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.n3-donehint-btn { flex: none; height: 36px; padding: 0 14px; }
+.n3-also { overflow-wrap: anywhere; }
+
+/* Next is a white-pass surface in both themes: its cards, bars and sheets are
+   solid white, so dark text tokens made the selected tab and switch labels
+   near-white on white. Pin the light ramp inside Next (generated from
+   tokens.css; regenerate if tokens change). */
+.dark .n3,
+.dark .n3-light {
+  color-scheme: light;
+  color: var(--foreground);
+  --space-school: #43698f;
+  --space-personal: #4d7c5d;
+  --next-late-text: #a8512a;
+  --background: var(--zeron-page);
+  --foreground: var(--zeron-ink);
+  --popover: var(--zeron-card-strong);
+  --popover-foreground: var(--zeron-ink);
+  --primary: var(--zeron-selected);
+  --primary-foreground: var(--zeron-selected-foreground);
+  --secondary: rgb(255 253 247 / 0.52);
+  --secondary-foreground: var(--zeron-ink-soft);
+  --muted: rgb(38 38 34 / 0.08);
+  --muted-foreground: rgb(38 38 34 / 0.62);
+  --accent: rgb(38 38 34 / 0.07);
+  --accent-foreground: var(--zeron-ink);
+  --destructive: var(--zeron-signature);
+  --destructive-foreground: var(--zeron-ink);
+  --brand: var(--zeron-ink);
+  --brand-text: var(--zeron-ink-soft);
+  --skill: var(--zeron-ink);
+  --success: var(--zeron-ink);
+  --permission: var(--zeron-ink);
+  --switch-on: var(--zeron-ink);
+  --diff-removed: var(--code-remove);
+  --diff-added-text: var(--code-add);
+  --diff-removed-text: var(--code-remove);
+  --rail: oklch(18% 0.008 92 / 0.17);
+  --rail-active: color-mix(in oklab, var(--brand) 45%, transparent);
+  --work-ink: oklch(18% 0.007 92 / 0.68);
+  --work-ink-strong: oklch(16% 0.006 92 / 0.88);
+  --meter-ink: oklch(18% 0.007 92 / 0.52);
+  --meter-ink-dim: oklch(18% 0.007 92 / 0.34);
+  --status-trough: color-mix(in oklab, var(--brand-text) 78%, var(--meter-ink));
+  --work-fail: var(--brand-text);
+  --elev-1: 0 1px 2px oklch(20% 0.02 92 / 0.05), 0 0 0 var(--hairline) oklch(18% 0.008 92 / 0.06);
+  --elev-2: 0 1px 2px oklch(20% 0.02 92 / 0.04), 0 8px 24px -8px oklch(20% 0.02 92 / 0.12), 0 0 0 var(--hairline) oklch(18% 0.008 92 / 0.07);
+  --rim-top: inset 0 1px 0 oklch(100% 0 0 / 0.75);
+  --rim-edge: inset 0 0 0 var(--hairline) oklch(100% 0 0 / 0.4);
+  --rim-floor: inset 0 -1px 0 oklch(18% 0.009 92 / 0.055);
+  --rim-on-primary: inset 0 1px 0 oklch(100% 0 0 / 0.16), inset 0 -1px 0 oklch(0% 0 0 / 0.18);
+  --border: var(--zeron-line);
+  --border-surface: var(--zeron-line);
+  --border-surface-strong: var(--zeron-line-strong);
+  --input: var(--zeron-line);
+  --ring: var(--zeron-line-strong);
+  --surface-primary: var(--zeron-card-strong);
+  --surface-secondary: var(--zeron-card);
+  --surface-tertiary: rgb(from var(--fit-tint, rgb(247 250 250)) r g b / 0.44);
+  --surface-primary-foreground: var(--zeron-ink);
+  --surface-secondary-foreground: var(--zeron-ink-soft);
+  --surface-tertiary-foreground: rgb(38 38 34 / 0.62);
+  --glass-stroke: var(--zeron-line);
+  --glass-surface: linear-gradient(145deg, rgb(255 255 255 / 0.22), rgb(from var(--fit-tint, rgb(246 251 251)) r g b / 0.08) 62%, rgb(255 255 255 / 0.02)), var(--glass-fill);
+  --glass-surface-strong: linear-gradient(145deg, rgb(255 255 255 / 0.30), rgb(from var(--fit-tint, rgb(246 251 251)) r g b / 0.11) 62%, rgb(255 255 255 / 0.03)), var(--glass-fill-strong);
+  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.54), inset 0 -1px 0 rgb(from var(--fit-shade, rgb(55 70 73)) r g b / 0.04);
+  --glass-elev: 0 2px 6px rgb(from var(--fit-shade, rgb(38 62 66)) r g b / 0.05), 0 22px 56px -30px rgb(from var(--fit-shade, rgb(38 82 92)) r g b / 0.20);
+  --glass-elev-quiet: 0 1px 3px rgb(from var(--fit-shade, rgb(38 62 66)) r g b / 0.04), 0 14px 36px -24px rgb(from var(--fit-shade, rgb(38 82 92)) r g b / 0.14);
+  --grain: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27140%27%20height%3D%27140%27%3E%3Cfilter%20id%3D%27g%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.85%27%20numOctaves%3D%272%27%20stitchTiles%3D%27stitch%27%20result%3D%27t%27%2F%3E%3CfeColorMatrix%20in%3D%27t%27%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27140%27%20height%3D%27140%27%20filter%3D%27url%28%23g%29%27%20opacity%3D%270.09%27%2F%3E%3C%2Fsvg%3E");
+  --page: var(--zeron-page);
+  --mark-warm: var(--zeron-signature);
+  --state-waiting: var(--zeron-signature);
+  --state-waiting-text: var(--zeron-ink);
+  --zeron-page: #f6f9f9;
+  --zeron-shell: #eef3f3;
+  --zeron-ink: var(--fit-ink, #202627);
+  --zeron-ink-soft: rgb(from var(--fit-shade, rgb(32 38 39)) r g b / 0.68);
+  --zeron-card: rgb(from var(--fit-tint, rgb(247 250 250)) r g b / 0.62);
+  --zeron-card-strong: rgb(from var(--fit-tint, rgb(247 250 250)) r g b / 0.82);
+  --zeron-control: rgb(from var(--fit-tint, rgb(247 250 250)) r g b / 0.30);
+  --zeron-line: rgb(from var(--fit-shade, rgb(55 70 73)) r g b / 0.10);
+  --zeron-line-strong: rgb(from var(--fit-shade, rgb(55 70 73)) r g b / 0.15);
+  --zeron-selected: var(--fit-ink, #202627);
+  --zeron-selected-foreground: #f7fbfb;
+  --zeron-segment-selected: rgb(255 255 255 / 0.56);
+  --zeron-segment-selected-foreground: var(--fit-ink, #202627);
+  --separator-inset: rgb(from var(--fit-shade, rgb(38 44 45)) r g b / 0.10);
+  --glass-fill-history: rgb(from var(--fit-tint, rgb(247 250 250)) r g b / 0.68);
+  --glass-fill-composer: rgb(from var(--fit-tint, rgb(242 248 249)) r g b / 0.38);
+  --glass-surface-history: linear-gradient(180deg, rgb(255 255 255 / 0.20), rgb(from var(--fit-tint, rgb(244 249 249)) r g b / 0.06) 72%, transparent), var(--glass-fill-history);
+  --glass-surface-composer: linear-gradient(145deg, rgb(255 255 255 / 0.24), rgb(from var(--fit-tint, rgb(244 251 252)) r g b / 0.08) 60%, rgb(255 255 255 / 0.02)), var(--glass-fill-composer);
+  --zeron-composer-shadow: inset 0 1px 0 rgb(255 255 255 / 0.58), inset 0 -1px 0 rgb(from var(--fit-shade, rgb(55 70 73)) r g b / 0.04), 0 2px 5px rgb(from var(--fit-shade, rgb(38 62 66)) r g b / 0.05), 0 24px 64px -36px rgb(from var(--fit-shade, rgb(38 82 92)) r g b / 0.24);
+}
+.dark .n3 .sp-thumb {
+  box-shadow:
+    inset 0 0 0 var(--hairline) color-mix(in srgb, var(--foreground) 10%, transparent),
+    0 1px 2px rgb(from var(--fit-shade, rgb(20 28 30)) r g b / 0.08),
+    0 4px 12px -4px rgb(from var(--fit-shade, rgb(20 28 30)) r g b / 0.12);
+}

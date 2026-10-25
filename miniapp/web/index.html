@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1e1c1b" media="(prefers-color-scheme: dark)" />
+    <title>Aside Mobile</title>
+    <!--
+      The installed /app shell never needs Telegram's remote bridge, so it
+      must not compete with the app bundle or artwork on every launch.
+      Telegram pages still start that request immediately and expose one
+      promise so main.tsx can preserve the original execution ordering.
+
+      The artwork preload is injected below for the standalone shell only.
+      A static preload element here fetched the 201KB webp on every entry,
+      including Telegram launches that never render it, where it contended
+      with the bundle on the tailnet. Injected from this head script it
+      still starts before first paint, just not for clients that cannot
+      use it.
+    -->
+    <script>
+      const isStandaloneShell = location.pathname.startsWith('/app');
+      if (isStandaloneShell) {
+        document.documentElement.dataset.client = 'standalone';
+        document.documentElement.dataset.surface = 'boot';
+        // The look (Paper/Midnight) is picked in src/fit.ts: this inline
+        // script is blocked by the live server's CSP, so it cannot live here.
+      }
+
+      window.__asideTelegramReady = isStandaloneShell
+        ? Promise.resolve()
+        : new Promise((resolve) => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              resolve();
+            };
+            const bridge = document.createElement('script');
+            bridge.src = 'https://telegram.org/js/telegram-web-app.js';
+            bridge.onload = finish;
+            bridge.onerror = finish;
+            document.head.appendChild(bridge);
+            setTimeout(finish, 1500);
+          });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

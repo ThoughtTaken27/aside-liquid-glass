@@ -1,0 +1,70 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { contextRoutes } from '../src/context-routes.js';
+import { ContextMemory, type MemoryPreferences } from '../src/context-memory.js';
+import { NextStore, type RawItem } from '../src/next.js';
+import { bearerFrom, mintToken, verifyToken } from '../src/auth.js';
+const NOW = new Date('2026-10-12T16:00:00Z');
+const PREFS: MemoryPreferences = { enabled: true, sources: ['schoology'], pausedUntil: null, retentionDays: 14, excludedHosts: [] };
+let root: string, app: FastifyInstance, memory: ContextMemory, resolveTask: ReturnType<typeof vi.fn<(id: string) => RawItem | null>>, refresh: ReturnType<typeof vi.fn<() => Promise<unknown>>>, headers: { authorization: string }, globalPaused: boolean;
+const task: RawItem = { id: 'schoology:123456789', source: 'schoology', title: 'Synthetic science outline', context: 'Synthetic class', dueISO: null, estMinutes: 20, lane: 'you', why: 'Synthetic fixture', url: 'https://school.schoology.com/assignment/123456789', steps: [], confidence: 0.9, impact: 1, lateRisk: 0, dependency: 0, resolved: false, acceptsLate: true, checkedAt: NOW.toISOString() };
+beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW);
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'synthetic-context-http-')); fs.mkdirSync(path.join(root, 'next'), { mode: 0o700 });
+  memory = new ContextMemory(root); globalPaused = false;
+  const store = new NextStore({ asideRoot: root, stateDir: root });
+  refresh = vi.fn(async () => store.plan(new Date(), [], [task]));
+  resolveTask = vi.fn((id: string) => id === task.id ? structuredClone(task) : null);
+  const secret = 'synthetic-context-http-secret-not-real', owner = 4242;
+  headers = { authorization: `Bearer ${mintToken(secret, { uid: owner, sub: String(owner) })}` };
+  app = Fastify({ logger: false });
+  await app.register(contextRoutes, { prefix: '/api/next/context', memory, refresh, resolveTask, globalPaused: () => globalPaused, requireAuth: async (request, reply) => { try { verifyToken(bearerFrom(request.headers.authorization), secret, owner); } catch { return reply.code(401).send({ error: 'unauthorized' }); } } });
+  await app.ready();
+  vi.stubGlobal('fetch', vi.fn(() => { throw new Error('No real network permitted in synthetic context tests'); }));
+});
+afterEach(async () => { await app.close(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); fs.rmSync(root, { recursive: true, force: true }); });
+const enable = () => app.inject({ method: 'POST', url: '/api/next/context/settings', headers, payload: { expectedRevision: 0, preferences: PREFS, acknowledgement: 'local-structured-context-v1' } });
+
+describe('owner boundary and no-store API', () => {
+  it.each([['GET', '/api/next/context'], ['GET', '/api/next/context/history'], ['GET', '/api/next/context/document?taskId=schoology:123456789'], ['POST', '/api/next/context/document'], ['POST', '/api/next/context/settings'], ['POST', '/api/next/context/refresh'], ['POST', '/api/next/context/forget']])('protects %s %s without touching storage', async (method, url) => { const r = await app.inject({ method: method as 'GET' | 'POST', url, ...(method === 'POST' ? { payload: {} } : {}) }); expect(r.statusCode).toBe(401); expect(r.headers['cache-control']).toContain('no-store'); expect(fs.existsSync(path.join(root, 'next/context-memory'))).toBe(false); expect(refresh).not.toHaveBeenCalled(); });
+  it('rejects a valid token belonging to a different owner', async () => { const token = mintToken('synthetic-context-http-secret-not-real', { uid: 9999, sub: '9999' }); const r = await app.inject({ method: 'GET', url: '/api/next/context', headers: { authorization: `Bearer ${token}` } }); expect(r.statusCode).toBe(401); });
+  it('reports off without persistent initialization', async () => { const r = await app.inject({ method: 'GET', url: '/api/next/context', headers }); expect(r.statusCode).toBe(200); expect(r.json()).toMatchObject({ state: 'off', count: 0, storageBytes: 0, processing: 'local-factual' }); expect(r.headers['cache-control']).toContain('no-store'); expect(fs.existsSync(path.join(root, 'next/context-memory'))).toBe(false); });
+  it('client query cannot enable context or add mail', async () => { const r = await app.inject({ method: 'GET', url: '/api/next/context?enabled=true&sources=mail', headers }); expect(r.json().preferences.enabled).toBe(false); expect(refresh).not.toHaveBeenCalled(); });
+  it('requires consent and rejects hidden/unapproved fields', async () => { for (const payload of [{ expectedRevision: 0, preferences: PREFS }, { expectedRevision: 0, preferences: { ...PREFS, sources: ['email'] }, acknowledgement: 'local-structured-context-v1' }, { expectedRevision: 0, preferences: PREFS, acknowledgement: 'local-structured-context-v1', capture: 'all' }]) { const r = await app.inject({ method: 'POST', url: '/api/next/context/settings', headers, payload }); expect([400, 403]).toContain(r.statusCode); } expect(memory.status().state).toBe('off'); expect(refresh).not.toHaveBeenCalled(); });
+});
+
+describe('complete synthetic source/control/history/forget journey', () => {
+  it('opt-in → refresh → cited history → scoped forget → no resurrection', async () => {
+    expect((await enable()).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/api/next/context/refresh', headers, payload: {} })).json().count).toBe(1);
+    const h = await app.inject({ method: 'GET', url: '/api/next/context/history?space=school&q=science', headers });
+    expect(h.statusCode).toBe(200); expect(h.headers['cache-control']).toContain('no-store'); expect(h.json().events[0]).toMatchObject({ taskId: task.id, source: 'schoology', freshness: 'fresh', value: 'reported-open' }); expect(h.json().windows[0].evidence).toHaveLength(1);
+    const forgotten = await app.inject({ method: 'POST', url: '/api/next/context/forget', headers, payload: { expectedRevision: h.json().revision, target: { kind: 'all' }, confirmation: 'forget-local-context' } });
+    expect(forgotten.statusCode).toBe(200); expect(forgotten.json().count).toBe(0);
+    await app.inject({ method: 'POST', url: '/api/next/context/refresh', headers, payload: {} });
+    expect((await app.inject({ method: 'GET', url: '/api/next/context/history', headers })).json()).toMatchObject({ events: [], windows: [], total: 0 });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('does not delete any original source file', async () => { const source = path.join(root, 'next/source-fixture.json'); fs.writeFileSync(source, JSON.stringify(task)); const before = fs.readFileSync(source); await enable(); await refresh(); const r = await app.inject({ method: 'POST', url: '/api/next/context/forget', headers, payload: { expectedRevision: memory.status().revision, target: { kind: 'source', source: 'schoology' }, confirmation: 'forget-local-context' } }); expect(r.statusCode).toBe(200); expect(fs.readFileSync(source)).toEqual(before); });
+  it('rejects one-tap/forged deletion without explicit scope confirmation', async () => { await enable(); await refresh(); for (const payload of [{ expectedRevision: memory.status().revision, target: { kind: 'all' } }, { expectedRevision: memory.status().revision, target: { kind: 'all' }, confirmation: true }, { expectedRevision: memory.status().revision, target: { kind: 'all' }, confirmation: 'forget-local-context', path: root }]) { expect((await app.inject({ method: 'POST', url: '/api/next/context/forget', headers, payload })).statusCode).toBe(400); } expect(memory.status().count).toBe(1); });
+  it('rejects stale mutations instead of silently overwriting another control', async () => { const s = (await enable()).json(); const first = await app.inject({ method: 'POST', url: '/api/next/context/settings', headers, payload: { expectedRevision: s.revision, preferences: { ...PREFS, pausedUntil: 'until-resumed' } } }); expect(first.statusCode).toBe(200); const stale = await app.inject({ method: 'POST', url: '/api/next/context/settings', headers, payload: { expectedRevision: s.revision, preferences: PREFS } }); expect(stale.statusCode).toBe(409); expect(memory.status().state).toBe('paused'); });
+  it.each(['off', 'paused', 'global'])('no source refresh when %s', async state => { if (state !== 'off') await enable(); if (state === 'paused') memory.configure({ expectedRevision: memory.status().revision, preferences: { ...PREFS, pausedUntil: 'until-resumed' } }); if (state === 'global') globalPaused = true; const r = await app.inject({ method: 'POST', url: '/api/next/context/refresh', headers, payload: {} }); expect([403, 423]).toContain(r.statusCode); expect(refresh).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled(); });
+  it.each(['limit=10000', 'limit=-1', 'source=email', 'space=all', 'offset=nan', 'unknown=1', 'window=native'])('rejects unsupported query %s', async q => { expect((await app.inject({ method: 'GET', url: '/api/next/context/history?' + q, headers })).statusCode).toBe(400); });
+  it('never exposes storage paths or raw errors on malformed protected storage', async () => { await enable(); fs.writeFileSync(path.join(root, 'next/context-memory/key'), 'bad'); const r = await app.inject({ method: 'GET', url: '/api/next/context', headers }); expect(r.statusCode).toBe(503); expect(r.json()).toEqual({ error: 'context_unavailable' }); expect(r.body).not.toContain(root); });
+});
+
+const DOCUMENT = 'https://docs.google.com/document/d/SYNTHETIC_DOC_123456789/edit';
+const linkPayload = (over: Record<string, unknown> = {}) => ({ taskId: task.id, url: DOCUMENT, expectedRevision: memory.status().revision, confirmation: 'link-document-metadata', ...over });
+describe('authenticated document metadata relationships', () => {
+  it('GET document is no-store and never reads task sources', async () => { const r = await app.inject({ method: 'GET', url: '/api/next/context/document?taskId=' + task.id, headers }); expect(r.statusCode).toBe(200); expect(r.json()).toMatchObject({ taskId: task.id, enabled: false, available: true, binding: null }); expect(r.headers['cache-control']).toContain('no-store'); expect(resolveTask).not.toHaveBeenCalled(); expect(fs.existsSync(path.join(root, 'next/context-memory'))).toBe(false); });
+  it('off or source-disabled linking cannot read task metadata', async () => { let r = await app.inject({ method: 'POST', url: '/api/next/context/document', headers, payload: linkPayload() }); expect(r.statusCode).toBe(403); await enable(); r = await app.inject({ method: 'POST', url: '/api/next/context/document', headers, payload: linkPayload() }); expect(r.statusCode).toBe(403); expect(resolveTask).not.toHaveBeenCalled(); });
+  it('valid link and unlink require explicit consent, known task and exact confirmation', async () => { memory.configure({ expectedRevision: 0, preferences: { ...PREFS, sources: ['schoology', 'work-trail'] }, acknowledgement: 'local-structured-context-v1' }); const linked = await app.inject({ method: 'POST', url: '/api/next/context/document', headers, payload: linkPayload({ url: DOCUMENT + '?usp=sharing#fragment' }) }); expect(linked.statusCode).toBe(200); expect(linked.json().binding).toMatchObject({ taskId: task.id, title: task.title, url: DOCUMENT }); expect(linked.headers['cache-control']).toContain('no-store'); expect(resolveTask).toHaveBeenCalledTimes(1); const removed = await app.inject({ method: 'POST', url: '/api/next/context/document', headers, payload: linkPayload({ url: null, confirmation: 'unlink-document-context' }) }); expect(removed.statusCode).toBe(200); expect(removed.json().binding).toBeNull(); expect(resolveTask).toHaveBeenCalledTimes(1); expect(fetch).not.toHaveBeenCalled(); });
+  it('malformed, unconfirmed, lookalike or stale requests cannot invoke a source lookup', async () => { memory.configure({ expectedRevision: 0, preferences: { ...PREFS, sources: ['work-trail'] }, acknowledgement: 'local-structured-context-v1' }); for (const p of [linkPayload({ confirmation: 'wrong' }), linkPayload({ url: 'https://docs.google.com.evil/document/d/SYNTHETIC_DOC_123456789/edit' }), linkPayload({ hidden: true }), linkPayload({ expectedRevision: 0 })]) { expect([400, 409]).toContain((await app.inject({ method: 'POST', url: '/api/next/context/document', headers, payload: p })).statusCode); } expect(resolveTask).not.toHaveBeenCalled(); });
+  it('global pause fences linking before any task-source lookup', async () => { memory.configure({ expectedRevision: 0, preferences: { ...PREFS, sources: ['work-trail'] }, acknowledgement: 'local-structured-context-v1' }); globalPaused = true; const r = await app.inject({ method: 'POST', url: '/api/next/context/document', headers, payload: linkPayload() }); expect(r.statusCode).toBe(423); expect(resolveTask).not.toHaveBeenCalled(); expect((await app.inject({ method: 'GET', url: '/api/next/context/document?taskId=' + task.id, headers })).json().enabled).toBe(false); });
+  it('unknown task never creates an ungrounded relationship', async () => { memory.configure({ expectedRevision: 0, preferences: { ...PREFS, sources: ['work-trail'] }, acknowledgement: 'local-structured-context-v1' }); const r = await app.inject({ method: 'POST', url: '/api/next/context/document', headers, payload: linkPayload({ taskId: 'schoology:987654321' }) }); expect(r.statusCode).toBe(400); expect(memory.status().documentCount).toBe(0); });
+});
+
+it('an excluded document host is fenced before resolving task-source metadata', async () => { memory.configure({ expectedRevision: 0, preferences: { ...PREFS, sources: ['work-trail'], excludedHosts: ['docs.google.com'] }, acknowledgement: 'local-structured-context-v1' }); const r = await app.inject({ method: 'POST', url: '/api/next/context/document', headers, payload: linkPayload() }); expect(r.statusCode).toBe(403); expect(resolveTask).not.toHaveBeenCalled(); });

@@ -1,0 +1,6 @@
+/* Reading surfaces stay attached to the finger at their natural size.
+ * Scroll-driven scale/fade on paragraphs, cards and list rows changed
+ * typography while scrolling and amplified virtual-row measurements.
+ * Native scrolling owns position; edge scrims already provide occlusion.
+ * Keep this shared entry point so no harness can re-enable the old effect.
+ */

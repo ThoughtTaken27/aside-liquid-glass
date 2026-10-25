@@ -1,0 +1,223 @@
+/* --- "/" menu (SlashMenu.tsx) ---------------------------------------------
+ * Geometry from the AI SDK Agents slash command menu (measured at 448px):
+ * card p 6px, rows 32px r10 gap 8 px 8, 13/20 type, 18px icon box with a
+ * 16px stroke icon, name 500 with a muted slash, description muted, group
+ * label 11/16 500 muted at 8/8/4 padding, active row foreground 6%, Enter
+ * key 18px r4 at 10px, 8px above the field, 150ms ease-out from .98.
+ * Phone: rows 44px r14 at 14px type on touch (the reference's 32px is a
+ * cursor size), card r20 so rows stay concentric (14 + 6). Material is the
+ * app's own popover glass, so every fit theme carries over.
+ */
+.slash-anchor {
+  position: fixed;
+  z-index: 50;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.slash-menu {
+  --slash-row: 32px;
+  --slash-row-radius: 10px;
+  --slash-type: 13px;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--zeron-line, var(--border));
+  border-radius: calc(var(--slash-row-radius) + 6px);
+  background: var(--popover, var(--background));
+  -webkit-backdrop-filter: blur(20px) saturate(1.1);
+  backdrop-filter: blur(20px) saturate(1.1);
+  color: var(--foreground);
+  box-shadow:
+    0 2px 4px -2px rgb(from var(--fp-shade, #000) r g b / 0.08),
+    0 8px 20px -6px rgb(from var(--fp-shade, #000) r g b / 0.14);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  transform-origin: 50% 100%;
+  animation: slash-in 160ms var(--craft-ease-soft, ease-out) both;
+}
+
+@media (pointer: coarse) {
+  .slash-menu {
+    --slash-row: 44px;
+    --slash-row-radius: 14px;
+    --slash-type: 14px;
+  }
+}
+
+.slash-menu[data-state='closing'] {
+  animation: slash-out 160ms var(--craft-ease-soft, ease-out) both;
+  pointer-events: none;
+}
+
+.slash-list {
+  max-height: 420px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 6px;
+  scroll-padding: 6px;
+}
+
+.slash-list::-webkit-scrollbar {
+  display: none;
+}
+
+.slash-group-label {
+  padding: 8px 8px 4px;
+  font: 500 12px/16px var(--font-sans);
+  color: var(--muted-foreground);
+}
+
+.slash-group:first-child .slash-group-label {
+  padding-top: 6px;
+}
+
+.slash-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: var(--slash-row);
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--slash-row-radius);
+  background: transparent;
+  color: var(--foreground);
+  font: 400 var(--slash-type) / 20px var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.slash-row.is-active,
+.slash-row:active {
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
+.slash-row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
+
+.slash-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--muted-foreground);
+}
+
+.slash-name {
+  flex: none;
+  min-width: min(var(--slash-name, 10ch), 40%);
+  max-width: 72%;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.slash-slash {
+  color: var(--muted-foreground);
+}
+
+.slash-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.slash-enter {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+  color: var(--muted-foreground);
+  font: 500 10px/1 var(--font-sans);
+}
+
+.slash-empty {
+  margin: 0;
+  padding: 6px 8px;
+  font: 400 var(--slash-type) / 20px var(--font-sans);
+  color: var(--muted-foreground);
+}
+
+.slash-empty-query {
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.slash-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--zeron-line, var(--border));
+  font: 400 12px/16px var(--font-sans);
+  color: var(--muted-foreground);
+}
+
+.slash-status-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  animation: slash-reconnect 1.6s ease-in-out infinite;
+}
+
+@keyframes slash-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+}
+
+@keyframes slash-out {
+  to { opacity: 0; transform: translateY(4px) scale(0.98); }
+}
+
+@keyframes slash-reconnect {
+  50% { opacity: 0.35; }
+}
+
+/* A picked skill waiting above the field reads as the same /name token. */
+.chip-skill .chip-name {
+  font-weight: 500;
+}
+
+.chip-skill .chip-skill-mark {
+  margin-right: -6px; /* the chip's 6px gap; "/pdf" reads as one token */
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slash-menu,
+  .slash-menu[data-state='closing'],
+  .slash-status-dot {
+    animation: none;
+  }
+}
+
+/* The rim critter stands where the menu's gap is; it steps away while the
+   menu is open, the same way it does for queued messages. */
+:root[data-client='standalone'][data-fit] body:has(.composer[data-slash-open]) .composer-critter {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 120ms ease-out,
+    visibility 0s linear 120ms;
+}

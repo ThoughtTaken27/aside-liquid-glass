@@ -1,0 +1,157 @@
+/* ==========================================================================
+ * Materials: one frosted-glass system for floating chrome, everywhere.
+ *
+ * Apple's rule (HIG Materials; WWDC "Meet Liquid Glass"): translucency is
+ * for the functional layer that floats over content -- bars, controls,
+ * sheets, menus, banners. Content itself stays solid. Before this layer the
+ * Next screen and the home top controls were glass while the composer,
+ * sheets, side panel, menus and banners were opaque, so the material
+ * changed depending on which screen you were on.
+ *
+ * Three weights, reusing the app's own glass recipe (craft.css --g-edge /
+ * --g-shadow, the same hairline + top light + contact/ambient shadow) and
+ * the exact blur the home top controls already use:
+ *
+ *   bar    composer, header buttons, jump-to-latest, island, toasts, banner
+ *   sheet  model sheet, session panel, popovers   (bigger = thicker)
+ *   scrim  the dimmed page behind a modal sheet   (a hint of depth only)
+ *
+ * Content inside sheets (.surface-group cards) stays opaque: a light
+ * translucent surface is never stacked on another one.
+ * ======================================================================= */
+
+:root:root[data-client='standalone'][data-fit] {
+  --mat-blur: blur(24px) saturate(1.32);
+  --mat-blur-thick: blur(36px) saturate(1.45);
+  --mat-bar: rgb(from var(--fp-composer) r g b / 0.76);
+  --mat-chip: rgb(from var(--fp-page) r g b / 0.62);
+  --mat-sheet: rgb(from var(--fp-sheet) r g b / 0.82);
+  --mat-control: rgb(from var(--fp-shade) r g b / 0.065);
+  --mat-control-press: rgb(from var(--fp-shade) r g b / 0.11);
+  --mat-scrim-blur: blur(2px);
+  /* Bigger surfaces read thicker: a deeper ambient shadow than a chip. */
+  --mat-sheet-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.9),
+    0 1px 2px rgb(from var(--fp-shade) r g b / 0.05),
+    0 24px 60px -24px rgb(from var(--fp-shade) r g b / 0.28);
+}
+:root:root[data-client='standalone'][data-fit='midnight'] {
+  --mat-bar: rgb(from var(--fp-composer) r g b / 0.78);
+  --mat-chip: rgb(from var(--fp-top) r g b / 0.62);
+  --mat-sheet: rgb(from var(--fp-sheet) r g b / 0.84);
+  --mat-control: var(--fp-control);
+  --mat-control-press: var(--fp-control-press);
+  --mat-sheet-shadow:
+    inset 0 0.5px 0 rgb(255 245 230 / 0.08),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 28px 64px -24px rgb(0 0 0 / 0.75);
+}
+
+/* --- Bars ------------------------------------------------------------- */
+
+/* The composer floats over the conversation, which scrolls beneath it. */
+:root:root[data-client='standalone'][data-fit] .composer {
+  background: var(--mat-bar);
+  -webkit-backdrop-filter: var(--mat-blur);
+  backdrop-filter: var(--mat-blur);
+}
+/* Its discs become a tint of the material rather than solid patches on it. */
+:root:root[data-client='standalone'][data-fit] .composer :is(.round-button.ghost, .voice-button, .pill.composer-context-control) {
+  background: var(--mat-control);
+}
+:root:root[data-client='standalone'][data-fit] .composer :is(.round-button.ghost, .voice-button, .pill.composer-context-control):active:not(:disabled) {
+  background: var(--mat-control-press);
+}
+:root:root[data-client='standalone'][data-fit] .composer .round-button.send:not(.stop):disabled {
+  background: var(--mat-control);
+}
+
+/* Header buttons match the home top bar: the same glass disc on every screen
+   (threads, Settings, Memory, Routines). The title stays on the page. */
+:root:root[data-client='standalone'][data-fit] .thread-header > .icon-button,
+:root:root[data-client='standalone'][data-fit] .thread-header > :not(.thread-header-title) > .icon-button {
+  border-radius: 999px;
+  background: var(--mat-chip);
+  -webkit-backdrop-filter: var(--mat-blur);
+  backdrop-filter: var(--mat-blur);
+  border: var(--g-edge);
+  box-shadow: var(--g-shadow);
+  color: var(--fp-ink);
+}
+
+:root:root[data-client='standalone'][data-fit] :is(.jump-latest, .activity-island, .toast, .queued-card) {
+  background: var(--mat-bar);
+  -webkit-backdrop-filter: var(--mat-blur);
+  backdrop-filter: var(--mat-blur);
+  border: var(--g-edge);
+  box-shadow: var(--g-shadow);
+}
+
+/* Scroll edge under the floating composer (iOS 26 "scroll edge effect").
+   Text sliding beneath the card dissolves into the page instead of peeking
+   out sharp in the gap below it: solid page in that gap, a soft blur that
+   thins out by the card's middle, so its upper half still shows the
+   conversation through the glass. */
+:root:root[data-client='standalone'][data-fit] .thread-footer::before {
+  display: block;
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(to top, var(--fp-page) 0, var(--fp-page) 18px, rgb(from var(--fp-page) r g b / 0.7) 32%, rgb(from var(--fp-page) r g b / 0) 58%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to top, #000 30%, transparent 62%);
+  mask-image: linear-gradient(to top, #000 30%, transparent 62%);
+}
+
+/* With a queued message stacked on the composer the footer is taller; keep
+   the page solid through the gap between the two cards so no half-line of
+   the answer shows between them. The queued card is denser glass because
+   it carries text of its own. */
+:root:root[data-client='standalone'][data-fit] .thread-footer:has(.queued-card)::before {
+  background: linear-gradient(to top, var(--fp-page) 0, var(--fp-page) 64%, rgb(from var(--fp-page) r g b / 0) 92%);
+  -webkit-mask-image: linear-gradient(to top, #000 70%, transparent 96%);
+  mask-image: linear-gradient(to top, #000 70%, transparent 96%);
+}
+:root:root[data-client='standalone'][data-fit] .queued-card {
+  background: rgb(from var(--fp-composer) r g b / 0.9);
+}
+
+/* --- Sheets ----------------------------------------------------------- */
+
+:root:root[data-client='standalone'][data-fit] :is(.sheet.surface-sheet, .popover) {
+  background: var(--mat-sheet);
+  -webkit-backdrop-filter: var(--mat-blur-thick);
+  backdrop-filter: var(--mat-blur-thick);
+  border: var(--g-edge);
+  box-shadow: var(--mat-sheet-shadow);
+}
+/* Dim to focus; the faint blur only says "this page is behind glass". */
+:root:root[data-client='standalone'][data-fit] .sheet-backdrop {
+  -webkit-backdrop-filter: var(--mat-scrim-blur);
+  backdrop-filter: var(--mat-scrim-blur);
+}
+
+/* --- Accessibility and capability fallbacks --------------------------- */
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root:root[data-client='standalone'][data-fit] :is(.composer, .thread-header .icon-button, .jump-latest, .activity-island, .toast, .queued-card, .sheet.surface-sheet, .popover, .sheet-backdrop) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  :root:root[data-client='standalone'][data-fit] .thread-footer::before {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  :root:root[data-client='standalone'][data-fit] .composer { background: var(--fp-composer); }
+  :root:root[data-client='standalone'][data-fit] :is(.sheet.surface-sheet, .popover) { background: var(--fp-sheet); }
+  :root:root[data-client='standalone'][data-fit] :is(.jump-latest, .activity-island, .toast, .queued-card, .thread-header .icon-button) { background: var(--fp-card); }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root:root[data-client='standalone'][data-fit] .composer { background: var(--fp-composer); }
+  :root:root[data-client='standalone'][data-fit] :is(.sheet.surface-sheet, .popover) { background: var(--fp-sheet); }
+  :root:root[data-client='standalone'][data-fit] :is(.jump-latest, .activity-island, .toast, .queued-card, .thread-header .icon-button) { background: var(--fp-card); }
+}

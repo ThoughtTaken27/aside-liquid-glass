@@ -1,0 +1,1187 @@
+/*
+ * affect.css -- the refinement layer.
+ *
+ * Values measured from affectUI's rendered components (Classic style) and
+ * rebuilt on Aside's own tokens, so Paper and Midnight both inherit them:
+ *
+ *   ease        cubic-bezier(0.22, 1, 0.36, 1) for nearly everything
+ *   pop         cubic-bezier(0.34, 1.56, 0.64, 1), 460ms, checks only
+ *   text in     opacity 0, translateY(4-6px), blur(3px) -> rest, 300-520ms
+ *   text out    -> opacity 0, translateY(-4px), blur(3px), 220-320ms
+ *   chip in     translateY(4px) scale(0.92), 420ms, 120ms + 160ms stagger
+ *   sweep       a 24% light band, 300% wide, 1.6s linear, live labels only
+ *   draw        stroke-dashoffset to 0, 340-360ms after a 120-180ms beat
+ *   press       scale(0.97), instant in, 160ms out
+ *
+ * Every animation here marks a real change of state. History that the
+ * virtual list remounts never replays an entrance (`.is-fresh` is only set
+ * on things that arrived while the reader watched).
+ *
+ * Loaded last in every entry stack. Standalone only; Telegram untouched.
+ */
+
+:root[data-client='standalone'] {
+  --af-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --af-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --af-shine: rgb(255 255 255 / 0.86);
+  --af-chip: oklch(18% 0.01 92 / 0.055);
+  --af-chip-press: oklch(18% 0.01 92 / 0.1);
+  --af-tile: rgb(255 255 255 / 0.92);
+  --af-tile-ink: oklch(18% 0.008 92 / 0.72);
+  --af-tile-ring: oklch(18% 0.008 92 / 0.08);
+  --af-dot: oklch(18% 0.008 92 / 0.26);
+  --af-done: var(--foreground);
+  --af-done-ink: var(--background, #fff);
+  --af-tip: var(--foreground);
+  --af-tip-ink: var(--background, #fff);
+}
+:root[data-client='standalone'].dark,
+:root[data-client='standalone'][data-fit='midnight'] {
+  --af-shine: rgb(255 255 255 / 0.92);
+  --af-chip: rgb(255 255 255 / 0.065);
+  --af-chip-press: rgb(255 255 255 / 0.11);
+  --af-tile: rgb(255 255 255 / 0.1);
+  --af-tile-ink: rgb(255 255 255 / 0.78);
+  --af-tile-ring: rgb(255 255 255 / 0.06);
+  --af-dot: rgb(255 255 255 / 0.26);
+}
+
+/* --- shared keyframes --------------------------------------------------- */
+
+@keyframes af-in {
+  from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes af-in-sm {
+  from { opacity: 0; transform: translateY(4px); filter: blur(3px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes af-out {
+  from { opacity: 1; transform: none; filter: none; }
+  to { opacity: 0; transform: translateY(-4px); filter: blur(3px); }
+}
+@keyframes af-roll-in {
+  from { opacity: 0; transform: translateY(70%); filter: blur(3px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes af-roll-out {
+  from { opacity: 1; transform: none; filter: none; }
+  to { opacity: 0; transform: translateY(-70%); filter: blur(3px); }
+}
+@keyframes af-chip {
+  from { opacity: 0; transform: translateY(4px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes af-line {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes af-pop {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes af-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes af-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+@keyframes af-ray {
+  0% { opacity: 1; }
+  100% { opacity: 0.18; }
+}
+
+/* Live label motion is shared with Next/desk in text-motion.css. */
+
+/* --- Checks and ticks --------------------------------------------------- */
+
+:root[data-client='standalone'] .af-check {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+:root[data-client='standalone'] .af-check circle {
+  fill: var(--af-done);
+}
+:root[data-client='standalone'] .af-check.is-quiet circle {
+  fill: var(--work-ink);
+}
+:root[data-client='standalone'] .af-check path {
+  fill: none;
+  stroke: var(--af-done-ink);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 14;
+  stroke-dashoffset: 0;
+}
+:root[data-client='standalone'] .af-check.is-animated {
+  animation: af-pop 460ms var(--af-pop) both;
+}
+:root[data-client='standalone'] .af-check.is-animated path {
+  stroke-dashoffset: 14;
+  animation: af-draw 360ms var(--af-ease) 180ms forwards;
+}
+:root[data-client='standalone'] .af-tick path {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+:root[data-client='standalone'] .af-tick.is-animated path {
+  stroke-dashoffset: 1;
+  animation: af-draw 340ms var(--af-ease) 160ms forwards;
+}
+
+/* --- Ray spinner: turns without rotating -------------------------------- */
+
+:root[data-client='standalone'] .af-rays {
+  overflow: visible;
+  animation: none;
+}
+:root[data-client='standalone'] .af-rays line {
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0.18;
+  animation: af-ray 800ms linear infinite;
+}
+
+/* --- Blur-in wrapper ------------------------------------------------------ */
+
+:root[data-client='standalone'] .af-blur-in {
+  display: inline-block;
+  animation: af-in-sm 420ms var(--af-ease) both;
+}
+:root[data-client='standalone'] div.af-blur-in {
+  display: block;
+}
+
+/* ===================================================================== */
+/* Thinking State: the turn fold                                          */
+/* ===================================================================== */
+
+/* Header: chevron in the 20px node column, words on the content column. */
+:root[data-client='standalone'] .turn-row {
+  gap: 12px;
+  min-height: 30px;
+  margin: 0 0 0 -4px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 8px;
+  font-size: 15px;
+  line-height: 22px;
+  letter-spacing: -0.008em;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--af-ease);
+}
+:root[data-client='standalone'] .turn-row::before {
+  inset: -7px -8px;
+}
+:root[data-client='standalone'] .turn-row:active {
+  background: var(--af-chip);
+  transform: scale(0.98);
+  transition-duration: 0ms;
+}
+@media (hover: hover) {
+  :root[data-client='standalone'] .turn-row:hover {
+    background: var(--af-chip);
+  }
+}
+:root[data-client='standalone'] .turn-row-chevron {
+  width: 20px;
+  height: 20px;
+  transition: transform 260ms var(--af-ease);
+}
+:root[data-client='standalone'] .turn-row-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28em;
+  white-space: nowrap;
+}
+:root[data-client='standalone'] .turn-row-label.is-fresh {
+  animation: af-in 420ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .turn-row-time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The body reveals on the same curve the header turns on. */
+:root[data-client='standalone'] .turn-body {
+  transition:
+    grid-template-rows 300ms var(--af-ease),
+    opacity 200ms ease;
+}
+:root[data-client='standalone'] .turn-body[data-open='true'] {
+  transition:
+    grid-template-rows 360ms var(--af-ease),
+    opacity 260ms ease 40ms;
+}
+/*
+ * The fold the app closes on its own, when the answer starts. A tap wants
+ * the snappy ease-out above (most of the travel in the first 80ms); a
+ * collapse nobody asked for moves the answer someone is reading, and that
+ * same curve read as a lurch. Gentle in, gentle out, over half a second.
+ */
+:root[data-client='standalone'] .turn-body[data-auto='true'][data-open='false'] {
+  transition:
+    grid-template-rows 520ms cubic-bezier(0.45, 0, 0.2, 1),
+    opacity 320ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .turn-body[data-auto='true'][data-open='false'] {
+    transition: none;
+  }
+}
+
+/* --- The timeline --------------------------------------------------------- */
+
+:root[data-client='standalone'] .tl {
+  margin: 0;
+  padding: 8px 0 0;
+  list-style: none;
+}
+:root[data-client='standalone'] .tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 12px;
+  padding-bottom: 12px;
+}
+:root[data-client='standalone'] .tl-item:last-child {
+  padding-bottom: 4px;
+}
+/* A hairline from each node down to the next. */
+:root[data-client='standalone'] .tl-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 9.5px;
+  top: 26px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--rail);
+  transform-origin: top;
+}
+:root[data-client='standalone'] .tl-item:has(+ .tl-item.is-fresh)::before {
+  animation: af-line 520ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .tl-item.is-fresh {
+  animation: af-in 520ms var(--af-ease) both;
+}
+
+:root[data-client='standalone'] .tl-node {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 30px;
+  color: var(--work-ink);
+}
+:root[data-client='standalone'] .tl-node .run-glyph {
+  width: 20px;
+  height: 20px;
+}
+:root[data-client='standalone'] .tl-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--af-dot);
+}
+
+/* A run's row inside the timeline: no glyph of its own, flush left. */
+:root[data-client='standalone'] .tl .fold {
+  margin: 0;
+}
+:root[data-client='standalone'] .turn .tl .fold-row:not(.is-running) {
+  position: relative;
+  width: calc(100% + 8px);
+  min-height: 30px;
+  margin: 0 0 0 -6px;
+  padding: 5px 6px 5px 6px;
+  border-radius: 8px;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 20px;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+:root[data-client='standalone'] .turn .tl .fold-row:not(.is-running):active {
+  background: var(--af-chip);
+  transition-duration: 0ms;
+}
+@media (hover: hover) {
+  :root[data-client='standalone'] .turn .tl .fold-row:not(.is-running):hover {
+    background: var(--af-chip);
+  }
+}
+:root[data-client='standalone'] .turn .tl .fold.is-open > .fold-row {
+  color: var(--turn-ink-strong);
+}
+
+/* Agent notes are steps here, not the answer: one size down, one shade
+   lighter, still full sentences. */
+:root[data-client='standalone'] .turn .turn-body .tl-content.work-text {
+  margin: 0;
+  padding-top: 4px;
+  color: var(--turn-ink-strong);
+  font-size: 15px;
+  line-height: 22px;
+}
+:root[data-client='standalone'] .turn .turn-body .tl-content.work-text :is(p, li) {
+  font-size: inherit;
+  line-height: inherit;
+}
+:root[data-client='standalone'] .turn .turn-body .tl-content.work-text > :first-child > :first-child {
+  margin-top: 0;
+}
+:root[data-client='standalone'] .turn .turn-body .tl-content.work-text p:last-child {
+  margin-bottom: 0;
+}
+
+/* The steps of an opened run sit in the content column; the timeline's
+   own line already carries the structure, so the old rail stands down. */
+:root[data-client='standalone'] .tl .timeline {
+  margin: 2px 0 4px -6px;
+  padding-left: 0;
+  animation: af-in-sm 320ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .tl .timeline::before {
+  content: none;
+}
+
+/* --- Sources ------------------------------------------------------------ */
+
+:root[data-client='standalone'] .tl-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 4px;
+}
+:root[data-client='standalone'] .tl-source {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 10px 0 5px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--af-chip);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.003em;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms ease, transform 160ms var(--af-ease);
+}
+:root[data-client='standalone'] .tl-source::before {
+  content: '';
+  position: absolute;
+  inset: -4px -2px;
+}
+:root[data-client='standalone'] .tl-source:active {
+  background: var(--af-chip-press);
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+:root[data-client='standalone'] .tl-favicon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--af-tile);
+  box-shadow: inset 0 0 0 0.5px var(--af-tile-ring);
+  color: var(--af-tile-ink);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+:root[data-client='standalone'] .tl-source-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+:root[data-client='standalone'] .tl-more {
+  padding: 0 10px;
+  background: none;
+  color: var(--work-ink);
+  cursor: pointer;
+}
+:root[data-client='standalone'] .tl-source.is-new {
+  animation: af-chip 420ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .tl-sources.is-fresh .tl-source {
+  animation: af-chip 420ms var(--af-ease) both;
+  animation-delay: calc(120ms + var(--i, 0) * 160ms);
+}
+
+/* --- Done ---------------------------------------------------------------- */
+
+:root[data-client='standalone'] .tl-item[data-kind='done'] .tl-node {
+  height: 22px;
+}
+:root[data-client='standalone'] .tl-done-label {
+  padding-top: 1px;
+  color: var(--turn-ink-strong);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* --- The active node (Thinking State's live step) ----------------------- */
+
+/*
+ * Nodes are never added and removed; the active state only moves forward
+ * to the newest node. A run that is active turns its node into rays and
+ * says its latest step, glowing; a note that is active pulses its dot
+ * (the agent is thinking after writing it). When something new arrives
+ * the old node settles: rays cross-fade back to its icon and its words
+ * roll once into the summary, fading from clay to the quiet ink.
+ */
+:root[data-client='standalone'] .tl-glyph-swap {
+  display: grid;
+  place-items: center;
+}
+:root[data-client='standalone'] .tl-glyph-swap.is-changed {
+  animation: af-swap-in 260ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .tl-item.is-active .tl-node,
+:root[data-client='standalone'] .tl-item.is-active .tl-node .af-rays {
+  color: var(--brand);
+}
+:root[data-client='standalone'] .turn .tl .fold-row .tl-label {
+  color: var(--turn-ink);
+  transition: color 300ms ease;
+}
+:root[data-client='standalone'] .turn .tl .tl-item.is-active .fold-row .tl-label {
+  color: var(--brand-text);
+  font-weight: var(--font-weight-medium);
+}
+:root[data-client='standalone'] .tl-label > .af-roll {
+  display: grid;
+  width: 100%;
+}
+:root[data-client='standalone'] .tl-label .af-roll-label > .af-shine {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+:root[data-client='standalone'] .tl-label .af-roll-label > .af-shine.is-active::after {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@keyframes af-dot-pulse {
+  50% { transform: scale(0.7); opacity: 0.5; }
+}
+:root[data-client='standalone'] .tl-dot {
+  transition: background-color 300ms ease;
+}
+:root[data-client='standalone'] .tl-item.is-active[data-kind='note'] .tl-dot {
+  background: var(--brand);
+  animation: af-dot-pulse 1.2s ease-in-out infinite;
+}
+/* Subagent lanes sit in the run's content column. */
+:root[data-client='standalone'] .tl .agent-tree {
+  margin: 4px 0 6px;
+}
+/* The pre-step row (no work yet) sits on the same two columns. */
+:root[data-client='standalone'] .stream-footer .activity-line {
+  gap: 12px;
+}
+:root[data-client='standalone'] .stream-footer .activity-mark {
+  flex-basis: 20px;
+  width: 20px;
+  margin-left: 0;
+  color: var(--brand);
+}
+:root[data-client='standalone'] .stream-footer .activity-mark .af-rays {
+  color: var(--brand);
+}
+/* While live there is no header above the timeline. */
+:root[data-client='standalone'] .turn.is-live > .turn-body {
+  margin-bottom: 0;
+}
+
+/* ===================================================================== */
+/* Reduced motion: every end state, none of the travel                    */
+/* ===================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] :is(
+    .af-roll-label, .af-blur-in, .af-check, .tl-item, .tl-source,
+    .turn-row-label, .tl .timeline, .tl-glyph-swap, .tl-dot
+  ) {
+    animation: none !important;
+  }
+  :root[data-client='standalone'] .tl-item::before {
+    animation: none !important;
+  }
+  :root[data-client='standalone'] .af-roll-label.is-out {
+    display: none;
+  }
+  :root[data-client='standalone'] .af-shine.is-active::after {
+    display: none;
+  }
+  :root[data-client='standalone'] :is(.af-check path, .af-tick path) {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  :root[data-client='standalone'] .af-rays line {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ===================================================================== */
+/* Thinking Loader: the live line                                          */
+/* ===================================================================== */
+
+/* The phrase keeps the live accent as its own colour; the light band is
+   an overlay (`.af-shine`), and a new phrase rolls up through a blur
+   instead of cutting. The old clipped-gradient text stands down: it could
+   not survive the roll's transforms. */
+:root:root[data-client='standalone'] .fold-row.is-running .fold-label,
+:root:root[data-client='standalone'] .stream-footer:is(.is-working, .is-thinking) .activity-line > [role='status'],
+:root:root[data-client='standalone'][data-fit] .stream-footer:is(.is-working, .is-thinking) .activity-line > [role='status'] {
+  background-image: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--brand-text);
+  animation: none;
+}
+:root[data-client='standalone'] :is(.fold-label, .activity-heading) > .af-roll {
+  display: grid;
+  width: 100%;
+}
+:root[data-client='standalone'] :is(.fold-label, .activity-heading) .af-roll-label > .af-shine {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* The light band truncates exactly where the words do, ellipsis included. */
+:root[data-client='standalone'] :is(.fold-label, .activity-heading) .af-roll-label > .af-shine.is-active::after {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===================================================================== */
+/* AI Answer: words materialise, a dot marks where the text grows          */
+/* ===================================================================== */
+
+@keyframes af-word {
+  from { opacity: 0; filter: blur(3px); }
+  to { opacity: 1; filter: none; }
+}
+@keyframes af-caret {
+  50% { transform: scale(0.6); opacity: 0.45; }
+}
+:root[data-client='standalone'] .md .sw {
+  animation: af-word 420ms var(--af-ease) var(--sw, 0ms) backwards;
+}
+/* Zero-width in the line, drawn just past the last word: a dot that
+   took 12px could wrap onto a line of its own and pull it back the moment
+   the next word arrived, a 26px hop at the end of every few lines. */
+:root[data-client='standalone'] .md .caret-dot {
+  display: inline-block;
+  position: relative;
+  width: 0;
+  height: 7px;
+  vertical-align: 0.06em;
+}
+:root[data-client='standalone'] .md .caret-dot::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand);
+  animation: af-caret 1s ease-in-out 500ms infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .md .sw {
+    animation: none;
+  }
+  :root[data-client='standalone'] .md .caret-dot::before {
+    animation: none;
+  }
+}
+
+/* ===================================================================== */
+/* Message Actions: copy blurs into a check that draws itself              */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .af-morph {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+:root[data-client='standalone'] .af-layer {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: scale(0.6);
+  filter: blur(2px);
+  transition: opacity 200ms ease, transform 300ms var(--af-ease), filter 200ms ease;
+}
+:root[data-client='standalone'] .af-layer[data-on] {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+:root[data-client='standalone'] .af-layer.is-confirm path {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+:root[data-client='standalone'] .af-layer.is-confirm[data-on] path {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 340ms var(--af-ease) 60ms;
+}
+/* Every icon button gives under the finger: the glyph, not the hit area. */
+:root[data-client='standalone'] :is(.message-action, .code-fence-copy, .file-card-copy):active .af-morph {
+  transform: scale(0.9);
+  transition: transform 0ms;
+}
+:root[data-client='standalone'] :is(.message-action, .code-fence-copy, .file-card-copy) .af-morph {
+  transition: transform 160ms var(--af-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .af-layer {
+    transform: none;
+    filter: none;
+    transition: opacity 120ms ease;
+  }
+  :root[data-client='standalone'] .af-layer.is-confirm path {
+    stroke-dashoffset: 0;
+    transition: none;
+  }
+}
+
+/* ===================================================================== */
+/* Text Reveal: the home greeting arrives word by word                     */
+/* ===================================================================== */
+
+:root[data-client='standalone'] {
+  --af-rv-blur: 8px;
+}
+:root[data-client='standalone'].dark,
+:root[data-client='standalone'][data-fit='midnight'] {
+  --af-rv-blur: 6px;
+}
+@keyframes af-reveal {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
+}
+:root[data-client='standalone'] .af-reveal-w {
+  display: inline-block;
+  animation: af-reveal 440ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--af-rv-delay, 0ms) + var(--i, 0) * 40ms);
+}
+/* The words carry the entrance now; the heading itself stays put. */
+:root:root[data-client='standalone'] .rest-hero.is-first .rest-greeting:has(.af-reveal),
+:root:root[data-client='standalone'][data-fit] .rest-hero.is-first .rest-greeting:has(.af-reveal) {
+  animation: none;
+}
+
+/* ===================================================================== */
+/* Blur Crossfade: in-place swaps                                          */
+/* ===================================================================== */
+
+@keyframes af-swap-in {
+  from { opacity: 0; filter: blur(6px); transform: scale(0.98); }
+  to { opacity: 1; filter: blur(0); transform: none; }
+}
+@keyframes af-swap-out {
+  from { opacity: 1; filter: blur(0); transform: none; }
+  to { opacity: 0; filter: blur(6px); transform: scale(1.02); }
+}
+:root[data-client='standalone'] .af-swap {
+  position: relative;
+  display: inline-grid;
+  max-width: 100%;
+  min-width: 0;
+}
+:root[data-client='standalone'] .af-swap-layer {
+  grid-area: 1 / 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-client='standalone'] .af-swap-layer.is-in {
+  animation: af-swap-in 380ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .af-swap-layer.is-out {
+  animation: af-swap-out 300ms ease-in both;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] :is(.af-reveal-w, .af-swap-layer.is-in) {
+    animation: none;
+  }
+  :root[data-client='standalone'] .af-swap-layer.is-out {
+    display: none;
+  }
+}
+
+/* ===================================================================== */
+/* Number Ticker                                                           */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .af-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+:root[data-client='standalone'] .af-ticker {
+  /* Exactly one line box of the surrounding text, top-aligned, so the
+     digits sit on the same baseline as the words beside them. */
+  --af-lh: 1lh;
+  position: relative;
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  vertical-align: top;
+}
+:root[data-client='standalone'] .af-ticker-track {
+  display: inline-flex;
+  align-items: flex-start;
+  height: var(--af-lh);
+  line-height: var(--af-lh);
+}
+:root[data-client='standalone'] .af-ticker-col {
+  display: inline-block;
+  height: var(--af-lh);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+}
+:root[data-client='standalone'] .af-ticker-col.is-enter {
+  animation: af-ticker-in 450ms var(--af-ease) both;
+}
+@keyframes af-ticker-in {
+  from { opacity: 0; transform: translateY(-35%); }
+}
+:root[data-client='standalone'] .af-ticker-stack {
+  display: flex;
+  flex-direction: column;
+  transition: transform 520ms var(--af-ease);
+}
+:root[data-client='standalone'] .af-ticker-stack.is-instant {
+  transition: none;
+}
+:root[data-client='standalone'] .af-ticker-cell,
+:root[data-client='standalone'] .af-ticker-static {
+  display: block;
+  height: var(--af-lh);
+  text-align: center;
+}
+:root[data-client='standalone'] .af-ticker-static {
+  white-space: pre;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .af-ticker-stack { transition: none; }
+  :root[data-client='standalone'] .af-ticker-col.is-enter { animation: none; }
+}
+
+/* ===================================================================== */
+/* Tasks: Agent Plan's state progression, Aside's colours                  */
+/* ===================================================================== */
+
+/* Aside's meanings win over the reference: clay marks a finished task
+   (not affectUI's ink), and a strike-through stays reserved for
+   cancelled work, so a finished label only fades to the muted ink. */
+:root[data-client='standalone'] .todo-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: calc((var(--text-sm) * var(--leading-snug) - 15px) / 2);
+}
+:root[data-client='standalone'] .todo-mark.is-live,
+:root[data-client='standalone'] .todo-mark.is-live .af-rays {
+  color: var(--brand);
+}
+:root[data-client='standalone'] .todo-mark .af-check circle {
+  fill: var(--brand);
+}
+:root[data-client='standalone'] .todo-row .todo-content {
+  transition: color 300ms ease;
+}
+:root[data-client='standalone'] .todo-list > .todo-row {
+  animation: af-in-sm 360ms var(--af-ease) both;
+  animation-delay: calc(min(var(--i, 0), 8) * 30ms);
+}
+:root[data-client='standalone'] .todo-toggle-label > .af-roll {
+  display: grid;
+  width: 100%;
+}
+:root[data-client='standalone'] .todo-ring-arc {
+  transition: stroke-dashoffset 520ms var(--af-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .todo-list > .todo-row { animation: none; }
+}
+
+/* ===================================================================== */
+/* Toasts: thrown aside, and a status mark that draws itself               */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .toast {
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+:root[data-client='standalone'] .toast.is-thrown {
+  transition: transform 300ms var(--af-ease), opacity 220ms ease !important;
+}
+/* The mark carries the tone, so the words stay in ink and stay readable. */
+:root[data-client='standalone'] .toast:is(.is-success, .is-error) .toast-message {
+  color: var(--foreground);
+}
+:root[data-client='standalone'] .toast-icon {
+  flex: none;
+  margin-right: -4px;
+  overflow: visible;
+  animation: af-pop 460ms var(--af-pop) 60ms both;
+}
+:root[data-client='standalone'] .toast.is-success .toast-icon { color: var(--success); }
+:root[data-client='standalone'] .toast.is-error .toast-icon { color: var(--destructive); }
+:root[data-client='standalone'] .toast-stroke {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: af-draw 340ms var(--af-ease) 200ms forwards;
+}
+:root[data-client='standalone'] .toast-stroke.is-second {
+  animation-delay: 300ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .toast-icon { animation: none; }
+  :root[data-client='standalone'] .toast-stroke { animation: none; stroke-dashoffset: 0; }
+}
+
+/* ===================================================================== */
+/* Approval Card: an answered question settles into a receipt              */
+/* ===================================================================== */
+
+/* The options leave; the receipt rises out of a blur and its tick draws.
+   Only when it was answered on screen. */
+:root[data-client='standalone'] .question-receipt.is-fresh {
+  animation: af-in 420ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .question-receipt .af-tick {
+  flex: none;
+}
+
+/* ===================================================================== */
+/* Agent Inbox: Recents rows                                               */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .row-status {
+  display: inline-grid;
+  place-items: center;
+}
+:root[data-client='standalone'] .unread-dot.is-fresh {
+  animation: af-pop 460ms var(--af-pop) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] :is(.row-status, .unread-dot.is-fresh) { animation: none; }
+}
+
+/* ===================================================================== */
+/* Agent Lanes: subagent cards                                             */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .subagent-status {
+  gap: 4px;
+}
+:root[data-client='standalone'] .subagent-status.is-fresh {
+  animation: af-in-sm 360ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .subagent-step .af-shine {
+  display: inline;
+}
+
+/* ===================================================================== */
+/* Memory Panel: folders unfold in place, filter results fade in           */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .memory-tree li li,
+:root[data-client='standalone'] .memory-tree[data-surface-group='memory-results'] > li {
+  animation: af-in-sm 280ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .memory-tree li li:nth-child(2) { animation-delay: 25ms; }
+:root[data-client='standalone'] .memory-tree li li:nth-child(3) { animation-delay: 50ms; }
+:root[data-client='standalone'] .memory-tree li li:nth-child(4) { animation-delay: 75ms; }
+:root[data-client='standalone'] .memory-tree li li:nth-child(n+5) { animation-delay: 100ms; }
+
+/* ===================================================================== */
+/* Model Picker / Combobox: a moved check pops                             */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .pick-mark {
+  display: inline-grid;
+  place-items: center;
+}
+:root[data-client='standalone'] .pick-mark.is-fresh {
+  animation: af-pop 420ms var(--af-pop) both;
+}
+
+/* ===================================================================== */
+/* Cited Answer: chips pop in as the answer cites them                     */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .answer[data-answer-state='streaming'] .md .cite-chip {
+  animation: af-chip 380ms var(--af-ease) both;
+}
+
+/* ===================================================================== */
+/* Tool Call Card + Change Summary: details arrive, they do not appear     */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .step > :is(.tool-card, .file-card) {
+  animation: af-in-sm 320ms var(--af-ease) both;
+}
+:root[data-client='standalone'] .step-chevron {
+  transition: transform 260ms var(--af-ease);
+}
+
+/* ===================================================================== */
+/* Switches: the knob travels on the shared curve                          */
+/* ===================================================================== */
+
+:root[data-client='standalone'] .switch {
+  transition: background-color 220ms ease;
+}
+:root[data-client='standalone'] .switch-knob {
+  transition: transform 320ms var(--af-ease), width 200ms var(--af-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] :is(.subagent-status.is-fresh, .memory-tree li, .pick-mark.is-fresh, .md .cite-chip, .step > .tool-card, .step > .file-card) {
+    animation: none !important;
+  }
+}
+
+/* ===================================================================== */
+/* Shimmer Loader: one sweep shared by every placeholder                   */
+/* ===================================================================== */
+
+/* The band is pinned to the viewport, so all bars light up together as
+   one pass travelling across the screen, rather than each bar breathing
+   or sweeping on its own. Clay-tinted, as the boot skeleton chose. */
+@keyframes af-shm {
+  from { background-position: -50vw 0; }
+  to { background-position: 100vw 0; }
+}
+:root[data-client='standalone'] {
+  --af-shm-glow: color-mix(in oklab, var(--brand) 14%, transparent);
+}
+:root[data-client='standalone'].dark,
+:root[data-client='standalone'][data-fit='midnight'] {
+  --af-shm-glow: color-mix(in oklab, var(--brand) 12%, transparent);
+}
+:root[data-client='standalone'] :is(.thread-skeleton, .history-skeleton) > span {
+  opacity: 1;
+  background-color: var(--muted);
+  background-image: linear-gradient(100deg, transparent 0%, transparent 30%, var(--af-shm-glow) 50%, transparent 70%, transparent 100%);
+  background-size: 150vw 100%;
+  background-repeat: repeat-x;
+  background-attachment: fixed;
+  animation: af-shm 2.2s linear infinite;
+}
+:root[data-client='standalone'] .boot-skeleton-row {
+  animation: none;
+  opacity: 0.6;
+}
+:root[data-client='standalone'] .boot-skeleton-row::after {
+  background-image: linear-gradient(100deg, transparent 0%, transparent 30%, var(--af-shm-glow) 50%, transparent 70%, transparent 100%);
+  background-size: 150vw 100%;
+  background-repeat: repeat-x;
+  background-attachment: fixed;
+  animation: af-shm 2.2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] :is(.thread-skeleton, .history-skeleton) > span,
+  :root[data-client='standalone'] .boot-skeleton-row::after {
+    animation: none;
+    background-image: none;
+  }
+}
+
+/* Segmented Control: Chat/Web's weight eases instead of snapping; the
+   options are a fixed 56px, so nothing beside them moves. */
+:root[data-client='standalone'] .mode-switch-option {
+  transition: color 200ms ease, font-weight 220ms var(--af-ease);
+}
+
+/* The greeting spends motion on one short entrance, not a second colour
+ * wipe and drifting gradient. Its name keeps the existing clay ink. */
+:root[data-client='standalone'] .af-grad {
+  color: var(--brand-text);
+}
+
+/* ===================================================================== */
+/* Grid Background, trialled on home: faint, still, revealed once          */
+/* ===================================================================== */
+
+@property --af-grid-r {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 100%;
+}
+@keyframes af-grid-reveal {
+  from { --af-grid-r: 0%; }
+  to { --af-grid-r: 100%; }
+}
+:root[data-client='standalone'] .rest-hero {
+  position: relative;
+  isolation: isolate;
+}
+:root[data-client='standalone'] .rest-hero::before {
+  content: '';
+  display: block;
+  position: absolute;
+  inset: -40px -16px;
+  width: auto;
+  height: auto;
+  transform: none;
+  border-radius: 0;
+  filter: none;
+  opacity: 1;
+  background: none;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--af-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--af-grid-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: center center;
+  -webkit-mask-image: radial-gradient(ellipse 62% 54% at 50% 46%, #000 0%, rgb(0 0 0 / 0.5) 45%, transparent 100%);
+  mask-image: radial-gradient(ellipse 62% 54% at 50% 46%, #000 0%, rgb(0 0 0 / 0.5) 45%, transparent 100%);
+}
+:root[data-client='standalone'] .rest-hero.is-first::before {
+  clip-path: circle(var(--af-grid-r) at 50% 46%);
+  animation: af-grid-reveal 1.6s var(--af-ease) both;
+}
+:root[data-client='standalone'] {
+  --af-grid-line: oklch(18% 0.01 92 / 0.045);
+}
+:root[data-client='standalone'].dark,
+:root[data-client='standalone'][data-fit='midnight'] {
+  --af-grid-line: rgb(255 255 255 / 0.04);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .rest-hero.is-first::before { animation: none; clip-path: none; }
+}
+
+/* Loading text shimmers on its own colour (affectUI Shimmer Loader). */
+:root[data-client='standalone'] .af-loading {
+  color: var(--muted-foreground);
+}
+:root[data-client='standalone'] .thread-subtitle-swap {
+  display: inline-grid;
+  justify-items: center;
+}
+
+/* Exact measured Agent Run Tree: aisdkagents.com/ai-components/agent-run-tree.
+   Deliberately no phone reinterpretation: 28px rows and single-line labels. */
+:root[data-client='standalone'] .agent-tree {
+  --tree-card: lab(100% 0 0); --tree-ink: lab(.658503% 0 0); --tree-muted: lab(36.2% 0 .00000596046);
+  --tree-fill: lab(95.36% 0 0); --tree-line: oklab(.0899998 -.000000875443 .00000210851 / .12);
+  --tree-hover: oklab(.0899998 -.000000875443 .00000210851 / .06); --tree-done: #15803d;
+  --tree-shadow: 0 0 0 1px rgb(0 0 0 / .06), 0 1px 2px -1px rgb(0 0 0 / .06), 0 2px 4px rgb(0 0 0 / .04);
+  display: flex; flex-direction: column; min-width: 0; max-width: 100%; margin: 4px 0 10px 26px; padding: 12px;
+  border: 0; border-radius: 16px; background: var(--tree-card); color: var(--tree-ink); box-shadow: var(--tree-shadow);
+  font: 16px/24px var(--font-sans); container-type: inline-size; transition: box-shadow 150ms cubic-bezier(0,0,.2,1);
+}
+:root.dark[data-client='standalone'] .agent-tree {
+  --tree-card: lab(2.47865% 0 0); --tree-ink: lab(97.68% -.0000298023 .0000119209); --tree-muted: lab(55.92% -.0000298023 0);
+  --tree-fill: lab(.658503% 0 0); --tree-line: rgb(250 250 250 / .12); --tree-hover: rgb(250 250 250 / .06); --tree-done: #4ade80;
+  --tree-shadow: 0 0 0 1px rgb(255 255 255 / .08);
+}
+:root[data-client='standalone'] .agent-tree-heading { display: flex; align-items: center; height: 24px; min-width: 0; gap: 8px; }
+:root[data-client='standalone'] .agent-tree-header-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 8px; background: var(--tree-fill); }
+:root[data-client='standalone'] .agent-tree-heading-label { display: flex; flex: 1; min-width: 0; font: 500 13px/20px var(--font-sans); letter-spacing: -.01em; }
+:root[data-client='standalone'] .agent-tree-tally { flex: none; color: var(--tree-muted); font: 12px/16px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+:root[data-client='standalone'] .agent-tree-branches { display: flex; flex-direction: column; list-style: none; margin: 0; padding: 0; min-width: 0; }
+:root[data-client='standalone'] .agent-tree-branch { position: relative; min-width: 0; padding: 2px 0 0 24px; }
+:root[data-client='standalone'] .agent-tree-elbow { position: absolute; top: 0; left: 11.5px; width: 10px; height: 16px; border-bottom: 1px solid var(--tree-line); border-left: 1px solid var(--tree-line); border-bottom-left-radius: 8px; pointer-events: none; }
+:root[data-client='standalone'] .agent-tree-rail { position: absolute; top: 0; bottom: 0; left: 11.5px; width: 1px; background: var(--tree-line); pointer-events: none; }
+:root[data-client='standalone'] .agent-tree-branch:last-child > .agent-tree-rail { display: none; }
+:root[data-client='standalone'] .agent-tree-branch > .agent-tree-branches { margin-left: 1px; }
+:root[data-client='standalone'] .agent-tree-row { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; height: 28px; min-height: 28px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--tree-ink); font: 13px/16px var(--font-sans); text-align: left; cursor: pointer; transition: background-color 150ms cubic-bezier(0,0,.2,1); -webkit-tap-highlight-color: transparent; }
+:root[data-client='standalone'] .agent-tree-row:active { background: var(--tree-hover); transition-duration: 0ms; }
+:root[data-client='standalone'] :is(.agent-tree-row,.agent-tree-open-inline):focus-visible { outline: 2px solid var(--tree-muted); outline-offset: 2px; }
+:root[data-client='standalone'] .agent-tree-status { position: relative; display: inline-flex; flex: 0 0 14px; align-items: center; justify-content: center; width: 14px; height: 14px; color: var(--tree-muted); }
+:root[data-client='standalone'] .agent-tree-status svg { display: block; width: 100%; height: 100%; }
+:root[data-client='standalone'] .agent-tree-status.is-done { color: var(--tree-done); }
+:root[data-client='standalone'] .agent-tree-status.is-stopped { color: var(--destructive); }
+:root[data-client='standalone'] .agent-tree-spinner { animation: agent-tree-spin 1.8s linear infinite; }
+:root[data-client='standalone'] .agent-tree-name { flex: none; min-width: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; letter-spacing: -.01em; }
+:root[data-client='standalone'] .agent-tree-current { flex: 1; min-width: 0; color: var(--tree-muted); }
+:root[data-client='standalone'] .agent-tree-elapsed { flex: none; color: var(--tree-muted); font: 12px/16px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+:root[data-client='standalone'] .agent-tree-tokens { display: none; width: 36px; flex: none; color: var(--tree-muted); font: 12px/16px var(--font-sans); font-variant-numeric: tabular-nums; text-align: right; }
+:root[data-client='standalone'] .agent-tree-chevron { display: flex; width: 12px; height: 12px; flex: none; color: var(--tree-muted); transform: rotate(-90deg); transition: transform 150ms cubic-bezier(0,0,.2,1); }
+:root[data-client='standalone'] .agent-tree-chevron.is-open { transform: none; }
+:root[data-client='standalone'] .agent-tree-chevron svg { display: block; width: 12px; height: 12px; }
+:root[data-client='standalone'] .agent-tree-detail { overflow: hidden; }
+:root[data-client='standalone'] .agent-tree-detail[hidden] { display: none; }
+:root[data-client='standalone'] .agent-tree-detail-inner { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 2px 6px 8px 28px; }
+:root[data-client='standalone'] .agent-tree-detail :is(p,.agent-tree-open-inline) { margin: 0; font: 12px/16px var(--font-sans); text-wrap: pretty; overflow-wrap: anywhere; }
+:root[data-client='standalone'] :is(.agent-tree-brief,.agent-tree-earlier) { color: var(--tree-muted); }
+:root[data-client='standalone'] .agent-tree-steps { display: flex; flex-direction: column; gap: 4px; list-style: none; margin: 0; padding: 0; }
+:root[data-client='standalone'] .agent-tree-step { display: flex; min-width: 0; align-items: center; gap: 6px; font: 12px/16px var(--font-sans); }
+:root[data-client='standalone'] .agent-tree-step > .agent-tree-status { flex-basis: 12px; width: 12px; height: 12px; }
+:root[data-client='standalone'] .agent-tree-step > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-client='standalone'] .agent-tree-detail .agent-tree-result { padding: 8px 10px; border-radius: 10px; background: var(--tree-fill); color: var(--tree-ink); }
+:root[data-client='standalone'] .agent-tree-swap { position: relative; display: flex; min-width: 0; }
+:root[data-client='standalone'] .agent-tree-swap > span { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+:root[data-client='standalone'] .agent-tree-swap > .agent-tree-swap-out { position: absolute; inset: 0; pointer-events: none; animation: agent-tree-text-out 280ms cubic-bezier(.4,0,.2,1) both; }
+:root[data-client='standalone'] .agent-tree-swap-in { animation: agent-tree-text-in 250ms cubic-bezier(.4,0,.2,1) both; }
+@keyframes agent-tree-spin { to { transform: rotate(360deg); } }
+@keyframes agent-tree-text-in { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: blur(0); } }
+@keyframes agent-tree-text-out { to { opacity: 0; filter: blur(3px); } }
+@container (min-width: 320px) { :root[data-client='standalone'] .agent-tree-tokens { display: block; } }
+@media (hover: hover) {
+  :root[data-client='standalone'] .agent-tree:hover { box-shadow: 0 0 0 1px rgb(0 0 0 / .08), 0 1px 2px -1px rgb(0 0 0 / .08), 0 2px 4px rgb(0 0 0 / .06); }
+  :root.dark[data-client='standalone'] .agent-tree:hover { box-shadow: 0 0 0 1px rgb(255 255 255 / .13); }
+  :root[data-client='standalone'] .agent-tree-row:hover { background: var(--tree-hover); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-client='standalone'] .agent-tree, :root[data-client='standalone'] .agent-tree :is(.agent-tree-chevron,.agent-tree-spinner,.agent-tree-swap-in,.agent-tree-swap-out) { animation: none !important; transition: none !important; }
+  :root[data-client='standalone'] .agent-tree-swap-out { display: none !important; }
+}
+:root[data-client='standalone'] .agent-tree .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+:root[data-client='standalone'] .agent-tree-open-inline { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+:root[data-client='standalone'] .agent-tree-open-inline.agent-tree-brief, :root[data-client='standalone'] .agent-tree-open-inline.agent-tree-earlier { color: var(--tree-muted); }
+:root[data-client='standalone'] .agent-tree-step .agent-tree-open-inline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-client='standalone'] .agent-tree-detail-rail { position: absolute; top: 0; bottom: 0; left: 12.5px; width: 1px; background: var(--tree-line); pointer-events: none; }
+
+/* An anchored agent event aligns to the card's 4px margin + 12px inset + 12px header center. */
+:root[data-client='standalone'] .tl-item[data-kind='agents'] > .tl-node { height:56px; }
+:root[data-client='standalone'] .tl-item[data-kind='agents']::before { top:39px; }

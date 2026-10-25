@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 620" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="light" cx="82%" cy="10%" r="67%">
+      <stop stop-color="#E8AA81" stop-opacity=".10"/>
+      <stop offset=".48" stop-color="#C8D8C5" stop-opacity=".04"/>
+      <stop offset="1" stop-color="#C8D8C5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="contour" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#F8FAF4" stop-opacity="0"/>
+      <stop offset=".42" stop-color="#F8FAF4" stop-opacity=".065"/>
+      <stop offset="1" stop-color="#F8FAF4" stop-opacity=".02"/>
+    </linearGradient>
+  </defs>
+  <rect width="880" height="620" fill="url(#light)"/>
+  <g fill="none" stroke="url(#contour)" stroke-width="1.2">
+    <path d="M215-72C355 60 520-4 688 46s210 105 246 175"/>
+    <path d="M179-39C333 100 507 39 673 91s209 108 262 176"/>
+    <path d="M143-5C311 139 489 85 657 138s207 108 277 176"/>
+    <path d="M106 29C287 180 471 128 640 185s207 109 291 177"/>
+    <path d="M69 62C262 219 451 174 621 232s211 109 312 180"/>
+    <path d="M32 98C237 261 433 220 604 278s211 111 330 183"/>
+    <path d="M-6 131C213 303 413 264 586 324s212 110 350 187"/>
+    <path d="M-44 166C190 345 397 310 567 370s212 112 369 192"/>
+    <path d="M-82 200C164 385 378 357 550 418s217 112 391 198"/>
+  </g>
+</svg>
