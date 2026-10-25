@@ -42,7 +42,13 @@ try {
   const { composeVisual } = await import('data:text/javascript;base64,' + Buffer.from(bundled.outputFiles[0].text).toString('base64'));
   const authorization = 'Bearer ' + mintToken(secret, { uid: config.allowedUserId, sub: String(config.allowedUserId) });
   const post = async html => { const response = await app.inject({ method: 'POST', url: '/api/visuals', headers: { authorization }, payload: { html: composeVisual(html, { '--foreground': '#252525', '--background': '#ffffff', '--font-sans': 'system-ui' }, 'light') } }); assert.equal(response.statusCode, 200); return response.json().url; };
-  browser = await chromium.launch({ channel: process.env.VISUAL_TEST_BROWSER || 'chrome', headless: true, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  // Give Chrome/Crashpad writable, isolated directories rather than a runner's home.
+  const browserHome = path.join(tmp, 'browser-home');
+  const browserConfig = path.join(browserHome, 'config');
+  const browserCache = path.join(browserHome, 'cache');
+  const crashDir = path.join(browserHome, 'crashes');
+  await Promise.all([browserConfig, browserCache, crashDir].map(dir => fs.mkdir(dir, { recursive: true })));
+  browser = await chromium.launch({ channel: process.env.VISUAL_TEST_BROWSER || 'chrome', headless: true, env: { ...savedEnv, HOME: browserHome, XDG_CONFIG_HOME: browserConfig, XDG_CACHE_HOME: browserCache }, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--crash-dumps-dir=' + crashDir] });
   assert.ok(Number(browser.version().split('.')[0]) >= 152, 'Network isolation test requires Chrome 152+, not an older bundled Chromium.');
   let context = await browser.newContext(); let page = await context.newPage();
   await page.goto(origin + '/__unsafe-control'); await page.waitForTimeout(700);
