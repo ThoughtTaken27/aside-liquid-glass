@@ -48,7 +48,7 @@ export const VISUAL_CONNECTION_ALLOWLIST = '(); redirects=block; webrtc=block';
 /** Compatibility check, NOT authentication: unsupported engines get a script-limited view. */
 export function supportsVisualNetworkIsolation(userAgent: string | undefined): boolean {
   if (!userAgent || /(?:CriOS|FxiOS|Firefox|iPhone|iPad|iPod)\//i.test(userAgent)) return false;
-  const chromium = /\b(?:Chrome|Chromium)\/(\d+)\./.exec(userAgent);
+  const chromium = /\b(?:Chrome|Chromium|HeadlessChrome)\/(\d+)\./.exec(userAgent);
   return Boolean(chromium && Number(chromium[1]) >= 152);
 }
 

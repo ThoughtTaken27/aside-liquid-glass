@@ -12,8 +12,8 @@ import { supportsVisualNetworkIsolation, VISUAL_CONNECTION_ALLOWLIST, VISUAL_STA
 
 const chrome = 'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/155.0.0.0 Mobile Safari/537.36';
 describe('network isolation compatibility', () => {
-  it.each([chrome, 'Mozilla/5.0 Chrome/152.0.0.0 Safari/537.36', 'Mozilla/5.0 Chromium/154.0.0.0'])('allows a supported Chromium engine: %s', ua => expect(supportsVisualNetworkIsolation(ua)).toBe(true));
-  it.each([undefined, '', 'Mozilla/5.0 Chrome/151.0.0.0', 'Mozilla/5.0 Firefox/155.0', 'Mozilla/5.0 (iPhone) CriOS/155.0.0.0 Safari/605', 'Mozilla/5.0 Safari/605.1.15'])('fails closed for an unsupported or absent engine: %s', ua => expect(supportsVisualNetworkIsolation(ua)).toBe(false));
+  it.each([chrome, 'Mozilla/5.0 Chrome/152.0.0.0 Safari/537.36', 'Mozilla/5.0 Chromium/154.0.0.0', 'Mozilla/5.0 HeadlessChrome/155.0.0.0'])('allows a supported Chromium engine: %s', ua => expect(supportsVisualNetworkIsolation(ua)).toBe(true));
+  it.each([undefined, '', 'Mozilla/5.0 Chrome/151.0.0.0', 'Mozilla/5.0 HeadlessChrome/151.0.0.0', 'Mozilla/5.0 Firefox/155.0', 'Mozilla/5.0 (iPhone) CriOS/155.0.0.0 Safari/605', 'Mozilla/5.0 Safari/605.1.15'])('fails closed for an unsupported or absent engine: %s', ua => expect(supportsVisualNetworkIsolation(ua)).toBe(false));
   it('uses an explicitly empty network allowlist, including redirects and WebRTC', () => expect(VISUAL_CONNECTION_ALLOWLIST).toBe('(); redirects=block; webrtc=block'));
 });
 describe('offline card compilation', () => {

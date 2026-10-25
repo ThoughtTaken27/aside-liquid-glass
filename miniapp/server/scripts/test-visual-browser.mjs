@@ -27,6 +27,7 @@ const assertions = [];
 try {
   process.env.MINIAPP_CONFIG = path.join(tmp, 'absent-config.json');
   process.env.MINIAPP_STATE_DIR = path.join(tmp, 'state');
+  process.env.MINIAPP_OWNER_PROFILE_PATH = path.join(tmp, 'absent-owner-profile.json');
   process.env.MINIAPP_SESSIONS_DIR = path.join(tmp, 'sessions');
   await fs.mkdir(process.env.MINIAPP_SESSIONS_DIR);
   const config = loadConfig(), secret = 'synthetic-browser-secret-not-real';
@@ -81,8 +82,12 @@ try {
     assert.deepEqual(hits, [], `${mode}/${name} reached a network collector`);
     if (name === 'storage') {
       const frame = mode === 'embedded' ? page.frames().find(f => f.url().includes('/api/visuals/')) : page.mainFrame();
+      await frame.locator('body[data-reads]').waitFor();
       const reads = JSON.parse(await frame.locator('body').getAttribute('data-reads'));
-      assert.ok(reads.every(x => x === 'blocked' || x === ''), 'Visual read a protected DOM/storage value');
+      assert.equal(reads.length, 4, 'Storage probe did not execute completely');
+      if (mode === 'embedded') assert.equal(reads[0], 'blocked', 'Visual read the parent app DOM');
+      else assert.match(reads[0], /Synthetic private card/, 'Direct visual should still read its own DOM');
+      assert.ok(reads.slice(1).every(x => x === 'blocked' || x === ''), 'Visual read protected cookies/local storage');
     }
     assertions.push(`${mode}/${name}: no HTTP or STUN collector hit`);
     await context.close();

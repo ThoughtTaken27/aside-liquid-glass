@@ -100,15 +100,20 @@ export function startJevSocket(o: JevSocketOptions): { close: () => Promise<void
   } catch {
     /* none left over */
   }
-  const old = process.umask(0o177);
-  server.listen(o.socketPath, () => {
+  // Bind owner-only without leaking a process-global mask across async callbacks.
+  // 077 also preserves directory traversal if native I/O runs during this brief bind.
+  const old = process.umask(0o077);
+  try {
+    server.listen(o.socketPath, () => {
+      try {
+        fs.chmodSync(o.socketPath, 0o600);
+      } catch (err) {
+        o.log?.('jev socket chmod failed', err);
+      }
+    });
+  } finally {
     process.umask(old);
-    try {
-      fs.chmodSync(o.socketPath, 0o600);
-    } catch (err) {
-      o.log?.('jev socket chmod failed', err);
-    }
-  });
+  }
   server.on('error', (err) => o.log?.('jev socket error', err));
   return {
     close: () =>

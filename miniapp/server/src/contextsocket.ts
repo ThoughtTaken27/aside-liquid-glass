@@ -66,13 +66,18 @@ export function startContextSocket(o: ContextSocketOptions): { close: () => Prom
   const server = http.createServer(contextHandler(o.ctx));
   fs.mkdirSync(path.dirname(o.socketPath), { recursive: true });
   try { fs.unlinkSync(o.socketPath); } catch { /* not there */ }
-  const old = process.umask(0o177);
-  server.listen(o.socketPath, () => {
+  // Bind owner-only without leaking a process-global mask across async callbacks.
+  // 077 also preserves directory traversal if native I/O runs during this brief bind.
+  const old = process.umask(0o077);
+  try {
+    server.listen(o.socketPath, () => {
+      try { fs.chmodSync(o.socketPath, 0o600); } catch { /* best effort */ }
+      o.log?.('context socket listening', { path: o.socketPath });
+    });
+  } finally {
     process.umask(old);
-    try { fs.chmodSync(o.socketPath, 0o600); } catch { /* best effort */ }
-    o.log?.('context socket listening', { path: o.socketPath });
-  });
-  server.on('error', (err) => { process.umask(old); o.log?.('context socket error', { err: String(err) }); });
+  }
+  server.on('error', (err) => { o.log?.('context socket error', { err: String(err) }); });
   return {
     close: () => new Promise<void>((resolve) => {
       server.close(() => { try { fs.unlinkSync(o.socketPath); } catch { /* gone */ } resolve(); });
