@@ -37,9 +37,15 @@ it.each(['jev', 'context'] as const)('%s bind errors do not change the process m
   let socket: { close: () => Promise<void> } | undefined;
   const events: string[] = [];
   try {
-    socket = start(kind, path.join(dir, 'x'.repeat(140) + '.sock'), msg => events.push(msg));
+    // Node 22 can truncate long Unix paths rather than reject them; a directory
+    // is an unbindable socket destination on every supported platform.
+    const occupied = path.join(dir, 'directory-not-socket');
+    fs.mkdirSync(occupied);
+    let onError!: () => void;
+    const failed = new Promise<void>(resolve => { onError = resolve; });
+    socket = start(kind, occupied, msg => { events.push(msg); if (msg.includes('socket error')) onError(); });
     expect(process.umask()).toBe(0o022);
-    await new Promise<void>(resolve => setImmediate(resolve));
+    await failed;
     expect(events.some(msg => msg.includes('socket error'))).toBe(true);
     expect(process.umask()).toBe(0o022);
   } finally {
